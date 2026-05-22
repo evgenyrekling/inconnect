@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --ink: #101415;
+  --paper: #f5f2eb;
+  --line: #d8d0c0;
+  --signal: #f0a21a;
+  --mint: #0d6d62;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #f0a21a;
+  color: #17140d;
+}
+
+.hero-overlay {
+  background:
+    linear-gradient(90deg, rgba(13, 17, 18, 0.94) 0%, rgba(13, 17, 18, 0.78) 42%, rgba(13, 17, 18, 0.28) 100%),
+    linear-gradient(180deg, rgba(13, 17, 18, 0.18) 0%, rgba(13, 17, 18, 0.68) 100%);
+}
+
+.score-ring {
+  background:
+    radial-gradient(circle, #fff 62%, transparent 63%),
+    conic-gradient(#0d6d62 0deg 281deg, #e7dcc8 281deg 360deg);
+}
+
+.step-glow {
+  animation: step-pulse 1.35s ease-in-out infinite;
+}
+
+@keyframes step-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.98);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
