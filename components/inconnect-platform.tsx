@@ -60,8 +60,8 @@ const scanningSteps = [
 ];
 
 const navItems = [
-  { label: "Features", href: "#features" },
   { label: "Assessment", href: "#assessment" },
+  { label: "Features", href: "#features" },
   { label: "Trend Radar", href: "#trend-radar" },
   { label: "Pricing", href: "#pricing" },
   { label: "Contact", href: "#contact" },
@@ -87,6 +87,27 @@ const featureCards = [
     title: "Content Opportunity Engine",
     copy: "Creates premium topic angles without feeling like a generic writing tool.",
     icon: LineChart,
+  },
+];
+
+const trendRadarCards = [
+  {
+    title: "AI leadership signals",
+    momentum: "High signal",
+    summary:
+      "Track where AI is reshaping professional positioning and executive-level conversations.",
+  },
+  {
+    title: "Professional growth themes",
+    momentum: "Rising",
+    summary:
+      "Spot content angles that connect expertise, credibility, and career authority.",
+  },
+  {
+    title: "Market timing opportunities",
+    momentum: "Now",
+    summary:
+      "Identify timely LinkedIn topics before they become saturated category noise.",
   },
 ];
 
@@ -549,6 +570,53 @@ function FeaturesSection() {
               <h3 className="mt-5 text-lg font-semibold">{feature.title}</h3>
               <p className="mt-3 text-sm leading-6 text-[#666666]">
                 {feature.copy}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrendRadarSection() {
+  return (
+    <section
+      className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10"
+      id="trend-radar"
+    >
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.78fr_1fr] lg:items-end">
+          <div>
+            <SectionEyebrow icon={Radar}>Trend Radar</SectionEyebrow>
+            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
+              See which LinkedIn conversations match your authority lane.
+            </h2>
+          </div>
+          <p className="max-w-2xl text-base leading-7 text-[#666666]">
+            INConnect connects your detected expertise with professional trends,
+            market timing, and content angles that can strengthen LinkedIn
+            authority.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {trendRadarCards.map((trend) => (
+            <article
+              className="rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+              key={trend.title}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DADCE0] bg-[#E8F1FB] text-[#0A66C2]">
+                  <Radar className="h-5 w-5" />
+                </span>
+                <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-2 py-1 text-xs font-semibold text-[#0A66C2]">
+                  {trend.momentum}
+                </span>
+              </div>
+              <h3 className="mt-5 text-lg font-semibold">{trend.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-[#666666]">
+                {trend.summary}
               </p>
             </article>
           ))}
@@ -1215,7 +1283,6 @@ function Results({
 
       <section
         className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
-        id="trend-radar"
       >
         <div className="flex flex-col gap-4 border-b border-[#DADCE0] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -1737,11 +1804,10 @@ export function INConnectPlatform() {
   return (
     <main className="overflow-x-hidden bg-[#F3F2EF]">
       <LandingHero />
-      <FeaturesSection />
       <AssessmentSection />
+      <FeaturesSection />
+      <TrendRadarSection />
       <PricingSection />
-      <BuiltForSection />
-      <ArchitectureSection />
       <ContactFooter />
     </main>
   );
