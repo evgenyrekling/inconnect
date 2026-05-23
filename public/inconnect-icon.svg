@@ -1,0 +1,13 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">INConnect icon</title>
+  <desc id="desc">Rounded navy square with white IN monogram and electric blue connection nodes.</desc>
+  <rect x="1" y="1" width="46" height="46" rx="10" fill="#06111F"/>
+  <rect x="1" y="1" width="46" height="46" rx="10" stroke="#2563FF" stroke-width="2"/>
+  <path d="M14 32V16" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M21 32V16L34 32V16" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="14" cy="16" r="3" fill="#2563FF"/>
+  <circle cx="34" cy="32" r="3" fill="#2563FF"/>
+  <path d="M14 16H21" stroke="#2563FF" stroke-width="2" stroke-linecap="round"/>
+  <path d="M28 32H34" stroke="#2563FF" stroke-width="2" stroke-linecap="round"/>
+</svg>
+

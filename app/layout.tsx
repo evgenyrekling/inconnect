@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "INConnect | AI LinkedIn Assistant for Professionals",
   description:
     "INConnect turns professional expertise into LinkedIn authority with profile analysis, professional area detection, trend discovery, and personalized content ideas.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

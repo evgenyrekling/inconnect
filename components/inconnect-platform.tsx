@@ -19,7 +19,6 @@ import {
   GripVertical,
   Layers3,
   LineChart,
-  Link2,
   LoaderCircle,
   LockKeyhole,
   Mail,
@@ -46,6 +45,7 @@ import {
   profileForPrimaryArea,
   type AreaProfile,
 } from "@/lib/mock-intelligence";
+import { Logo } from "@/components/Logo";
 
 type Stage = "idle" | "scanning" | "areas" | "results";
 
@@ -218,15 +218,7 @@ function LandingHero() {
 
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
         <a className="flex items-center gap-3" href="#" aria-label="INConnect home">
-          <span className="grid h-10 w-10 place-items-center rounded-lg border border-[#2563FF]/30 bg-[#2563FF]/10 text-[#D7E4FF]">
-            <Link2 className="h-5 w-5" />
-          </span>
-          <span>
-            <span className="block text-lg font-semibold">INConnect</span>
-            <span className="block text-xs text-slate-400">
-              Visibility intelligence
-            </span>
-          </span>
+          <Logo />
         </a>
 
         <nav className="hidden items-center gap-1 text-sm text-slate-300 lg:flex">
@@ -905,11 +897,8 @@ function ShareScoreCard({
         <div className="share-card rounded-lg border border-[#2563FF]/25 bg-[#071326] p-5 shadow-[0_25px_90px_rgba(0,0,0,0.35)]">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
-                <Link2 className="h-5 w-5" />
-              </span>
+              <Logo markSize={40} showSubtitle={false} />
               <div>
-                <p className="font-semibold">INConnect</p>
                 <p className="text-xs text-slate-500">
                   Turn Professional Expertise Into LinkedIn Authority.
                 </p>
@@ -1579,7 +1568,7 @@ function ContactFooter() {
     <footer className="bg-[#06111F] px-5 py-10 text-white sm:px-8 lg:px-10" id="contact">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-white/10 pt-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-lg font-semibold">INConnect</p>
+          <Logo markSize={36} showSubtitle={false} />
           <p className="mt-2 text-sm text-slate-500">
             Professional visibility intelligence platform.
           </p>
