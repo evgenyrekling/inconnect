@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "INConnect | AI LinkedIn Assistant for Industrial Professionals",
+  title: "INConnect | AI LinkedIn Assistant for Professionals",
   description:
-    "INConnect turns industrial expertise into LinkedIn authority with mock profile assessment, trend signals, and personalized post ideas.",
+    "INConnect turns professional expertise into LinkedIn authority with profile analysis, professional area detection, trend discovery, and personalized content ideas.",
 };
 
 export default function RootLayout({
@@ -18,4 +18,3 @@ export default function RootLayout({
     </html>
   );
 }
-

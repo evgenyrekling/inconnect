@@ -1,12 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
-  --ink: #101415;
-  --paper: #f5f2eb;
-  --line: #d8d0c0;
-  --signal: #f0a21a;
-  --mint: #0d6d62;
+  color-scheme: dark;
+  --background: #05080d;
+  --surface: #071017;
+  --text: #f8fafc;
 }
 
 * {
@@ -19,8 +17,8 @@ html {
 
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--background);
+  color: var(--text);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -38,37 +36,91 @@ select {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 ::selection {
-  background: #f0a21a;
-  color: #17140d;
+  background: #67e8f9;
+  color: #051017;
 }
 
-.hero-overlay {
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 72% 18%, rgba(167, 139, 250, 0.14), transparent 32%),
+    radial-gradient(circle at 18% 68%, rgba(248, 196, 113, 0.1), transparent 28%);
+  background-size:
+    52px 52px,
+    52px 52px,
+    100% 100%,
+    100% 100%;
+}
+
+.scanner-active {
+  animation: scanner-pulse 1.45s ease-in-out infinite;
+}
+
+.share-card {
+  background-image:
+    linear-gradient(135deg, rgba(103, 232, 249, 0.1), transparent 34%),
+    linear-gradient(225deg, rgba(167, 139, 250, 0.12), transparent 38%),
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    38px 38px,
+    38px 38px;
+}
+
+.area-visual {
   background:
-    linear-gradient(90deg, rgba(13, 17, 18, 0.94) 0%, rgba(13, 17, 18, 0.78) 42%, rgba(13, 17, 18, 0.28) 100%),
-    linear-gradient(180deg, rgba(13, 17, 18, 0.18) 0%, rgba(13, 17, 18, 0.68) 100%);
+    linear-gradient(135deg, rgba(103, 232, 249, 0.22), transparent 45%),
+    linear-gradient(225deg, rgba(248, 196, 113, 0.13), transparent 48%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 18px
+    ),
+    #081018;
 }
 
-.score-ring {
+.area-card:nth-child(3n + 2) .area-visual {
   background:
-    radial-gradient(circle, #fff 62%, transparent 63%),
-    conic-gradient(#0d6d62 0deg 281deg, #e7dcc8 281deg 360deg);
+    linear-gradient(135deg, rgba(167, 139, 250, 0.24), transparent 44%),
+    linear-gradient(225deg, rgba(103, 232, 249, 0.12), transparent 46%),
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.08), transparent 24%),
+    #081018;
 }
 
-.step-glow {
-  animation: step-pulse 1.35s ease-in-out infinite;
+.area-card:nth-child(3n) .area-visual {
+  background:
+    linear-gradient(145deg, rgba(248, 196, 113, 0.22), transparent 42%),
+    linear-gradient(225deg, rgba(103, 232, 249, 0.18), transparent 50%),
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    #081018;
+  background-size:
+    100% 100%,
+    100% 100%,
+    28px 28px,
+    100% 100%;
 }
 
-@keyframes step-pulse {
+@keyframes scanner-pulse {
   0%,
   100% {
-    opacity: 0.72;
-    transform: scale(0.98);
+    box-shadow: 0 0 0 rgba(103, 232, 249, 0);
   }
 
   50% {
-    opacity: 1;
-    transform: scale(1);
+    box-shadow: 0 0 42px rgba(103, 232, 249, 0.16);
   }
 }
-

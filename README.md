@@ -1,15 +1,23 @@
-# INConnect MVP
+# INConnect Freemium SaaS Prototype
 
-INConnect is a first-pass landing and mock analysis experience for an AI-powered
-LinkedIn assistant aimed at industrial professionals.
+INConnect is a polished mock freemium SaaS prototype for an AI-powered
+LinkedIn assistant aimed at professionals across industries.
 
 ## Included
 
 - Next.js App Router project with TypeScript and Tailwind CSS
-- Industrial landing page with generated hero art
-- LinkedIn profile URL, company website, industry, and goal inputs
-- Mock loading sequence, profile assessment, trend cards, and 10 post ideas
+- Premium dark SaaS landing page
+- LinkedIn profile URL and optional company website/domain/name input
+- Mock AI scanning flow
+- Editable professional area detection with confidence scores
+- Email capture modal before results
+- Limited-depth free assessment with unlimited free analyses
+- Shareable LinkedIn Authority Score card and generated share text
+- Trend Radar with 3 visible insights and locked Pro insights
+- One personalized topic idea with Pro idea lock
 - Free and Pro pricing section
+- Built-for professional area cards
+- Future integration placeholders for OpenAI, Supabase, Stripe, trend feeds, and accounts
 - Responsive layout ready for Vercel deployment
 
 ## Local development
@@ -29,4 +37,3 @@ npm run build
 ```
 
 Vercel can deploy the repository with the default Next.js preset.
-
