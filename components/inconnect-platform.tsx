@@ -54,7 +54,7 @@ const scanningSteps = [
   "Identifying relevant industries",
   "Checking company positioning",
   "Scanning relevant trends",
-  "Preparing visibility assessment",
+  "Preparing LinkedIn growth assessment",
 ];
 
 const navItems = [
@@ -294,7 +294,7 @@ function LandingHero() {
         <div className="relative min-h-[520px]">
           <div className="absolute inset-x-4 top-4 h-72 overflow-hidden rounded-lg border border-white/12 opacity-55">
             <Image
-              alt="Professional signal layer for INConnect visibility intelligence."
+              alt="Professional LinkedIn growth dashboard preview for INConnect."
               className="object-cover"
               fill
               priority
@@ -364,7 +364,7 @@ function FeaturesSection() {
           <div>
             <SectionEyebrow icon={Target}>Features</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              Built as professional visibility intelligence.
+              Built for LinkedIn growth with professional context.
             </h2>
           </div>
           <p className="max-w-2xl text-base leading-7 text-[#666666]">
@@ -491,7 +491,7 @@ function Scanner({
             AI scanning flow
           </p>
           <h3 className="mt-2 text-2xl font-semibold">
-            Professional visibility scan
+            LinkedIn growth scan
           </h3>
         </div>
         <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
@@ -734,7 +734,7 @@ function EmailCaptureModal({
               Your LinkedIn Authority Assessment Is Ready
             </h3>
             <p className="mt-3 text-sm leading-6 text-[#666666]">
-              Receive your personalized visibility insights, trend radar, and
+              Receive your personalized LinkedIn growth insights, trend radar, and
               AI-powered LinkedIn opportunities.
             </p>
           </div>
@@ -1332,7 +1332,7 @@ function AssessmentSection() {
                     Result preview
                   </p>
                   <h3 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
-                    Professional visibility intelligence, not generic content
+                    LinkedIn growth guidance, not generic content
                     generation.
                   </h3>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
@@ -1569,7 +1569,7 @@ function ContactFooter() {
         <div>
           <Logo markSize={36} showSubtitle={false} />
           <p className="mt-2 text-sm text-[#666666]">
-            Professional visibility intelligence platform.
+            Your AI LinkedIn growth assistant.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm text-[#666666]">

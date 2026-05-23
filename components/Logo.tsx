@@ -40,7 +40,7 @@ export function Logo({
           </span>
           {showSubtitle && (
             <span className={`mt-1 block text-xs font-medium ${subtitleClass}`}>
-              Visibility intelligence
+              Your AI LinkedIn Growth Assistant
             </span>
           )}
         </span>
