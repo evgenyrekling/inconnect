@@ -5,6 +5,7 @@ type LogoProps = {
   iconOnly?: boolean;
   markSize?: number;
   showSubtitle?: boolean;
+  tone?: "light" | "dark";
 };
 
 export function Logo({
@@ -12,7 +13,11 @@ export function Logo({
   iconOnly = false,
   markSize = 40,
   showSubtitle = true,
+  tone = "light",
 }: LogoProps) {
+  const textClass = tone === "dark" ? "text-white" : "text-[#191919]";
+  const subtitleClass = tone === "dark" ? "text-white/70" : "text-[#666666]";
+
   return (
     <span className={`inline-flex items-center gap-3 ${className}`}>
       <span
@@ -24,17 +29,17 @@ export function Logo({
           className="h-full w-full"
           height={markSize}
           priority
-          src="/inconnect-icon.svg"
+          src="/logo-icon.svg"
           width={markSize}
         />
       </span>
       {!iconOnly && (
         <span className="leading-none">
-          <span className="block text-lg font-semibold tracking-normal text-white">
+          <span className={`block text-lg font-semibold tracking-normal ${textClass}`}>
             INConnect
           </span>
           {showSubtitle && (
-            <span className="mt-1 block text-xs font-medium text-slate-400">
+            <span className={`mt-1 block text-xs font-medium ${subtitleClass}`}>
               Visibility intelligence
             </span>
           )}
