@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import Image from "next/image";
 import {
   ArrowRight,
   BadgeCheck,
@@ -209,6 +208,205 @@ function SectionEyebrow({
   );
 }
 
+function HeroKeyVisual() {
+  const authoritySignals = [
+    ["Profile clarity", "92%"],
+    ["Authority fit", "84%"],
+    ["Trend match", "78%"],
+  ];
+  const trendSignals = ["AI leadership", "Professional growth", "Market timing"];
+
+  return (
+    <div
+      aria-label="AI-powered professional growth and LinkedIn authority platform preview."
+      className="relative mx-auto min-h-[520px] w-full max-w-xl sm:min-h-[560px] lg:ml-auto lg:min-h-[590px]"
+      role="img"
+    >
+      <div className="hero-visual-grid absolute inset-0 rounded-[28px] border border-white/12 bg-white/[0.04]" />
+      <svg
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 560 590"
+      >
+        <defs>
+          <linearGradient id="heroSignalGradient" x1="74" x2="484" y1="92" y2="446">
+            <stop stopColor="#78B7F4" stopOpacity="0.18" />
+            <stop offset="0.52" stopColor="#0A66C2" stopOpacity="0.55" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0.16" />
+          </linearGradient>
+        </defs>
+        <path
+          className="hero-signal-path"
+          d="M72 160 C162 102 246 125 316 208 C384 286 430 290 500 248"
+          fill="none"
+          stroke="url(#heroSignalGradient)"
+          strokeWidth="2"
+        />
+        <path
+          className="hero-signal-path hero-signal-path-delayed"
+          d="M94 420 C178 342 250 368 318 300 C386 232 452 208 520 142"
+          fill="none"
+          stroke="url(#heroSignalGradient)"
+          strokeWidth="2"
+        />
+        {[
+          [72, 160],
+          [214, 128],
+          [316, 208],
+          [500, 248],
+          [94, 420],
+          [318, 300],
+          [520, 142],
+        ].map(([cx, cy]) => (
+          <circle
+            className="hero-node-pulse"
+            cx={cx}
+            cy={cy}
+            fill="#FFFFFF"
+            key={`${cx}-${cy}`}
+            r="4"
+            stroke="#0A66C2"
+            strokeWidth="2"
+          />
+        ))}
+      </svg>
+
+      <div className="hero-float-card relative ml-auto mt-10 w-full rounded-lg border border-[#DADCE0] bg-white p-4 text-[#191919] shadow-[0_26px_70px_rgba(0,0,0,0.26)] sm:w-[94%] sm:p-5">
+        <div className="flex items-center justify-between border-b border-[#DADCE0] pb-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-[#0A66C2]">
+              INConnect growth intelligence
+            </p>
+            <h2 className="mt-2 text-xl font-semibold">
+              LinkedIn authority dashboard
+            </h2>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-2 text-xs font-semibold text-[#0A66C2]">
+            <span className="h-2 w-2 rounded-full bg-[#057642]" />
+            Live preview
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[0.78fr_1fr]">
+          <div className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#666666]">
+              Authority score
+            </p>
+            <div className="mt-4 flex items-center gap-4">
+              <div
+                className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-1.5"
+                style={{
+                  background:
+                    "conic-gradient(#0A66C2 0deg 266deg, #DADCE0 266deg 360deg)",
+                }}
+              >
+                <div className="grid h-full w-full place-items-center rounded-full bg-white">
+                  <div className="text-center">
+                    <p className="text-3xl font-semibold">74</p>
+                    <p className="text-[10px] font-semibold uppercase text-[#0A66C2]">
+                      / 100
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Strong authority potential</p>
+                <p className="mt-2 text-xs leading-5 text-[#666666]">
+                  Your expertise is forming a clear LinkedIn positioning lane.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#DADCE0] bg-white p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Profile analytics</p>
+              <LineChart className="h-4 w-4 text-[#0A66C2]" />
+            </div>
+            <div className="mt-4 grid gap-3">
+              {authoritySignals.map(([label, value]) => (
+                <div className="grid gap-2" key={label}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#666666]">{label}</span>
+                    <span className="font-semibold text-[#191919]">{value}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[#DADCE0]">
+                    <div
+                      className="h-full rounded-full bg-[#0A66C2]"
+                      style={{ width: value }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_0.82fr]">
+          <div className="rounded-lg border border-[#DADCE0] bg-white p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Trend radar</p>
+              <Radar className="h-4 w-4 text-[#0A66C2]" />
+            </div>
+            <div className="mt-4 grid gap-2">
+              {trendSignals.map((signal, index) => (
+                <div
+                  className="flex items-center justify-between rounded-lg border border-[#DADCE0] bg-[#F8F8F6] px-3 py-2 text-xs"
+                  key={signal}
+                >
+                  <span className="font-medium">{signal}</span>
+                  <span className="text-[#0A66C2]">
+                    {index === 0 ? "High" : index === 1 ? "Rising" : "Now"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden rounded-lg border border-[#DADCE0] bg-[#0A192F] p-4 text-white md:block">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/55">
+              Network signals
+            </p>
+            <div className="mt-4 flex items-end gap-2">
+              {[46, 68, 54, 82, 76, 94, 88].map((height, index) => (
+                <div
+                  className="flex-1 rounded-t-sm bg-[#78B7F4]"
+                  key={height}
+                  style={{
+                    height: `${height}px`,
+                    opacity: 0.34 + index * 0.08,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-float-card hero-float-card-delayed absolute bottom-4 left-0 hidden w-72 rounded-lg border border-[#DADCE0] bg-white p-4 text-[#191919] shadow-[0_18px_48px_rgba(0,0,0,0.22)] lg:block">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
+            <UserRound className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">Professional positioning</p>
+            <p className="mt-1 text-xs text-[#666666]">
+              Expertise, trends, and audience fit aligned.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-float-card absolute right-2 top-0 hidden rounded-lg border border-white/15 bg-[#0A192F] px-4 py-3 text-white shadow-[0_18px_44px_rgba(0,0,0,0.24)] sm:block">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <BadgeCheck className="h-4 w-4 text-[#78B7F4]" />
+          Authority path detected
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LandingHero() {
   return (
     <section className="relative isolate overflow-hidden bg-[#0A192F] text-white">
@@ -291,66 +489,7 @@ function LandingHero() {
           </div>
         </div>
 
-        <div className="relative min-h-[520px]">
-          <div className="absolute inset-x-4 top-4 h-72 overflow-hidden rounded-lg border border-white/12 opacity-55">
-            <Image
-              alt="Professional LinkedIn growth dashboard preview for INConnect."
-              className="object-cover"
-              fill
-              priority
-              sizes="(min-width: 1024px) 40vw, 90vw"
-              src="/industrial-hero.png"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,47,0.04),rgba(10,25,47,0.92))]" />
-          </div>
-
-          <div className="relative ml-auto mt-16 max-w-xl rounded-lg border border-white/15 bg-white/[0.96] p-5 text-[#191919] shadow-[0_18px_54px_rgba(0,0,0,0.26)]">
-            <div className="flex items-center justify-between border-b border-[#DADCE0] pb-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-[#0A66C2]">
-                  Live intelligence preview
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  LinkedIn authority dashboard
-                </h2>
-              </div>
-              <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
-                <LineChart className="h-5 w-5" />
-              </span>
-            </div>
-
-            <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#666666]">Authority signal</span>
-                  <span className="font-semibold text-[#0A66C2]">74 / 100</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-[#DADCE0]">
-                  <div className="h-full w-[74%] rounded-full bg-[#0A66C2]" />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                {["Expertise", "Trends", "Topics"].map((item, index) => (
-                  <div
-                    className="rounded-lg border border-[#DADCE0] bg-white p-4"
-                    key={item}
-                  >
-                    <p className="text-xs text-[#666666]">Layer 0{index + 1}</p>
-                    <p className="mt-2 text-sm font-semibold">{item}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-                <p className="text-sm leading-6 text-[#191919]">
-                  Positioned at the intersection of professional expertise,
-                  market timing, and LinkedIn authority potential.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <HeroKeyVisual />
       </div>
     </section>
   );
