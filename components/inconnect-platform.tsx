@@ -32,7 +32,8 @@ import {
   WalletCards,
   Zap,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { toPng } from "html-to-image";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   createShareText,
   type DetectedArea,
@@ -46,6 +47,10 @@ import {
 import { Logo } from "@/components/Logo";
 
 type Stage = "idle" | "scanning" | "areas" | "results";
+type ShareStatus = "idle" | "sharing" | "success" | "error";
+
+const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
+const SCORE_IMAGE_FILENAME = "inconnect-authority-score.png";
 
 const scanningSteps = [
   "Analyzing LinkedIn profile",
@@ -166,6 +171,42 @@ function getPrimaryArea(areas: DetectedArea[]) {
 
 function saveMockUser(record: MockUserRecord) {
   window.localStorage.setItem("inconnect.mockUser", JSON.stringify(record));
+}
+
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = dataUrl;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back for browsers that require a focused document.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -992,9 +1033,83 @@ function ShareScoreCard({
   shareText: string;
 }) {
   const primary = getPrimaryArea(areas);
-  const shareHref = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(
-    shareText,
-  )}`;
+  const cardRef = useRef<HTMLDivElement>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
+  const [shareMessage, setShareMessage] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showToast(status: Exclude<ShareStatus, "idle" | "sharing">, message: string) {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+
+    setShareStatus(status);
+    setShareMessage(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setShareStatus("idle");
+      setShareMessage("");
+    }, 4200);
+  }
+
+  async function handleLinkedInShare() {
+    const card = cardRef.current;
+    const linkedInTab = window.open("about:blank", "_blank");
+
+    if (linkedInTab) {
+      linkedInTab.opener = null;
+    }
+
+    try {
+      if (!card) {
+        throw new Error("Share card is not ready yet.");
+      }
+
+      setShareStatus("sharing");
+      setShareMessage("");
+
+      const imageUrl = await toPng(card, {
+        backgroundColor: "#FFFFFF",
+        cacheBust: true,
+        pixelRatio: 2,
+        style: {
+          margin: "0",
+        },
+      });
+
+      downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
+
+      const copiedText = await copyTextToClipboard(shareText);
+      if (!copiedText) {
+        throw new Error("Could not copy the LinkedIn post text.");
+      }
+
+      if (linkedInTab) {
+        linkedInTab.location.href = LINKEDIN_FEED_URL;
+      } else {
+        window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
+      }
+
+      showToast(
+        "success",
+        "Score image downloaded and LinkedIn post copied.",
+      );
+    } catch (error) {
+      linkedInTab?.close();
+      console.error(error);
+      showToast(
+        "error",
+        "Could not prepare the LinkedIn share. Please try again.",
+      );
+    }
+  }
 
   return (
     <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
@@ -1020,19 +1135,28 @@ function ShareScoreCard({
               <Copy className="h-4 w-4" />
               {copied ? "Copied" : "Copy LinkedIn Post"}
             </button>
-            <a
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DADCE0] bg-white px-4 font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
-              href={shareHref}
-              rel="noreferrer"
-              target="_blank"
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DADCE0] bg-white px-4 font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-wait disabled:opacity-70"
+              disabled={shareStatus === "sharing"}
+              onClick={handleLinkedInShare}
+              type="button"
             >
-              <ExternalLink className="h-4 w-4" />
-              Share on LinkedIn
-            </a>
+              {shareStatus === "sharing" ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+              {shareStatus === "sharing"
+                ? "Preparing share..."
+                : "Download & Share on LinkedIn"}
+            </button>
           </div>
         </div>
 
-        <div className="share-card rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]">
+        <div
+          className="share-card rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]"
+          ref={cardRef}
+        >
           <div className="flex items-center justify-between border-b border-[#DADCE0] pb-4">
             <div className="flex items-center gap-3">
               <Logo markSize={40} showSubtitle={false} />
@@ -1091,6 +1215,20 @@ function ShareScoreCard({
           </div>
         </div>
       </div>
+
+      {shareStatus !== "idle" && shareStatus !== "sharing" && (
+        <div
+          className={classNames(
+            "fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border bg-white px-4 py-3 text-sm font-semibold shadow-[0_18px_48px_rgba(10,25,47,0.18)]",
+            shareStatus === "success"
+              ? "border-[#057642]/25 text-[#057642]"
+              : "border-red-300 text-red-600",
+          )}
+          role="status"
+        >
+          {shareMessage}
+        </div>
+      )}
     </section>
   );
 }

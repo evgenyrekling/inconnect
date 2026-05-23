@@ -515,20 +515,19 @@ export function getMockProfileName(linkedInUrl: string) {
 }
 
 export function createShareText(score: number, areas: DetectedArea[]) {
-  const visibleAreas = areas.slice(0, 3).map((area) => area.name);
+  const primaryArea = areas[0]?.name ?? "Professional Growth";
 
   return [
-    "I just analyzed my LinkedIn positioning with INConnect.",
+    "I just checked my LinkedIn Authority Score using INConnect.",
     "",
-    `LinkedIn Authority Score: ${score}/100`,
+    `My score: ${score}/100`,
     "",
-    "Detected expertise areas:",
-    ...visibleAreas.map((area) => `- ${area}`),
+    "Primary professional area:",
+    primaryArea,
     "",
-    "Interesting to see how AI interprets professional positioning and thought leadership potential.",
+    "Check your professional authority:",
+    "https://inconnect.app",
     "",
-    "Curious what score other professionals would get.",
-    "",
-    "#INConnect #LinkedIn #PersonalBranding #ProfessionalGrowth",
+    "#LinkedIn #ProfessionalBranding #PersonalBranding",
   ].join("\n");
 }
