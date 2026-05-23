@@ -15,7 +15,6 @@ import {
   Copy,
   Database,
   ExternalLink,
-  Factory,
   Globe2,
   GripVertical,
   Layers3,
@@ -32,7 +31,6 @@ import {
   Star,
   Target,
   Trash2,
-  TrendingUp,
   UserRound,
   WalletCards,
   Zap,
@@ -178,17 +176,17 @@ function ScoreRing({ score }: { score: number }) {
   return (
     <div
       aria-label={`LinkedIn Authority Score ${score} out of 100`}
-      className="grid h-40 w-40 place-items-center rounded-full p-2 shadow-[0_0_80px_rgba(56,189,248,0.18)]"
+      className="grid h-40 w-40 place-items-center rounded-full p-2 shadow-[0_18px_44px_rgba(0,0,0,0.32)]"
       style={{
-        background: `conic-gradient(#58d6ff 0deg ${degrees}deg, rgba(255,255,255,0.12) ${degrees}deg 360deg)`,
+        background: `conic-gradient(#2563FF 0deg ${degrees}deg, rgba(126,150,196,0.22) ${degrees}deg 360deg)`,
       }}
     >
-      <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-[#081015] text-center">
+      <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-[#071326] text-center">
         <div>
           <span className="block text-5xl font-semibold tracking-normal text-white">
             {score}
           </span>
-          <span className="text-xs font-semibold uppercase text-cyan-200/80">
+          <span className="text-xs font-semibold uppercase text-[#B8CAFF]">
             / 100
           </span>
         </div>
@@ -205,7 +203,7 @@ function SectionEyebrow({
   icon: typeof Sparkles;
 }) {
   return (
-    <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+    <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
       <Icon className="h-4 w-4" />
       {children}
     </p>
@@ -214,13 +212,13 @@ function SectionEyebrow({
 
 function LandingHero() {
   return (
-    <section className="relative isolate overflow-hidden bg-[#05080d] text-white">
+    <section className="relative isolate overflow-hidden bg-[#06111F] text-white">
       <div className="absolute inset-0 tech-grid opacity-70" />
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(9,14,22,0.96),rgba(9,17,28,0.82)_48%,rgba(19,38,49,0.72))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(6,17,31,0.98),rgba(8,20,39,0.92)_54%,rgba(10,29,55,0.78))]" />
 
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
         <a className="flex items-center gap-3" href="#" aria-label="INConnect home">
-          <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 text-cyan-100">
+          <span className="grid h-10 w-10 place-items-center rounded-lg border border-[#2563FF]/30 bg-[#2563FF]/10 text-[#D7E4FF]">
             <Link2 className="h-5 w-5" />
           </span>
           <span>
@@ -244,7 +242,7 @@ function LandingHero() {
         </nav>
 
         <a
-          className="hidden h-10 items-center justify-center rounded-lg border border-white/12 bg-white/10 px-4 text-sm font-semibold text-white transition hover:border-cyan-300/45 hover:bg-cyan-300/10 md:inline-flex"
+          className="hidden h-10 items-center justify-center rounded-lg border border-white/12 bg-white/10 px-4 text-sm font-semibold text-white transition hover:border-[#2563FF]/45 hover:bg-[#2563FF]/10 md:inline-flex"
           href="#assessment"
         >
           Start free
@@ -253,8 +251,8 @@ function LandingHero() {
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100svh-80px)] max-w-7xl items-center gap-10 px-5 pb-16 pt-10 sm:px-8 lg:grid-cols-[1fr_0.9fr] lg:px-10">
         <div className="max-w-3xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_0_40px_rgba(56,189,248,0.12)]">
-            <Sparkles className="h-4 w-4 text-cyan-200" />
+          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 px-3 py-2 text-sm text-[#EEF4FF]">
+            <Sparkles className="h-4 w-4 text-[#9DB7FF]" />
             AI-Powered LinkedIn Assistant for Professionals
           </div>
 
@@ -269,7 +267,7 @@ function LandingHero() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-200 px-5 font-semibold text-[#051017] shadow-[0_20px_60px_rgba(103,232,249,0.22)] transition hover:bg-white"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#2563FF] px-5 font-semibold text-white shadow-[0_10px_28px_rgba(0,0,0,0.28)] transition hover:bg-[#1D4ED8]"
               href="#assessment"
             >
               Analyze My LinkedIn Profile
@@ -290,7 +288,7 @@ function LandingHero() {
               ["Radar", "Trend insights"],
             ].map(([label, value]) => (
               <div
-                className="rounded-lg border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm"
+                className="rounded-lg border border-white/10 bg-white/[0.04] p-4"
                 key={label}
               >
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -312,20 +310,20 @@ function LandingHero() {
               sizes="(min-width: 1024px) 40vw, 90vw"
               src="/industrial-hero.png"
             />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,13,0.15),rgba(5,8,13,0.9))]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,17,31,0.1),rgba(6,17,31,0.9))]" />
           </div>
 
-          <div className="relative ml-auto mt-16 max-w-xl rounded-lg border border-cyan-300/20 bg-[#071017]/90 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.42)] backdrop-blur-md">
+          <div className="relative ml-auto mt-16 max-w-xl rounded-lg border border-[#2563FF]/20 bg-[#0A1729]/95 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.4)]">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">
+                <p className="text-xs uppercase tracking-[0.22em] text-[#9DB7FF]">
                   Live intelligence preview
                 </p>
                 <h2 className="mt-2 text-xl font-semibold">
                   LinkedIn authority dashboard
                 </h2>
               </div>
-              <span className="grid h-11 w-11 place-items-center rounded-lg bg-cyan-300/10 text-cyan-100">
+              <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
                 <LineChart className="h-5 w-5" />
               </span>
             </div>
@@ -334,10 +332,10 @@ function LandingHero() {
               <div className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-400">Authority signal</span>
-                  <span className="font-semibold text-cyan-100">74 / 100</span>
+                  <span className="font-semibold text-[#D7E4FF]">74 / 100</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full w-[74%] rounded-full bg-cyan-200" />
+                  <div className="h-full w-[74%] rounded-full bg-[#2563FF]" />
                 </div>
               </div>
 
@@ -353,8 +351,8 @@ function LandingHero() {
                 ))}
               </div>
 
-              <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
-                <p className="text-sm leading-6 text-cyan-50">
+              <div className="rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 p-4">
+                <p className="text-sm leading-6 text-[#EEF4FF]">
                   Positioned at the intersection of professional expertise,
                   market timing, and LinkedIn authority potential.
                 </p>
@@ -369,7 +367,7 @@ function LandingHero() {
 
 function FeaturesSection() {
   return (
-    <section className="bg-[#070b12] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10" id="features">
+    <section className="bg-[#081427] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10" id="features">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-[0.75fr_1fr] lg:items-end">
           <div>
@@ -388,10 +386,10 @@ function FeaturesSection() {
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featureCards.map((feature) => (
             <article
-              className="group rounded-lg border border-white/10 bg-white/[0.04] p-5 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-cyan-300/[0.07]"
+              className="group rounded-lg border border-white/10 bg-white/[0.04] p-5 transition duration-300 hover:-translate-y-1 hover:border-[#2563FF]/30 hover:bg-[#2563FF]/10"
               key={feature.title}
             >
-              <span className="grid h-11 w-11 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 transition group-hover:bg-cyan-300/20">
+              <span className="grid h-11 w-11 place-items-center rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 text-[#D7E4FF] transition group-hover:bg-[#2563FF]/20">
                 <feature.icon className="h-5 w-5" />
               </span>
               <h3 className="mt-5 text-lg font-semibold">{feature.title}</h3>
@@ -423,7 +421,7 @@ function ProfileInput({
 }) {
   return (
     <form
-      className="rounded-lg border border-white/10 bg-white/[0.045] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.22)] backdrop-blur"
+      className="rounded-lg border border-white/10 bg-white/[0.045] p-5 shadow-[0_18px_54px_rgba(0,0,0,0.24)]"
       onSubmit={onSubmit}
     >
       <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-5">
@@ -434,7 +432,7 @@ function ProfileInput({
             database writes in this prototype.
           </p>
         </div>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-cyan-100">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
           <ScanLine className="h-5 w-5" />
         </span>
       </div>
@@ -443,7 +441,7 @@ function ProfileInput({
         <label className="grid gap-2 text-sm font-medium text-slate-200">
           LinkedIn profile URL
           <input
-            className="h-12 w-full rounded-lg border border-white/12 bg-[#081018] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/55 focus:ring-2 focus:ring-cyan-300/15"
+            className="h-12 w-full rounded-lg border border-white/12 bg-[#0C1B30] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-[#2563FF]/60 focus:ring-2 focus:ring-[#2563FF]/15"
             onChange={(event) => onLinkedInUrl(event.target.value)}
             placeholder="https://www.linkedin.com/in/alex-morgan"
             required
@@ -455,7 +453,7 @@ function ProfileInput({
         <label className="grid gap-2 text-sm font-medium text-slate-200">
           Company website or company name
           <input
-            className="h-12 w-full rounded-lg border border-white/12 bg-[#081018] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/55 focus:ring-2 focus:ring-cyan-300/15"
+            className="h-12 w-full rounded-lg border border-white/12 bg-[#0C1B30] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-[#2563FF]/60 focus:ring-2 focus:ring-[#2563FF]/15"
             onChange={(event) => onCompanyInput(event.target.value)}
             placeholder="https://www.sick.com, sick.com, Siemens, Marriott"
             type="text"
@@ -468,7 +466,7 @@ function ProfileInput({
       </div>
 
       <button
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-200 px-4 font-semibold text-[#051017] transition hover:bg-white disabled:cursor-wait disabled:bg-slate-500 disabled:text-slate-100"
+        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#2563FF] px-4 font-semibold text-white transition hover:bg-[#1D4ED8] disabled:cursor-wait disabled:bg-slate-500 disabled:text-slate-100"
         disabled={isScanning}
         type="submit"
       >
@@ -495,17 +493,17 @@ function Scanner({
     : 0;
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071017] p-5 text-white">
+    <section className="rounded-lg border border-white/10 bg-[#0A1729] p-5 text-white">
       <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
             AI scanning flow
           </p>
           <h3 className="mt-2 text-2xl font-semibold">
             Professional visibility scan
           </h3>
         </div>
-        <span className="grid h-12 w-12 place-items-center rounded-lg bg-cyan-300/10 text-cyan-100">
+        <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
           <BrainCircuit className="h-6 w-6" />
         </span>
       </div>
@@ -517,7 +515,7 @@ function Scanner({
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-[linear-gradient(90deg,#67e8f9,#a78bfa,#f8c471)] transition-all duration-500"
+            className="h-full rounded-full bg-[#2563FF] transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -532,9 +530,9 @@ function Scanner({
             <li
               className={classNames(
                 "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition",
-                complete && "border-cyan-300/20 bg-cyan-300/10 text-cyan-50",
+                complete && "border-[#2563FF]/20 bg-[#2563FF]/10 text-[#EEF4FF]",
                 current &&
-                  "scanner-active border-cyan-300/45 bg-cyan-300/15 text-white",
+                  "scanner-active border-[#2563FF]/45 bg-[#2563FF]/15 text-white",
                 !complete &&
                   !current &&
                   "border-white/10 bg-white/[0.03] text-slate-500",
@@ -542,9 +540,9 @@ function Scanner({
               key={step}
             >
               {complete ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#9DB7FF]" />
               ) : current ? (
-                <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-cyan-200" />
+                <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-[#9DB7FF]" />
               ) : (
                 <CircleDashed className="h-4 w-4 shrink-0" />
               )}
@@ -582,7 +580,7 @@ function AreaDetection({
     <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5 text-white">
       <div className="grid gap-4 border-b border-white/10 pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
             Professional area detection
           </p>
           <h3 className="mt-2 text-2xl font-semibold">
@@ -594,7 +592,7 @@ function AreaDetection({
           </p>
         </div>
         <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-cyan-200 px-4 font-semibold text-[#051017] transition hover:bg-white"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#2563FF] px-4 font-semibold text-white transition hover:bg-[#1D4ED8]"
           onClick={onConfirm}
           type="button"
         >
@@ -612,8 +610,8 @@ function AreaDetection({
               className={classNames(
                 "grid gap-4 rounded-lg border p-4 transition md:grid-cols-[1fr_auto]",
                 isPrimary
-                  ? "border-cyan-300/40 bg-cyan-300/10"
-                  : "border-white/10 bg-[#081018]",
+                  ? "border-[#2563FF]/40 bg-[#2563FF]/10"
+                  : "border-white/10 bg-[#0C1B30]",
               )}
               key={area.id}
             >
@@ -625,7 +623,7 @@ function AreaDetection({
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-semibold text-white">{area.name}</h4>
                     {isPrimary && (
-                      <span className="rounded-lg bg-cyan-200 px-2 py-1 text-xs font-semibold text-[#051017]">
+                      <span className="rounded-lg bg-[#2563FF] px-2 py-1 text-xs font-semibold text-white">
                         Primary
                       </span>
                     )}
@@ -633,7 +631,7 @@ function AreaDetection({
                   <div className="mt-3 flex items-center gap-3">
                     <div className="h-2 w-36 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-cyan-200"
+                        className="h-full rounded-full bg-[#2563FF]"
                         style={{ width: `${area.confidence}%` }}
                       />
                     </div>
@@ -684,11 +682,11 @@ function AreaDetection({
         })}
       </div>
 
-      <div className="mt-5 grid gap-3 rounded-lg border border-white/10 bg-[#071017] p-4 sm:grid-cols-[1fr_auto]">
+      <div className="mt-5 grid gap-3 rounded-lg border border-white/10 bg-[#0A1729] p-4 sm:grid-cols-[1fr_auto]">
         <label className="grid gap-2 text-sm font-medium text-slate-200">
           Manually add area
           <select
-            className="h-11 w-full rounded-lg border border-white/12 bg-[#081018] px-3 text-white outline-none transition focus:border-cyan-300/55 focus:ring-2 focus:ring-cyan-300/15"
+            className="h-11 w-full rounded-lg border border-white/12 bg-[#0C1B30] px-3 text-white outline-none transition focus:border-[#2563FF]/60 focus:ring-2 focus:ring-[#2563FF]/15"
             onChange={(event) => setSelectedAddArea(event.target.value)}
             value={selectedAddArea}
           >
@@ -700,7 +698,7 @@ function AreaDetection({
           </select>
         </label>
         <button
-          className="inline-flex h-11 items-center justify-center gap-2 self-end rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 font-semibold text-cyan-50 transition hover:bg-cyan-300/20"
+          className="inline-flex h-11 items-center justify-center gap-2 self-end rounded-lg border border-[#2563FF]/30 bg-[#2563FF]/10 px-4 font-semibold text-[#EEF4FF] transition hover:bg-[#2563FF]/20"
           onClick={onAddArea}
           type="button"
         >
@@ -728,9 +726,9 @@ function EmailCaptureModal({
   onReveal: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#030507]/80 px-5 py-8 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#030507]/86 px-5 py-8">
       <form
-        className="w-full max-w-xl rounded-lg border border-cyan-300/20 bg-[#071017] p-5 text-white shadow-[0_40px_140px_rgba(0,0,0,0.55)] sm:p-7"
+        className="w-full max-w-xl rounded-lg border border-[#2563FF]/20 bg-[#0A1729] p-5 text-white shadow-[0_40px_140px_rgba(0,0,0,0.55)] sm:p-7"
         onSubmit={(event) => {
           event.preventDefault();
           onReveal();
@@ -738,7 +736,7 @@ function EmailCaptureModal({
       >
         <div className="flex items-start justify-between gap-5 border-b border-white/10 pb-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
               Assessment ready
             </p>
             <h3 className="mt-3 text-3xl font-semibold leading-tight">
@@ -749,7 +747,7 @@ function EmailCaptureModal({
               AI-powered LinkedIn opportunities.
             </p>
           </div>
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-cyan-100">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
             <Mail className="h-6 w-6" />
           </span>
         </div>
@@ -758,7 +756,7 @@ function EmailCaptureModal({
           <label className="grid gap-2 text-sm font-medium text-slate-200">
             Name
             <input
-              className="h-12 w-full rounded-lg border border-white/12 bg-[#081018] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/55 focus:ring-2 focus:ring-cyan-300/15"
+              className="h-12 w-full rounded-lg border border-white/12 bg-[#0C1B30] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-[#2563FF]/60 focus:ring-2 focus:ring-[#2563FF]/15"
               onChange={(event) => onName(event.target.value)}
               required
               type="text"
@@ -769,7 +767,7 @@ function EmailCaptureModal({
           <label className="grid gap-2 text-sm font-medium text-slate-200">
             Email address
             <input
-              className="h-12 w-full rounded-lg border border-white/12 bg-[#081018] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/55 focus:ring-2 focus:ring-cyan-300/15"
+              className="h-12 w-full rounded-lg border border-white/12 bg-[#0C1B30] px-3 text-white outline-none transition placeholder:text-slate-600 focus:border-[#2563FF]/60 focus:ring-2 focus:ring-[#2563FF]/15"
               autoComplete="email"
               inputMode="email"
               onChange={(event) => onEmail(event.target.value)}
@@ -782,7 +780,7 @@ function EmailCaptureModal({
         </div>
 
         <p className="mt-5 flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-slate-400">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#9DB7FF]" />
           We respect your privacy and never post to LinkedIn automatically.
         </p>
 
@@ -795,7 +793,7 @@ function EmailCaptureModal({
             Review areas
           </button>
           <button
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-200 font-semibold text-[#051017] transition hover:bg-white"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#2563FF] font-semibold text-white transition hover:bg-[#1D4ED8]"
             type="submit"
           >
             Reveal My Results
@@ -815,12 +813,12 @@ function ScoreHero({
   profile: AreaProfile;
 }) {
   return (
-    <section className="rounded-lg border border-cyan-300/20 bg-[#071017] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.28)] sm:p-7">
+    <section className="rounded-lg border border-[#2563FF]/20 bg-[#0A1729] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.28)] sm:p-7">
       <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
         <ScoreRing score={profile.score} />
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
             LinkedIn Authority Score
           </p>
           <h3 className="mt-3 text-3xl font-semibold sm:text-5xl">
@@ -835,7 +833,7 @@ function ScoreHero({
                 className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold"
                 key={area.id}
               >
-                <Check className="h-4 w-4 text-cyan-200" />
+                <Check className="h-4 w-4 text-[#9DB7FF]" />
                 {area.name}
               </li>
             ))}
@@ -872,7 +870,7 @@ function ShareScoreCard({
     <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5 text-white sm:p-7">
       <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
             Shareable score card
           </p>
           <h3 className="mt-3 text-3xl font-semibold">
@@ -885,7 +883,7 @@ function ShareScoreCard({
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-cyan-200 px-4 font-semibold text-[#051017] transition hover:bg-white"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#2563FF] px-4 font-semibold text-white transition hover:bg-[#1D4ED8]"
               onClick={onCopy}
               type="button"
             >
@@ -904,10 +902,10 @@ function ShareScoreCard({
           </div>
         </div>
 
-        <div className="share-card rounded-lg border border-cyan-300/25 bg-[#050b12] p-5 shadow-[0_25px_90px_rgba(0,0,0,0.35)]">
+        <div className="share-card rounded-lg border border-[#2563FF]/25 bg-[#071326] p-5 shadow-[0_25px_90px_rgba(0,0,0,0.35)]">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-cyan-300/10 text-cyan-100">
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#2563FF]/10 text-[#D7E4FF]">
                 <Link2 className="h-5 w-5" />
               </span>
               <div>
@@ -917,7 +915,7 @@ function ShareScoreCard({
                 </p>
               </div>
             </div>
-            <span className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+            <span className="rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 px-3 py-1 text-xs font-semibold text-[#D7E4FF]">
               Free assessment
             </span>
           </div>
@@ -932,7 +930,7 @@ function ShareScoreCard({
               <p className="mt-3 text-sm text-slate-400">
                 Primary Professional Area
               </p>
-              <p className="mt-1 text-lg font-semibold text-cyan-100">{primary}</p>
+              <p className="mt-1 text-lg font-semibold text-[#D7E4FF]">{primary}</p>
             </div>
           </div>
 
@@ -944,7 +942,7 @@ function ShareScoreCard({
               <ul className="mt-3 grid gap-2 text-sm text-slate-300">
                 {profile.strongAuthorityPotential.map((item) => (
                   <li className="flex items-center gap-2" key={item}>
-                    <BadgeCheck className="h-4 w-4 text-cyan-200" />
+                    <BadgeCheck className="h-4 w-4 text-[#9DB7FF]" />
                     {item}
                   </li>
                 ))}
@@ -957,7 +955,7 @@ function ShareScoreCard({
               <ul className="mt-3 grid gap-2 text-sm text-slate-300">
                 {areas.slice(0, 3).map((area) => (
                   <li className="flex items-center gap-2" key={area.id}>
-                    <BadgeCheck className="h-4 w-4 text-cyan-200" />
+                    <BadgeCheck className="h-4 w-4 text-[#9DB7FF]" />
                     {area.name}
                   </li>
                 ))}
@@ -1010,7 +1008,7 @@ function Results({
             className="rounded-lg border border-white/10 bg-white/[0.045] p-5 text-white"
             key={strength}
           >
-            <BadgeCheck className="h-5 w-5 text-cyan-200" />
+            <BadgeCheck className="h-5 w-5 text-[#9DB7FF]" />
             <h3 className="mt-4 text-lg font-semibold">{strength}</h3>
             <p className="mt-3 text-sm leading-6 text-slate-400">
               A strong signal for professional visibility and credible
@@ -1020,8 +1018,8 @@ function Results({
         ))}
       </section>
 
-      <section className="rounded-lg border border-white/10 bg-[#071017] p-5 text-white sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+      <section className="rounded-lg border border-white/10 bg-[#0A1729] p-5 text-white sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
           Visibility potential
         </p>
         <h3 className="mt-3 text-2xl font-semibold">
@@ -1030,7 +1028,7 @@ function Results({
         <ul className="mt-5 grid gap-3 md:grid-cols-3">
           {profile.authorityPotential.map((item) => (
             <li
-              className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm font-semibold text-cyan-50"
+              className="rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 p-4 text-sm font-semibold text-[#EEF4FF]"
               key={item}
             >
               {item}
@@ -1040,16 +1038,16 @@ function Results({
       </section>
 
       <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5 text-white sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
           Visibility Opportunities
         </p>
         <div className="mt-5 grid gap-3">
           {profile.opportunities.map((opportunity) => (
             <article
-              className="flex gap-3 rounded-lg border border-white/10 bg-[#081018] p-4"
+              className="flex gap-3 rounded-lg border border-white/10 bg-[#0C1B30] p-4"
               key={opportunity}
             >
-              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#9DB7FF]" />
               <p className="text-sm leading-6 text-slate-300">{opportunity}</p>
             </article>
           ))}
@@ -1057,12 +1055,12 @@ function Results({
       </section>
 
       <section
-        className="rounded-lg border border-white/10 bg-[#071017] p-5 text-white sm:p-7"
+        className="rounded-lg border border-white/10 bg-[#0A1729] p-5 text-white sm:p-7"
         id="trend-radar"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
               Trend Radar
             </p>
             <h3 className="mt-3 text-2xl font-semibold">
@@ -1077,12 +1075,12 @@ function Results({
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {profile.trends.slice(0, 3).map((trend) => (
             <article
-              className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4"
+              className="rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 p-4"
               key={trend.title}
             >
               <div className="flex items-center justify-between gap-3">
                 <h4 className="font-semibold">{trend.title}</h4>
-                <span className="rounded-lg bg-white/10 px-2 py-1 text-xs text-cyan-100">
+                <span className="rounded-lg bg-white/10 px-2 py-1 text-xs text-[#D7E4FF]">
                   {trend.momentum}
                 </span>
               </div>
@@ -1099,14 +1097,14 @@ function Results({
               className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-4"
               key={trend.title}
             >
-              <div className="blur-[3px]">
+              <div className="opacity-35">
                 <h4 className="font-semibold">{trend.title}</h4>
                 <p className="mt-3 text-sm leading-6 text-slate-400">
                   {trend.summary}
                 </p>
               </div>
-              <div className="absolute inset-0 grid place-items-center bg-[#071017]/62">
-                <span className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-[#071017] px-3 py-2 text-sm font-semibold text-cyan-50">
+              <div className="absolute inset-0 grid place-items-center bg-[#0A1729]/62">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-[#2563FF]/20 bg-[#0A1729] px-3 py-2 text-sm font-semibold text-[#EEF4FF]">
                   <LockKeyhole className="h-4 w-4" />
                   Unlock full Trend Radar in Pro.
                 </span>
@@ -1119,7 +1117,7 @@ function Results({
       <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5 text-white sm:p-7">
         <div className="grid gap-6 lg:grid-cols-[0.82fr_1fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
               Personalized Topic Idea
             </p>
             <h3 className="mt-3 text-2xl font-semibold">
@@ -1131,16 +1129,16 @@ function Results({
           </div>
 
           <div className="grid gap-4">
-            <article className="rounded-lg border border-white/10 bg-[#081018] p-4">
-              <p className="text-sm font-semibold text-cyan-100">
+            <article className="rounded-lg border border-white/10 bg-[#0C1B30] p-4">
+              <p className="text-sm font-semibold text-[#D7E4FF]">
                 Why this matters now
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {profile.topic.whyNow}
               </p>
             </article>
-            <article className="rounded-lg border border-white/10 bg-[#081018] p-4">
-              <p className="text-sm font-semibold text-cyan-100">CTA</p>
+            <article className="rounded-lg border border-white/10 bg-[#0C1B30] p-4">
+              <p className="text-sm font-semibold text-[#D7E4FF]">CTA</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {profile.topic.cta}
               </p>
@@ -1158,16 +1156,16 @@ function Results({
           </div>
         </div>
 
-        <div className="mt-6 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-6 text-cyan-50">
+        <div className="mt-6 rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 p-4 text-sm leading-6 text-[#EEF4FF]">
           Unlock unlimited personalized post ideas tailored to your expertise,
           industry, and trends with Pro.
         </div>
       </section>
 
-      <section className="rounded-lg border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(103,232,249,0.14),rgba(167,139,250,0.1),rgba(5,8,13,0.9))] p-5 text-white sm:p-7">
+      <section className="rounded-lg border border-[#2563FF]/25 bg-[#0A1729] p-5 text-white sm:p-7">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
               Pro Upgrade CTA
             </p>
             <h3 className="mt-3 text-3xl font-semibold">
@@ -1180,7 +1178,7 @@ function Results({
             </p>
           </div>
           <a
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-cyan-200 px-5 font-semibold text-[#051017] transition hover:bg-white"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#2563FF] px-5 font-semibold text-white transition hover:bg-[#1D4ED8]"
             href="#pricing"
           >
             Upgrade to Pro
@@ -1310,7 +1308,7 @@ function AssessmentSection() {
 
   return (
     <section
-      className="bg-[#05080d] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10"
+      className="bg-[#06111F] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10"
       id="assessment"
     >
       <div className="mx-auto max-w-7xl">
@@ -1340,9 +1338,9 @@ function AssessmentSection() {
 
           <div className="min-w-0">
             {stage === "idle" && (
-              <section className="grid min-h-full content-between gap-8 rounded-lg border border-white/10 bg-[#071017] p-5 text-white sm:p-7">
+              <section className="grid min-h-full content-between gap-8 rounded-lg border border-white/10 bg-[#0A1729] p-5 text-white sm:p-7">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#9DB7FF]">
                     Result preview
                   </p>
                   <h3 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
@@ -1362,7 +1360,7 @@ function AssessmentSection() {
                       className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold"
                       key={item}
                     >
-                      <ArrowRight className="mb-5 h-4 w-4 text-cyan-200" />
+                      <ArrowRight className="mb-5 h-4 w-4 text-[#9DB7FF]" />
                       {item}
                     </div>
                   ))}
@@ -1416,7 +1414,7 @@ function AssessmentSection() {
 
 function PricingSection() {
   return (
-    <section className="bg-[#070b12] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10" id="pricing">
+    <section className="bg-[#081427] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10" id="pricing">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
           <div>
@@ -1438,7 +1436,7 @@ function PricingSection() {
               className={classNames(
                 "rounded-lg border p-6 transition sm:p-8",
                 tier.featured
-                  ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_30px_120px_rgba(56,189,248,0.12)]"
+                  ? "border-[#2563FF]/40 bg-[#2563FF]/10 shadow-[0_20px_70px_rgba(0,0,0,0.26)]"
                   : "border-white/10 bg-white/[0.045]",
               )}
               key={tier.name}
@@ -1461,7 +1459,7 @@ function PricingSection() {
               <ul className="mt-6 grid gap-3 text-sm text-slate-300">
                 {tier.features.map((feature) => (
                   <li className="flex items-start gap-3" key={feature}>
-                    <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
+                    <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#9DB7FF]" />
                     {feature}
                   </li>
                 ))}
@@ -1471,7 +1469,7 @@ function PricingSection() {
                 className={classNames(
                   "mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold transition",
                   tier.featured
-                    ? "bg-cyan-200 text-[#051017] hover:bg-white"
+                    ? "bg-[#2563FF] text-white hover:bg-[#1D4ED8]"
                     : "border border-white/12 bg-white/5 text-white hover:bg-white/10",
                 )}
                 href="#assessment"
@@ -1483,7 +1481,7 @@ function PricingSection() {
           ))}
         </div>
 
-        <p className="mt-6 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm leading-6 text-cyan-50">
+        <p className="mt-6 rounded-lg border border-[#2563FF]/20 bg-[#2563FF]/10 p-4 text-sm leading-6 text-[#EEF4FF]">
           Main Pro CTA: Unlock unlimited personalized post ideas tailored to your
           expertise, industry, and trends with Pro. Stripe checkout is prepared
           as a placeholder integration, not connected yet.
@@ -1495,7 +1493,7 @@ function PricingSection() {
 
 function BuiltForSection() {
   return (
-    <section className="bg-[#05080d] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10">
+    <section className="bg-[#06111F] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
           <div>
@@ -1513,12 +1511,12 @@ function BuiltForSection() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {builtForAreas.map(([title, subtitle], index) => (
             <article
-              className="area-card group relative min-h-48 overflow-hidden rounded-lg border border-white/10 bg-[#071017] p-5 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35"
+              className="area-card group relative min-h-48 overflow-hidden rounded-lg border border-white/10 bg-[#0A1729] p-5 transition duration-300 hover:-translate-y-1 hover:border-[#2563FF]/35"
               key={title}
               style={{ "--area-index": index } as React.CSSProperties}
             >
-              <div className="area-visual absolute inset-0 opacity-80 transition duration-300 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,13,0.05),rgba(5,8,13,0.88))]" />
+              <div className="area-visual absolute inset-0 opacity-80 transition duration-300 group-hover:scale-[1.02]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,17,31,0.08),rgba(6,17,31,0.9))]" />
               <div className="relative flex h-full flex-col justify-end">
                 <p className="text-lg font-semibold">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">{subtitle}</p>
@@ -1533,7 +1531,7 @@ function BuiltForSection() {
 
 function ArchitectureSection() {
   return (
-    <section className="bg-[#070b12] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10">
+    <section className="bg-[#081427] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5 sm:p-7">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
@@ -1559,7 +1557,7 @@ function ArchitectureSection() {
                 ["No autoposting", "User remains in control"],
               ].map(([title, subtitle]) => (
                 <div
-                  className="rounded-lg border border-white/10 bg-[#081018] p-4"
+                  className="rounded-lg border border-white/10 bg-[#0C1B30] p-4"
                   key={title}
                 >
                   <p className="font-semibold">{title}</p>
@@ -1578,7 +1576,7 @@ function ArchitectureSection() {
 
 function ContactFooter() {
   return (
-    <footer className="bg-[#05080d] px-5 py-10 text-white sm:px-8 lg:px-10" id="contact">
+    <footer className="bg-[#06111F] px-5 py-10 text-white sm:px-8 lg:px-10" id="contact">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-white/10 pt-8 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-lg font-semibold">INConnect</p>
@@ -1588,11 +1586,11 @@ function ContactFooter() {
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
           <span className="inline-flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-cyan-200" />
+            <Building2 className="h-4 w-4 text-[#9DB7FF]" />
             Freemium SaaS prototype
           </span>
           <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-cyan-200" />
+            <ShieldCheck className="h-4 w-4 text-[#9DB7FF]" />
             Never posts automatically
           </span>
         </div>
@@ -1603,7 +1601,7 @@ function ContactFooter() {
 
 export function INConnectPlatform() {
   return (
-    <main className="overflow-x-hidden bg-[#05080d]">
+    <main className="overflow-x-hidden bg-[#06111F]">
       <LandingHero />
       <FeaturesSection />
       <AssessmentSection />
