@@ -55,12 +55,8 @@ export type AreaProfile = {
 };
 
 export type MockUserRecord = {
-  name: string;
   email: string;
   linkedInUrl: string;
-  companyInput: string;
-  primaryProfessionalArea: string;
-  secondaryProfessionalAreas: string[];
   timestamp: string;
   planType: "free";
 };
@@ -393,11 +389,8 @@ const technologyProfile: AreaProfile = {
   },
 };
 
-export function inferProfile(
-  linkedInUrl: string,
-  companyInput: string,
-): AreaProfile {
-  const source = `${linkedInUrl} ${companyInput}`.toLowerCase();
+export function inferProfile(linkedInUrl: string): AreaProfile {
+  const source = linkedInUrl.toLowerCase();
 
   if (
     source.includes("marriott") ||
@@ -482,36 +475,6 @@ export function profileForPrimaryArea(
   }
 
   return fallback;
-}
-
-export function getMockProfileName(linkedInUrl: string) {
-  const fallback = "Alex Morgan";
-  const trimmed = linkedInUrl.trim();
-
-  if (!trimmed) {
-    return fallback;
-  }
-
-  const match = trimmed.match(/linkedin\.com\/in\/([^/?#]+)/i);
-  const slug = match?.[1] ?? trimmed.split("/").filter(Boolean).pop();
-
-  if (!slug) {
-    return fallback;
-  }
-
-  const words = slug
-    .replace(/\d+/g, "")
-    .split(/[-_.]/)
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (words.length === 0) {
-    return fallback;
-  }
-
-  return words
-    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
-    .join(" ");
 }
 
 export function createShareText(score: number, areas: DetectedArea[]) {

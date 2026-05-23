@@ -19,7 +19,6 @@ import {
   LineChart,
   LoaderCircle,
   LockKeyhole,
-  Mail,
   Plus,
   Radar,
   ScanLine,
@@ -37,7 +36,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   createShareText,
   type DetectedArea,
-  getMockProfileName,
   inferProfile,
   type MockUserRecord,
   professionalAreas,
@@ -142,27 +140,12 @@ function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function normalizeCompanyInput(input: string) {
-  const trimmed = input.trim();
-
-  if (!trimmed) {
-    return "No company context supplied";
-  }
-
-  try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
-    if (url.hostname.includes(".")) {
-      return url.hostname.replace(/^www\./, "");
-    }
-  } catch {
-    return trimmed;
-  }
-
-  return trimmed;
-}
-
 function createAreaId(name: string) {
   return `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 function getPrimaryArea(areas: DetectedArea[]) {
@@ -576,20 +559,23 @@ function FeaturesSection() {
 }
 
 function ProfileInput({
-  companyInput,
+  email,
   isScanning,
   linkedInUrl,
-  onCompanyInput,
+  onEmail,
   onLinkedInUrl,
   onSubmit,
 }: {
-  companyInput: string;
+  email: string;
   isScanning: boolean;
   linkedInUrl: string;
-  onCompanyInput: (value: string) => void;
+  onEmail: (value: string) => void;
   onLinkedInUrl: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const canSubmit =
+    linkedInUrl.trim().length > 0 && email.trim().length > 0 && isValidEmail(email);
+
   return (
     <form
       className="rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]"
@@ -597,10 +583,12 @@ function ProfileInput({
     >
       <div className="flex items-start justify-between gap-4 border-b border-[#DADCE0] pb-5">
         <div>
-          <h3 className="text-xl font-semibold text-[#191919]">Analyze profile</h3>
+          <h3 className="text-xl font-semibold text-[#191919]">
+            Analyze your LinkedIn profile
+          </h3>
           <p className="mt-2 text-sm leading-6 text-[#666666]">
-            Start with public positioning signals. No scraping, API calls, or
-            database writes in this prototype.
+            Enter your LinkedIn profile and email to receive your free LinkedIn
+            Authority Assessment.
           </p>
         </div>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
@@ -622,23 +610,28 @@ function ProfileInput({
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-[#191919]">
-          Company website or company name
+          Email address
           <input
             className="h-12 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-            onChange={(event) => onCompanyInput(event.target.value)}
-            placeholder="https://www.sick.com, sick.com, Siemens, Marriott"
-            type="text"
-            value={companyInput}
+            autoComplete="email"
+            inputMode="email"
+            onChange={(event) => onEmail(event.target.value)}
+            placeholder="name@company.com"
+            required
+            type="email"
+            value={email}
           />
-          <span className="text-xs font-normal text-[#666666]">
-            Optional: company website, domain, or company name
-          </span>
         </label>
       </div>
 
+      <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
+        We respect your privacy and never post to LinkedIn automatically.
+      </p>
+
       <button
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-wait disabled:bg-[#DADCE0] disabled:text-[#666666]"
-        disabled={isScanning}
+        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#DADCE0] disabled:text-[#666666]"
+        disabled={isScanning || !canSubmit}
         type="submit"
       >
         {isScanning ? (
@@ -878,101 +871,6 @@ function AreaDetection({
         </button>
       </div>
     </section>
-  );
-}
-
-function EmailCaptureModal({
-  email,
-  name,
-  onClose,
-  onEmail,
-  onName,
-  onReveal,
-}: {
-  email: string;
-  name: string;
-  onClose: () => void;
-  onEmail: (value: string) => void;
-  onName: (value: string) => void;
-  onReveal: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#0A192F]/62 px-5 py-8">
-      <form
-        className="w-full max-w-xl rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_40px_120px_rgba(10,25,47,0.28)] sm:p-7"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onReveal();
-        }}
-      >
-        <div className="flex items-start justify-between gap-5 border-b border-[#DADCE0] pb-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-              Assessment ready
-            </p>
-            <h3 className="mt-3 text-3xl font-semibold leading-tight">
-              Your LinkedIn Authority Assessment Is Ready
-            </h3>
-            <p className="mt-3 text-sm leading-6 text-[#666666]">
-              Receive your personalized LinkedIn growth insights, trend radar, and
-              AI-powered LinkedIn opportunities.
-            </p>
-          </div>
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
-            <Mail className="h-6 w-6" />
-          </span>
-        </div>
-
-        <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm font-medium text-[#191919]">
-            Name
-            <input
-              className="h-12 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-              onChange={(event) => onName(event.target.value)}
-              required
-              type="text"
-              value={name}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-[#191919]">
-            Email address
-            <input
-              className="h-12 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-              autoComplete="email"
-              inputMode="email"
-              onChange={(event) => onEmail(event.target.value)}
-              placeholder="name@company.com"
-              required
-              type="text"
-              value={email}
-            />
-          </label>
-        </div>
-
-        <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
-          We respect your privacy and never post to LinkedIn automatically.
-        </p>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <button
-            className="inline-flex h-12 items-center justify-center rounded-lg border border-[#DADCE0] bg-white font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
-            onClick={onClose}
-            type="button"
-          >
-            Review areas
-          </button>
-          <button
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] font-semibold text-white transition hover:bg-[#004182]"
-            type="submit"
-          >
-            Reveal My Results
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }
 
@@ -1235,13 +1133,9 @@ function ShareScoreCard({
 
 function Results({
   areas,
-  companyInput,
-  linkedInUrl,
   profile,
 }: {
   areas: DetectedArea[];
-  companyInput: string;
-  linkedInUrl: string;
   profile: AreaProfile;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1453,7 +1347,7 @@ function Results({
       </section>
 
       <p className="text-xs text-[#666666]">
-        Mock context: {linkedInUrl} | {normalizeCompanyInput(companyInput)}
+        Mock data only. No LinkedIn posting or profile scraping is active in this MVP.
       </p>
     </div>
   );
@@ -1461,7 +1355,7 @@ function Results({
 
 function AssessmentSection() {
   const [linkedInUrl, setLinkedInUrl] = useState("");
-  const [companyInput, setCompanyInput] = useState("");
+  const [email, setEmail] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [activeStep, setActiveStep] = useState(0);
   const [profile, setProfile] = useState<AreaProfile | null>(null);
@@ -1470,9 +1364,6 @@ function AssessmentSection() {
   const [selectedAddArea, setSelectedAddArea] = useState<string>(
     professionalAreas[0],
   );
-  const [emailOpen, setEmailOpen] = useState(false);
-  const [capturedName, setCapturedName] = useState("");
-  const [capturedEmail, setCapturedEmail] = useState("");
 
   const displayProfile = useMemo(() => {
     if (!profile) {
@@ -1501,12 +1392,22 @@ function AssessmentSection() {
 
   function handleAnalyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextProfile = inferProfile(linkedInUrl, companyInput);
+    if (!event.currentTarget.reportValidity() || !isValidEmail(email)) {
+      return;
+    }
+
+    const record: MockUserRecord = {
+      email: email.trim(),
+      linkedInUrl: linkedInUrl.trim(),
+      timestamp: new Date().toISOString(),
+      planType: "free",
+    };
+    saveMockUser(record);
+
+    const nextProfile = inferProfile(linkedInUrl);
     setProfile(nextProfile);
     setAreas(nextProfile.detectedAreas);
     setPrimaryArea(nextProfile.detectedAreas[0]?.name ?? nextProfile.primaryArea);
-    setCapturedName(getMockProfileName(linkedInUrl));
-    setCapturedEmail("");
     setActiveStep(0);
     setStage("scanning");
   }
@@ -1551,26 +1452,6 @@ function AssessmentSection() {
     });
   }
 
-  function handleReveal() {
-    const primary = primaryArea || getPrimaryArea(areas);
-    const record: MockUserRecord = {
-      name: capturedName,
-      email: capturedEmail,
-      linkedInUrl,
-      companyInput,
-      primaryProfessionalArea: primary,
-      secondaryProfessionalAreas: areas
-        .map((area) => area.name)
-        .filter((area) => area !== primary),
-      timestamp: new Date().toISOString(),
-      planType: "free",
-    };
-
-    saveMockUser(record);
-    setEmailOpen(false);
-    setStage("results");
-  }
-
   return (
     <section
       className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10"
@@ -1587,16 +1468,16 @@ function AssessmentSection() {
           <p className="max-w-2xl text-base leading-7 text-[#666666]">
             Free assessments are unlimited. The prototype limits result depth,
             not the number of analyses, so professionals can test positioning
-            across different companies and authority lanes.
+            across different LinkedIn positioning angles.
           </p>
         </div>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
           <ProfileInput
-            companyInput={companyInput}
+            email={email}
             isScanning={stage === "scanning"}
             linkedInUrl={linkedInUrl}
-            onCompanyInput={setCompanyInput}
+            onEmail={setEmail}
             onLinkedInUrl={setLinkedInUrl}
             onSubmit={handleAnalyze}
           />
@@ -1614,8 +1495,8 @@ function AssessmentSection() {
                   </h3>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
                     Run a mock profile scan to detect professional areas,
-                    confirm your authority lane, capture email, and reveal a
-                    limited-depth free assessment.
+                    confirm your authority lane, and reveal a limited-depth free
+                    assessment.
                   </p>
                 </div>
 
@@ -1641,7 +1522,7 @@ function AssessmentSection() {
               <AreaDetection
                 areas={areas}
                 onAddArea={handleAddArea}
-                onConfirm={() => setEmailOpen(true)}
+                onConfirm={() => setStage("results")}
                 onMoveArea={handleMoveArea}
                 onPrimaryArea={setPrimaryArea}
                 onRemoveArea={handleRemoveArea}
@@ -1654,8 +1535,6 @@ function AssessmentSection() {
             {stage === "results" && displayProfile && (
               <Results
                 areas={areas}
-                companyInput={companyInput}
-                linkedInUrl={linkedInUrl}
                 profile={displayProfile}
               />
             )}
@@ -1663,16 +1542,6 @@ function AssessmentSection() {
         </div>
       </div>
 
-      {emailOpen && (
-        <EmailCaptureModal
-          email={capturedEmail}
-          name={capturedName}
-          onClose={() => setEmailOpen(false)}
-          onEmail={setCapturedEmail}
-          onName={setCapturedName}
-          onReveal={handleReveal}
-        />
-      )}
     </section>
   );
 }
