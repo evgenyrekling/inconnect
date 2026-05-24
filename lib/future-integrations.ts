@@ -2,7 +2,7 @@ import type { DetectedArea, MockUserRecord } from "@/lib/mock-intelligence";
 
 export type VisibilityAnalysisRequest = {
   linkedInUrl: string;
-  companyInput?: string;
+  email: string;
 };
 
 export type VisibilityAnalysisResponse = {

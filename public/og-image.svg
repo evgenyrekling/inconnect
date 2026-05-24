@@ -1,0 +1,14 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F3F2EF"/>
+  <rect x="84" y="78" width="1032" height="474" rx="32" fill="#FFFFFF" stroke="#D9DDE3"/>
+  <path d="M142 158L196 144L181.5 164L205 175L171 177L152 203L155.5 179.5L135 172.5L161.5 168L142 158Z" fill="#0A66C2"/>
+  <path d="M161.5 168L196 144L171 177L152 203L155.5 179.5L161.5 168Z" fill="#0077B5"/>
+  <text x="224" y="183" fill="#191919" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="700">INConnect</text>
+  <text x="142" y="286" fill="#191919" font-family="Inter, Arial, sans-serif" font-size="58" font-weight="750">Your AI LinkedIn Growth Assistant</text>
+  <text x="142" y="354" fill="#666666" font-family="Inter, Arial, sans-serif" font-size="30">Analyze positioning, discover trends, and grow professional authority.</text>
+  <rect x="142" y="414" width="312" height="76" rx="18" fill="#0A66C2"/>
+  <text x="174" y="462" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="700">Analyze your profile</text>
+  <circle cx="940" cy="306" r="94" fill="#E8F1FB" stroke="#0A66C2" stroke-width="14"/>
+  <text x="898" y="316" fill="#191919" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="750">74</text>
+  <text x="910" y="352" fill="#0A66C2" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">/ 100</text>
+</svg>

@@ -477,8 +477,10 @@ export function profileForPrimaryArea(
   return fallback;
 }
 
-export function createShareText(score: number, areas: DetectedArea[]) {
+export function createShareText(score: number, areas: DetectedArea[], profile: AreaProfile) {
   const primaryArea = areas[0]?.name ?? "Professional Growth";
+  const topAreas = areas.slice(0, 3).map((area) => area.name);
+  const authorityPotential = profile.strongAuthorityPotential.slice(0, 3);
 
   return [
     "I just checked my LinkedIn Authority Score using INConnect.",
@@ -488,9 +490,15 @@ export function createShareText(score: number, areas: DetectedArea[]) {
     "Primary professional area:",
     primaryArea,
     "",
+    "Top expertise areas:",
+    ...topAreas.map((area) => `- ${area}`),
+    "",
+    "Strong authority potential:",
+    ...authorityPotential.map((area) => `- ${area}`),
+    "",
     "Check your professional authority:",
     "https://inconnect.app",
     "",
-    "#LinkedIn #ProfessionalBranding #PersonalBranding",
+    "#LinkedIn #ProfessionalBranding #PersonalBranding #ThoughtLeadership #INConnect",
   ].join("\n");
 }

@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   CircleDashed,
-  Copy,
   Database,
   ExternalLink,
   Globe2,
@@ -221,10 +220,10 @@ function ScoreRing({ score }: { score: number }) {
       aria-label={`LinkedIn Authority Score ${score} out of 100`}
       className="grid h-40 w-40 place-items-center rounded-full p-2 shadow-[0_16px_34px_rgba(10,25,47,0.16)]"
       style={{
-        background: `conic-gradient(#0A66C2 0deg ${degrees}deg, #DADCE0 ${degrees}deg 360deg)`,
+        background: `conic-gradient(#0A66C2 0deg ${degrees}deg, #D9DDE3 ${degrees}deg 360deg)`,
       }}
     >
-      <div className="grid h-full w-full place-items-center rounded-full border border-[#DADCE0] bg-white text-center">
+      <div className="grid h-full w-full place-items-center rounded-full border border-[#D9DDE3] bg-white text-center">
         <div>
           <span className="block text-5xl font-semibold tracking-normal text-[#191919]">
             {score}
@@ -259,15 +258,15 @@ function HeroKeyVisual() {
     ["Authority fit", "84%"],
     ["Trend match", "78%"],
   ];
-  const trendSignals = ["AI leadership", "Professional growth", "Market timing"];
+  const trendSignals = ["Executive presence", "Category authority", "Market timing"];
 
   return (
     <div
       aria-label="AI-powered professional growth and LinkedIn authority platform preview."
-      className="relative mx-auto min-h-[520px] w-full max-w-xl sm:min-h-[560px] lg:ml-auto lg:min-h-[590px]"
+      className="relative mx-auto min-h-[500px] w-full max-w-xl sm:min-h-[540px] lg:ml-auto lg:min-h-[570px]"
       role="img"
     >
-      <div className="hero-visual-grid absolute inset-0 rounded-[28px] border border-white/12 bg-white/[0.04]" />
+      <div className="hero-visual-grid absolute inset-0 rounded-[28px] border border-[#D9DDE3] bg-white" />
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -316,14 +315,14 @@ function HeroKeyVisual() {
         ))}
       </svg>
 
-      <div className="hero-float-card relative ml-auto mt-10 w-full rounded-lg border border-[#DADCE0] bg-white p-4 text-[#191919] shadow-[0_26px_70px_rgba(0,0,0,0.26)] sm:w-[94%] sm:p-5">
-        <div className="flex items-center justify-between border-b border-[#DADCE0] pb-4">
+      <div className="hero-float-card relative ml-auto mt-10 w-full rounded-lg border border-[#D9DDE3] bg-white p-4 text-[#191919] shadow-[0_26px_70px_rgba(0,0,0,0.26)] sm:w-[94%] sm:p-5">
+        <div className="flex items-center justify-between border-b border-[#D9DDE3] pb-4">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-[#0A66C2]">
-              INConnect growth intelligence
+              Professional authority analysis
             </p>
             <h2 className="mt-2 text-xl font-semibold">
-              LinkedIn authority dashboard
+              LinkedIn growth dashboard
             </h2>
           </div>
           <span className="inline-flex items-center gap-2 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-2 text-xs font-semibold text-[#0A66C2]">
@@ -333,7 +332,7 @@ function HeroKeyVisual() {
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[0.78fr_1fr]">
-          <div className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4">
+          <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#666666]">
               Authority score
             </p>
@@ -342,7 +341,7 @@ function HeroKeyVisual() {
                 className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-1.5"
                 style={{
                   background:
-                    "conic-gradient(#0A66C2 0deg 266deg, #DADCE0 266deg 360deg)",
+                    "conic-gradient(#0A66C2 0deg 266deg, #D9DDE3 266deg 360deg)",
                 }}
               >
                 <div className="grid h-full w-full place-items-center rounded-full bg-white">
@@ -357,13 +356,13 @@ function HeroKeyVisual() {
               <div>
                 <p className="text-sm font-semibold">Strong authority potential</p>
                 <p className="mt-2 text-xs leading-5 text-[#666666]">
-                  Your expertise is forming a clear LinkedIn positioning lane.
+                  Your expertise is becoming easier to understand, trust, and follow.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#DADCE0] bg-white p-4">
+          <div className="rounded-lg border border-[#D9DDE3] bg-white p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Profile analytics</p>
               <LineChart className="h-4 w-4 text-[#0A66C2]" />
@@ -375,7 +374,7 @@ function HeroKeyVisual() {
                     <span className="text-[#666666]">{label}</span>
                     <span className="font-semibold text-[#191919]">{value}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[#DADCE0]">
+                  <div className="h-2 overflow-hidden rounded-full bg-[#D9DDE3]">
                     <div
                       className="h-full rounded-full bg-[#0A66C2]"
                       style={{ width: value }}
@@ -388,7 +387,7 @@ function HeroKeyVisual() {
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-[1fr_0.82fr]">
-          <div className="rounded-lg border border-[#DADCE0] bg-white p-4">
+          <div className="rounded-lg border border-[#D9DDE3] bg-white p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Trend radar</p>
               <Radar className="h-4 w-4 text-[#0A66C2]" />
@@ -396,7 +395,7 @@ function HeroKeyVisual() {
             <div className="mt-4 grid gap-2">
               {trendSignals.map((signal, index) => (
                 <div
-                  className="flex items-center justify-between rounded-lg border border-[#DADCE0] bg-[#F8F8F6] px-3 py-2 text-xs"
+                  className="flex items-center justify-between rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs"
                   key={signal}
                 >
                   <span className="font-medium">{signal}</span>
@@ -408,14 +407,14 @@ function HeroKeyVisual() {
             </div>
           </div>
 
-          <div className="hidden rounded-lg border border-[#DADCE0] bg-[#0A192F] p-4 text-white md:block">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/55">
+          <div className="hidden rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-[#191919] md:block">
+            <p className="text-xs uppercase tracking-[0.18em] text-[#666666]">
               Network signals
             </p>
             <div className="mt-4 flex items-end gap-2">
               {[46, 68, 54, 82, 76, 94, 88].map((height, index) => (
                 <div
-                  className="flex-1 rounded-t-sm bg-[#78B7F4]"
+                  className="flex-1 rounded-t-sm bg-[#0A66C2]"
                   key={height}
                   style={{
                     height: `${height}px`,
@@ -428,7 +427,7 @@ function HeroKeyVisual() {
         </div>
       </div>
 
-      <div className="hero-float-card hero-float-card-delayed absolute bottom-4 left-0 hidden w-72 rounded-lg border border-[#DADCE0] bg-white p-4 text-[#191919] shadow-[0_18px_48px_rgba(0,0,0,0.22)] lg:block">
+      <div className="hero-float-card hero-float-card-delayed absolute bottom-4 left-0 hidden w-72 rounded-lg border border-[#D9DDE3] bg-white p-4 text-[#191919] shadow-[0_18px_48px_rgba(0,0,0,0.22)] lg:block">
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
             <UserRound className="h-5 w-5" />
@@ -442,9 +441,9 @@ function HeroKeyVisual() {
         </div>
       </div>
 
-      <div className="hero-float-card absolute right-2 top-0 hidden rounded-lg border border-white/15 bg-[#0A192F] px-4 py-3 text-white shadow-[0_18px_44px_rgba(0,0,0,0.24)] sm:block">
+      <div className="hero-float-card absolute right-2 top-0 hidden rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-[#191919] shadow-[0_18px_44px_rgba(10,25,47,0.12)] sm:block">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <BadgeCheck className="h-4 w-4 text-[#78B7F4]" />
+          <BadgeCheck className="h-4 w-4 text-[#0A66C2]" />
           Authority path detected
         </div>
       </div>
@@ -454,19 +453,19 @@ function HeroKeyVisual() {
 
 function LandingHero() {
   return (
-    <section className="relative isolate overflow-hidden bg-[#0A192F] text-white">
-      <div className="absolute inset-0 tech-grid opacity-65" />
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(10,25,47,0.98),rgba(10,25,47,0.94)_58%,rgba(10,102,194,0.22))]" />
+    <section className="relative isolate overflow-hidden bg-[#F3F2EF] text-[#191919]">
+      <div className="absolute inset-0 tech-grid opacity-45" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(243,242,239,0.96))]" />
 
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
         <a className="flex items-center gap-3" href="#" aria-label="INConnect home">
-          <Logo tone="dark" />
+          <Logo />
         </a>
 
-        <nav className="hidden items-center gap-1 text-sm text-white/75 lg:flex">
+        <nav className="hidden items-center gap-1 text-sm text-[#666666] lg:flex">
           {navItems.map((item) => (
             <a
-              className="rounded-lg px-3 py-2 transition hover:bg-white/10 hover:text-white"
+              className="rounded-lg px-3 py-2 transition hover:bg-white hover:text-[#0A66C2]"
               href={item.href}
               key={item.href}
             >
@@ -476,39 +475,52 @@ function LandingHero() {
         </nav>
 
         <a
-          className="hidden h-10 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] px-4 text-sm font-semibold text-white transition hover:border-[#0A66C2]/60 hover:bg-[#0A66C2]/15 md:inline-flex"
+          className="hidden h-10 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] md:inline-flex"
           href="#assessment"
         >
           Start free
         </a>
       </header>
 
+      <nav className="relative z-10 mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 pb-2 text-sm text-[#666666] sm:px-8 lg:hidden">
+        {navItems.map((item) => (
+          <a
+            className="shrink-0 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
+            href={item.href}
+            key={item.href}
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+
       <div className="relative z-10 mx-auto grid min-h-[calc(100svh-80px)] max-w-7xl items-center gap-10 px-5 pb-16 pt-10 sm:px-8 lg:grid-cols-[1fr_0.9fr] lg:px-10">
         <div className="max-w-3xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.08] px-3 py-2 text-sm text-white/90">
-            <Sparkles className="h-4 w-4 text-[#78B7F4]" />
-            AI-Powered LinkedIn Assistant for Professionals
+          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-sm text-[#666666]">
+            <Sparkles className="h-4 w-4 text-[#0A66C2]" />
+            Your AI LinkedIn Growth Assistant
           </div>
 
-          <h1 className="max-w-4xl text-5xl font-semibold leading-[0.98] text-white sm:text-6xl lg:text-7xl">
-            Turn Professional Expertise Into LinkedIn Authority.
+          <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] text-[#191919] sm:text-5xl lg:text-6xl">
+            Most professionals and companies are invisible on LinkedIn.
+            <span className="block text-[#0A66C2]">INConnect helps change that.</span>
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-            AI-powered LinkedIn profile analysis, professional area detection,
-            trend discovery, and personalized content ideas for professionals
-            across industries.
+          <p className="mt-6 max-w-2xl text-base leading-7 text-[#666666] sm:text-lg">
+            Analyze LinkedIn positioning, discover relevant trends, and generate
+            personalized content ideas designed to grow professional and company
+            authority.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 font-semibold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22)] transition hover:bg-[#004182]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 font-semibold text-white shadow-[0_10px_28px_rgba(10,102,194,0.22)] transition hover:bg-[#004182]"
               href="#assessment"
             >
               Analyze My LinkedIn Profile
               <ArrowRight className="h-4 w-4" />
             </a>
             <a
-              className="inline-flex h-12 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] px-5 font-semibold text-white transition hover:border-white/30 hover:bg-white/15"
+              className="inline-flex h-12 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
               href="#features"
             >
               Explore platform
@@ -522,13 +534,13 @@ function LandingHero() {
               ["Radar", "Trend insights"],
             ].map(([label, value]) => (
               <div
-                className="rounded-lg border border-white/12 bg-white/[0.06] p-4"
+                className="rounded-lg border border-[#D9DDE3] bg-white p-4"
                 key={label}
               >
-                <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#666666]">
                   {label}
                 </p>
-                <p className="mt-2 font-semibold text-white">{value}</p>
+                <p className="mt-2 font-semibold text-[#191919]">{value}</p>
               </div>
             ))}
           </div>
@@ -544,7 +556,7 @@ function FeaturesSection() {
   return (
     <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10" id="features">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.75fr_1fr] lg:items-end">
+        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.75fr_1fr] lg:items-end">
           <div>
             <SectionEyebrow icon={Target}>Features</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
@@ -561,10 +573,10 @@ function FeaturesSection() {
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featureCards.map((feature) => (
             <article
-              className="group rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
+              className="group rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
               key={feature.title}
             >
-              <span className="grid h-11 w-11 place-items-center rounded-lg border border-[#DADCE0] bg-[#E8F1FB] text-[#0A66C2] transition group-hover:border-[#0A66C2]/35">
+              <span className="grid h-11 w-11 place-items-center rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] text-[#0A66C2] transition group-hover:border-[#0A66C2]/35">
                 <feature.icon className="h-5 w-5" />
               </span>
               <h3 className="mt-5 text-lg font-semibold">{feature.title}</h3>
@@ -586,7 +598,7 @@ function TrendRadarSection() {
       id="trend-radar"
     >
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.78fr_1fr] lg:items-end">
+        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.78fr_1fr] lg:items-end">
           <div>
             <SectionEyebrow icon={Radar}>Trend Radar</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
@@ -603,11 +615,11 @@ function TrendRadarSection() {
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {trendRadarCards.map((trend) => (
             <article
-              className="rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
               key={trend.title}
             >
               <div className="flex items-start justify-between gap-4">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DADCE0] bg-[#E8F1FB] text-[#0A66C2]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] text-[#0A66C2]">
                   <Radar className="h-5 w-5" />
                 </span>
                 <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-2 py-1 text-xs font-semibold text-[#0A66C2]">
@@ -646,10 +658,10 @@ function ProfileInput({
 
   return (
     <form
-      className="rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]"
+      className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]"
       onSubmit={onSubmit}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-[#DADCE0] pb-5">
+      <div className="flex items-start justify-between gap-4 border-b border-[#D9DDE3] pb-5">
         <div>
           <h3 className="text-xl font-semibold text-[#191919]">
             Analyze your LinkedIn profile
@@ -668,7 +680,7 @@ function ProfileInput({
         <label className="grid gap-2 text-sm font-medium text-[#191919]">
           LinkedIn profile URL
           <input
-            className="h-12 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
             onChange={(event) => onLinkedInUrl(event.target.value)}
             placeholder="https://www.linkedin.com/in/alex-morgan"
             required
@@ -680,7 +692,7 @@ function ProfileInput({
         <label className="grid gap-2 text-sm font-medium text-[#191919]">
           Email address
           <input
-            className="h-12 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
             autoComplete="email"
             inputMode="email"
             onChange={(event) => onEmail(event.target.value)}
@@ -692,13 +704,15 @@ function ProfileInput({
         </label>
       </div>
 
-      <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
+      <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
-        We respect your privacy and never post to LinkedIn automatically.
+        We use your LinkedIn profile and email to generate and save your
+        professional authority analysis. We respect your privacy and never post
+        to LinkedIn automatically.
       </p>
 
       <button
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#DADCE0] disabled:text-[#666666]"
+        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
         disabled={isScanning || !canSubmit}
         type="submit"
       >
@@ -725,8 +739,8 @@ function Scanner({
     : 0;
 
   return (
-    <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
-      <div className="flex items-center justify-between gap-4 border-b border-[#DADCE0] pb-5">
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
+      <div className="flex items-center justify-between gap-4 border-b border-[#D9DDE3] pb-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
             AI scanning flow
@@ -745,7 +759,7 @@ function Scanner({
           <span>Analysis progress</span>
           <span>{progress}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-[#DADCE0]">
+        <div className="h-2 overflow-hidden rounded-full bg-[#D9DDE3]">
           <div
             className="h-full rounded-full bg-[#0A66C2] transition-all duration-500"
             style={{ width: `${progress}%` }}
@@ -767,7 +781,7 @@ function Scanner({
                   "scanner-active border-[#0A66C2]/45 bg-[#E8F1FB] text-[#191919]",
                 !complete &&
                   !current &&
-                  "border-[#DADCE0] bg-[#F8F8F6] text-[#666666]",
+                  "border-[#D9DDE3] bg-[#F8F8F6] text-[#666666]",
               )}
               key={step}
             >
@@ -809,8 +823,8 @@ function AreaDetection({
   setSelectedAddArea: (value: string) => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
-      <div className="grid gap-4 border-b border-[#DADCE0] pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
+      <div className="grid gap-4 border-b border-[#D9DDE3] pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
             Professional area detection
@@ -843,7 +857,7 @@ function AreaDetection({
                 "grid gap-4 rounded-lg border p-4 transition md:grid-cols-[1fr_auto]",
                 isPrimary
                   ? "border-[#0A66C2]/45 bg-[#E8F1FB]"
-                  : "border-[#DADCE0] bg-white",
+                  : "border-[#D9DDE3] bg-white",
               )}
               key={area.id}
             >
@@ -861,7 +875,7 @@ function AreaDetection({
                     )}
                   </div>
                   <div className="mt-3 flex items-center gap-3">
-                    <div className="h-2 w-36 overflow-hidden rounded-full bg-[#DADCE0]">
+                    <div className="h-2 w-36 overflow-hidden rounded-full bg-[#D9DDE3]">
                       <div
                         className="h-full rounded-full bg-[#0A66C2]"
                         style={{ width: `${area.confidence}%` }}
@@ -876,7 +890,7 @@ function AreaDetection({
 
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#DADCE0] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={index === 0}
                   onClick={() => onMoveArea(index, -1)}
                   type="button"
@@ -884,7 +898,7 @@ function AreaDetection({
                   <ChevronUp className="h-4 w-4" />
                 </button>
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#DADCE0] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={index === areas.length - 1}
                   onClick={() => onMoveArea(index, 1)}
                   type="button"
@@ -892,7 +906,7 @@ function AreaDetection({
                   <ChevronDown className="h-4 w-4" />
                 </button>
                 <button
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#DADCE0] bg-white px-3 text-sm text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
                   onClick={() => onPrimaryArea(area.name)}
                   type="button"
                 >
@@ -900,7 +914,7 @@ function AreaDetection({
                   Set primary
                 </button>
                 <button
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#DADCE0] bg-white px-3 text-sm text-[#666666] transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={areas.length <= 1}
                   onClick={() => onRemoveArea(area.id)}
                   type="button"
@@ -914,11 +928,11 @@ function AreaDetection({
         })}
       </div>
 
-      <div className="mt-5 grid gap-3 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4 sm:grid-cols-[1fr_auto]">
+      <div className="mt-5 grid gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 sm:grid-cols-[1fr_auto]">
         <label className="grid gap-2 text-sm font-medium text-[#191919]">
           Manually add area
           <select
-            className="h-11 w-full rounded-lg border border-[#DADCE0] bg-white px-3 text-[#191919] outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            className="h-11 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
             onChange={(event) => setSelectedAddArea(event.target.value)}
             value={selectedAddArea}
           >
@@ -987,14 +1001,10 @@ function ScoreHero({
 
 function ShareScoreCard({
   areas,
-  copied,
-  onCopy,
   profile,
   shareText,
 }: {
   areas: DetectedArea[];
-  copied: boolean;
-  onCopy: () => void;
   profile: AreaProfile;
   shareText: string;
 }) {
@@ -1078,7 +1088,7 @@ function ShareScoreCard({
   }
 
   return (
-    <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
       <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
@@ -1092,17 +1102,9 @@ function ShareScoreCard({
             Share your score on LinkedIn.
           </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5">
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182]"
-              onClick={onCopy}
-              type="button"
-            >
-              <Copy className="h-4 w-4" />
-              {copied ? "Copied" : "Copy LinkedIn Post"}
-            </button>
-            <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DADCE0] bg-white px-4 font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-wait disabled:opacity-70"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-wait disabled:opacity-70 sm:w-auto"
               disabled={shareStatus === "sharing"}
               onClick={handleLinkedInShare}
               type="button"
@@ -1112,23 +1114,21 @@ function ShareScoreCard({
               ) : (
                 <ExternalLink className="h-4 w-4" />
               )}
-              {shareStatus === "sharing"
-                ? "Preparing share..."
-                : "Download & Share on LinkedIn"}
+              {shareStatus === "sharing" ? "Preparing share..." : "Share on LinkedIn"}
             </button>
           </div>
         </div>
 
         <div
-          className="share-card rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]"
+          className="share-card rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]"
           ref={cardRef}
         >
-          <div className="flex items-center justify-between border-b border-[#DADCE0] pb-4">
+          <div className="flex items-center justify-between border-b border-[#D9DDE3] pb-4">
             <div className="flex items-center gap-3">
               <Logo markSize={40} showSubtitle={false} />
               <div>
                 <p className="text-xs text-[#666666]">
-                  Turn Professional Expertise Into LinkedIn Authority.
+                  Your AI LinkedIn Growth Assistant
                 </p>
               </div>
             </div>
@@ -1206,25 +1206,16 @@ function Results({
   areas: DetectedArea[];
   profile: AreaProfile;
 }) {
-  const [copied, setCopied] = useState(false);
   const shareText = useMemo(
-    () => createShareText(profile.score, areas),
-    [areas, profile.score],
+    () => createShareText(profile.score, areas, profile),
+    [areas, profile],
   );
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(shareText);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
-  }
 
   return (
     <div className="grid gap-6">
       <ScoreHero areas={areas} profile={profile} />
       <ShareScoreCard
         areas={areas}
-        copied={copied}
-        onCopy={handleCopy}
         profile={profile}
         shareText={shareText}
       />
@@ -1232,7 +1223,7 @@ function Results({
       <section className="grid gap-4 lg:grid-cols-3">
         {profile.strengths.map((strength) => (
           <article
-            className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+            className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
             key={strength}
           >
             <BadgeCheck className="h-5 w-5 text-[#057642]" />
@@ -1245,7 +1236,7 @@ function Results({
         ))}
       </section>
 
-      <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
           Visibility potential
         </p>
@@ -1264,14 +1255,14 @@ function Results({
         </ul>
       </section>
 
-      <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
           Visibility Opportunities
         </p>
         <div className="mt-5 grid gap-3">
           {profile.opportunities.map((opportunity) => (
             <article
-              className="flex gap-3 rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4"
+              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
               key={opportunity}
             >
               <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
@@ -1282,9 +1273,9 @@ function Results({
       </section>
 
       <section
-        className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
+        className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
       >
-        <div className="flex flex-col gap-4 border-b border-[#DADCE0] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
               Trend Radar
@@ -1293,7 +1284,7 @@ function Results({
               Trends matched to your professional area
             </h3>
           </div>
-          <span className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] px-3 py-2 text-xs font-semibold text-[#666666]">
+          <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs font-semibold text-[#666666]">
             3 visible on Free
           </span>
         </div>
@@ -1320,7 +1311,7 @@ function Results({
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {profile.trends.slice(3).map((trend) => (
             <article
-              className="relative overflow-hidden rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4"
+              className="relative overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
               key={trend.title}
             >
               <div className="opacity-35">
@@ -1340,7 +1331,7 @@ function Results({
         </div>
       </section>
 
-      <section className="rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
         <div className="grid gap-6 lg:grid-cols-[0.82fr_1fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
@@ -1355,7 +1346,7 @@ function Results({
           </div>
 
           <div className="grid gap-4">
-            <article className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4">
+            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
               <p className="text-sm font-semibold text-[#0A66C2]">
                 Why this matters now
               </p>
@@ -1363,7 +1354,7 @@ function Results({
                 {profile.topic.whyNow}
               </p>
             </article>
-            <article className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4">
+            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
               <p className="text-sm font-semibold text-[#0A66C2]">CTA</p>
               <p className="mt-2 text-sm leading-6 text-[#666666]">
                 {profile.topic.cta}
@@ -1372,7 +1363,7 @@ function Results({
             <div className="flex flex-wrap gap-2">
               {profile.topic.hashtags.map((hashtag) => (
                 <span
-                  className="rounded-lg border border-[#DADCE0] bg-white px-3 py-2 text-xs font-semibold text-[#0A66C2]"
+                  className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-xs font-semibold text-[#0A66C2]"
                   key={hashtag}
                 >
                   {hashtag}
@@ -1525,7 +1516,7 @@ function AssessmentSection() {
       id="assessment"
     >
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.82fr_1fr] lg:items-end">
+        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.82fr_1fr] lg:items-end">
           <div>
             <SectionEyebrow icon={BarChart3}>Assessment</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
@@ -1551,7 +1542,7 @@ function AssessmentSection() {
 
           <div className="min-w-0">
             {stage === "idle" && (
-              <section className="grid min-h-full content-between gap-8 rounded-lg border border-[#DADCE0] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+              <section className="grid min-h-full content-between gap-8 rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
                     Result preview
@@ -1570,7 +1561,7 @@ function AssessmentSection() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   {["Area detection", "Score card", "Trend Radar"].map((item) => (
                     <div
-                      className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4 text-sm font-semibold"
+                      className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm font-semibold"
                       key={item}
                     >
                       <ArrowRight className="mb-5 h-4 w-4 text-[#0A66C2]" />
@@ -1617,7 +1608,7 @@ function PricingSection() {
   return (
     <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10" id="pricing">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
+        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
           <div>
             <SectionEyebrow icon={WalletCards}>Pricing</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
@@ -1638,11 +1629,11 @@ function PricingSection() {
                 "rounded-lg border p-6 transition sm:p-8",
                 tier.featured
                   ? "border-[#0A66C2]/35 bg-white shadow-[0_16px_36px_rgba(10,25,47,0.12)]"
-                  : "border-[#DADCE0] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
+                  : "border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
               )}
               key={tier.name}
             >
-              <div className="flex flex-col gap-5 border-b border-[#DADCE0] pb-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-5 border-b border-[#D9DDE3] pb-6 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-2xl font-semibold">{tier.name}</h3>
                   <p className="mt-2 text-sm text-[#666666]">{tier.cadence}</p>
@@ -1671,7 +1662,7 @@ function PricingSection() {
                   "mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold transition",
                   tier.featured
                     ? "bg-[#0A66C2] text-white hover:bg-[#004182]"
-                    : "border border-[#DADCE0] bg-white text-[#191919] hover:border-[#0A66C2]/35 hover:text-[#0A66C2]",
+                    : "border border-[#D9DDE3] bg-white text-[#191919] hover:border-[#0A66C2]/35 hover:text-[#0A66C2]",
                 )}
                 href="#assessment"
               >
@@ -1696,7 +1687,7 @@ function BuiltForSection() {
   return (
     <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#DADCE0] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
+        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
           <div>
             <SectionEyebrow icon={Globe2}>Built for</SectionEyebrow>
             <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
@@ -1712,7 +1703,7 @@ function BuiltForSection() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {builtForAreas.map(([title, subtitle], index) => (
             <article
-              className="area-card group relative min-h-48 overflow-hidden rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
+              className="area-card group relative min-h-48 overflow-hidden rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
               key={title}
               style={{ "--area-index": index } as React.CSSProperties}
             >
@@ -1734,7 +1725,7 @@ function ArchitectureSection() {
   return (
     <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-lg border border-[#DADCE0] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <div className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
               <SectionEyebrow icon={Database}>Prepared architecture</SectionEyebrow>
@@ -1758,7 +1749,7 @@ function ArchitectureSection() {
                 ["No autoposting", "User remains in control"],
               ].map(([title, subtitle]) => (
                 <div
-                  className="rounded-lg border border-[#DADCE0] bg-[#F8F8F6] p-4"
+                  className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
                   key={title}
                 >
                   <p className="font-semibold">{title}</p>
@@ -1778,7 +1769,7 @@ function ArchitectureSection() {
 function ContactFooter() {
   return (
     <footer className="bg-[#F3F2EF] px-5 py-10 text-[#191919] sm:px-8 lg:px-10" id="contact">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-[#DADCE0] pt-8 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-[#D9DDE3] pt-8 md:flex-row md:items-center md:justify-between">
         <div>
           <Logo markSize={36} showSubtitle={false} />
           <p className="mt-2 text-sm text-[#666666]">
