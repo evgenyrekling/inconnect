@@ -15,36 +15,31 @@ export function Logo({
   showSubtitle = true,
   tone = "light",
 }: LogoProps) {
-  const textClass = tone === "dark" ? "text-white" : "text-[#191919]";
-  const subtitleClass = tone === "dark" ? "text-white/70" : "text-[#666666]";
+  const logoSrc = tone === "dark" ? "/logo-dark.svg" : "/logo-light.svg";
+  const logoAspectRatio = 835 / 260;
 
   return (
     <span className={`inline-flex items-center gap-3 ${className}`}>
       <span
         className="relative shrink-0"
-        style={{ height: markSize, width: markSize }}
+        style={{
+          height: markSize,
+          width: iconOnly ? markSize : markSize * logoAspectRatio,
+        }}
       >
         <Image
           alt="INConnect"
           className="h-full w-full"
           height={markSize}
           priority
-          src="/logo-icon.svg"
-          width={markSize}
+          src={iconOnly ? "/logo-icon.svg" : logoSrc}
+          width={iconOnly ? markSize : Math.round(markSize * logoAspectRatio)}
         />
       </span>
       {!iconOnly && (
-        <span className="leading-none">
-          <span
-            className={`block text-lg font-semibold tracking-normal ${textClass}`}
-          >
-            INConnect
-          </span>
-          {showSubtitle && (
-            <span className={`mt-1 block text-xs font-medium ${subtitleClass}`}>
-              Your AI LinkedIn Growth Assistant
-            </span>
-          )}
+        <span className="sr-only">
+          INConnect
+          {showSubtitle ? " - Your AI LinkedIn Growth Assistant" : ""}
         </span>
       )}
     </span>
