@@ -1,7 +1,9 @@
-﻿<svg width="190" height="48" viewBox="0 0 190 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="260" height="48" viewBox="0 0 260 48" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="3.5" y="3.5" width="41" height="41" rx="11" fill="#FFFFFF" stroke="rgba(255,255,255,0.24)"/>
-  <path d="M13 17.5L35.5 11.5L29.5 20L39 24.5L24.5 25.5L16.5 36.5L18 26.5L9.5 23.5L20.5 21.5L13 17.5Z" fill="#0A66C2"/>
-  <path d="M20.5 21.5L35.5 11.5L24.5 25.5L16.5 36.5L18 26.5L20.5 21.5Z" fill="#0077B5"/>
-  <path d="M25 20.2L31.8 17.2L28.7 21.3L34 23.6L25 24.1L20.3 30.2L21.4 24.6L14.8 22.4L22.2 21.3L17.9 18.9L25 20.2Z" fill="#FFFFFF" fill-opacity="0.88"/>
-  <text x="58" y="31" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="0">INConnect</text>
+  <path d="M10.8 31.4C12.2 21.5 19.4 13 29.1 11.2C33.9 10.3 38.1 11.6 40.9 14.5C36.9 14.5 33.2 15.7 30.5 18.1C34.7 18.4 38.6 19.7 42.2 22.1L34.5 24.8L39.2 27.6L29.7 27.8C27.9 32.1 24.4 35.4 19.1 37.6C19.1 33.9 16.7 31.8 10.8 31.4Z" fill="#0A66C2"/>
+  <path d="M15.3 30.1C18.2 24.7 22.1 20.7 27 18.2C24.5 22.5 23.4 27 23.7 31.5C22.8 33.1 21.3 34.5 19.1 35.8C18.3 32.9 17.1 31 15.3 30.1Z" fill="#0077B5"/>
+  <path d="M27.8 17.6L34.4 18.6L28.7 21.1L25.5 19.4L27.8 17.6Z" fill="#FFFFFF"/>
+  <path d="M34.5 24.8L42.2 22.1L38.4 21.5L31.5 23.9L34.5 24.8Z" fill="#FFFFFF" fill-opacity="0.92"/>
+  <text x="58" y="24" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="700" letter-spacing="0">INConnect</text>
+  <text x="58" y="38" fill="#FFFFFF" fill-opacity="0.72" font-family="Inter, Arial, sans-serif" font-size="10.5" font-weight="500" letter-spacing="0">Your AI LinkedIn Growth Assistant</text>
 </svg>

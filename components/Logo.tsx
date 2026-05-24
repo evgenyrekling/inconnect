@@ -17,26 +17,27 @@ export function Logo({
 }: LogoProps) {
   const textClass = tone === "dark" ? "text-white" : "text-[#191919]";
   const subtitleClass = tone === "dark" ? "text-white/70" : "text-[#666666]";
-  const logoSrc = tone === "dark" ? "/logo-dark.svg" : "/logo-light.svg";
 
   return (
     <span className={`inline-flex items-center gap-3 ${className}`}>
       <span
         className="relative shrink-0"
-        style={{ height: markSize, width: iconOnly ? markSize : markSize * 3.95 }}
+        style={{ height: markSize, width: markSize }}
       >
         <Image
           alt="INConnect"
           className="h-full w-full"
           height={markSize}
           priority
-          src={iconOnly ? "/logo-icon.svg" : logoSrc}
-          width={iconOnly ? markSize : Math.round(markSize * 3.95)}
+          src="/logo-icon.svg"
+          width={markSize}
         />
       </span>
       {!iconOnly && (
-        <span className="sr-only leading-none">
-          <span className={`block text-lg font-semibold tracking-normal ${textClass}`}>
+        <span className="leading-none">
+          <span
+            className={`block text-lg font-semibold tracking-normal ${textClass}`}
+          >
             INConnect
           </span>
           {showSubtitle && (
