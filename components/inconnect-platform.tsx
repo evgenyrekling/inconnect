@@ -33,12 +33,16 @@ import {
 import { toPng } from "html-to-image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  analysisToProfile,
+  createDemoFallbackAnalysis,
+  type AuthorityAnalysisResponse,
+  type ScoreBreakdown,
+} from "@/lib/authority-analysis";
+import {
   createShareText,
   type DetectedArea,
-  inferProfile,
   type MockUserRecord,
   professionalAreas,
-  profileForPrimaryArea,
   type AreaProfile,
 } from "@/lib/mock-intelligence";
 import { Logo } from "@/components/Logo";
@@ -174,6 +178,32 @@ function getPrimaryArea(areas: DetectedArea[]) {
 
 function saveMockUser(record: MockUserRecord) {
   window.localStorage.setItem("inconnect.mockUser", JSON.stringify(record));
+}
+
+async function requestProfileAnalysis({
+  email,
+  linkedInUrl,
+  profileText,
+}: {
+  email: string;
+  linkedInUrl: string;
+  profileText: string;
+}) {
+  const response = await fetch("/api/analyze-profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      linkedinUrl: linkedInUrl,
+      profileText,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Profile analysis request failed.");
+  }
+
+  return (await response.json()) as AuthorityAnalysisResponse;
 }
 
 function downloadDataUrl(dataUrl: string, filename: string) {
@@ -644,14 +674,18 @@ function ProfileInput({
   linkedInUrl,
   onEmail,
   onLinkedInUrl,
+  onProfileText,
   onSubmit,
+  profileText,
 }: {
   email: string;
   isScanning: boolean;
   linkedInUrl: string;
   onEmail: (value: string) => void;
   onLinkedInUrl: (value: string) => void;
+  onProfileText: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  profileText: string;
 }) {
   const canSubmit =
     linkedInUrl.trim().length > 0 && email.trim().length > 0 && isValidEmail(email);
@@ -701,6 +735,20 @@ function ProfileInput({
             type="email"
             value={email}
           />
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium text-[#191919]">
+          LinkedIn profile text, About section, headline, or recent posts
+          <textarea
+            className="min-h-36 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            onChange={(event) => onProfileText(event.target.value)}
+            placeholder="Optional: paste your headline, About section, featured experience, or recent LinkedIn posts for a real AI-based authority analysis."
+            value={profileText}
+          />
+          <span className="text-xs font-normal leading-5 text-[#666666]">
+            Optional. If left empty, INConnect uses demo fallback data without
+            scraping LinkedIn.
+          </span>
         </label>
       </div>
 
@@ -833,8 +881,9 @@ function AreaDetection({
             Confirm your authority lane
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#666666]">
-            INConnect uses mock detection for now. Edit the professional areas,
-            choose your primary area, then reveal the free assessment.
+            INConnect detects professional areas from the profile text you
+            provide. If no text is provided, demo fallback data is used. Edit
+            the areas, choose your primary area, then reveal the free assessment.
           </p>
         </div>
         <button
@@ -1199,26 +1248,99 @@ function ShareScoreCard({
   );
 }
 
-function Results({
-  areas,
-  profile,
+function ScoreBreakdownGrid({
+  scoreBreakdown,
 }: {
-  areas: DetectedArea[];
-  profile: AreaProfile;
+  scoreBreakdown: ScoreBreakdown;
 }) {
-  const shareText = useMemo(
-    () => createShareText(profile.score, areas, profile),
-    [areas, profile],
-  );
+  const categoryLabels: Array<[keyof ScoreBreakdown, string, string]> = [
+    ["profileClarity", "Profile Clarity", "20%"],
+    ["professionalPositioning", "Professional Positioning", "20%"],
+    ["authoritySignals", "Authority Signals", "20%"],
+    ["contentPotential", "Content Potential", "15%"],
+    ["networkRelevance", "Network Relevance", "15%"],
+    ["growthOpportunity", "Growth Opportunity", "10%"],
+  ];
 
   return (
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <div className="border-b border-[#D9DDE3] pb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Scoring model
+        </p>
+        <h3 className="mt-3 text-2xl font-semibold">
+          LinkedIn Authority Score breakdown
+        </h3>
+      </div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {categoryLabels.map(([key, label, weight]) => {
+          const category = scoreBreakdown[key];
+
+          return (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
+              key={key}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="font-semibold">{label}</h4>
+                  <p className="mt-1 text-xs font-semibold text-[#0A66C2]">
+                    Weight: {weight}
+                  </p>
+                </div>
+                <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#191919] shadow-[0_6px_16px_rgba(10,25,47,0.06)]">
+                  {category.score}/100
+                </span>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-[#666666]">
+                {category.explanation}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#191919]">
+                <span className="font-semibold">Improvement hint:</span>{" "}
+                {category.improvementHint}
+              </p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Results({
+  analysisMode,
+  areas,
+  errorMessage,
+  profile,
+  scoreBreakdown,
+  shareText,
+}: {
+  analysisMode: AuthorityAnalysisResponse["analysisMode"];
+  areas: DetectedArea[];
+  errorMessage: string;
+  profile: AreaProfile;
+  scoreBreakdown: ScoreBreakdown | null;
+  shareText: string;
+}) {
+  return (
     <div className="grid gap-6">
+      {(analysisMode === "demo_fallback" || errorMessage) && (
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+          <span className="font-semibold text-[#191919]">
+            {analysisMode === "demo_fallback" ? "Demo fallback active." : "Fallback result shown."}
+          </span>{" "}
+          {errorMessage ||
+            "No LinkedIn profile text was provided, so this assessment uses demo fallback data instead of OpenAI analysis."}
+        </section>
+      )}
       <ScoreHero areas={areas} profile={profile} />
       <ShareScoreCard
         areas={areas}
         profile={profile}
         shareText={shareText}
       />
+
+      {scoreBreakdown && <ScoreBreakdownGrid scoreBreakdown={scoreBreakdown} />}
 
       <section className="grid gap-4 lg:grid-cols-3">
         {profile.strengths.map((strength) => (
@@ -1405,7 +1527,7 @@ function Results({
       </section>
 
       <p className="text-xs text-[#666666]">
-        Mock data only. No LinkedIn posting or profile scraping is active in this MVP.
+        No LinkedIn scraping, LinkedIn API access, or automatic posting is active in this MVP.
       </p>
     </div>
   );
@@ -1414,9 +1536,16 @@ function Results({
 function AssessmentSection() {
   const [linkedInUrl, setLinkedInUrl] = useState("");
   const [email, setEmail] = useState("");
+  const [profileText, setProfileText] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [activeStep, setActiveStep] = useState(0);
   const [profile, setProfile] = useState<AreaProfile | null>(null);
+  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
+  const [shareText, setShareText] = useState("");
+  const [analysisMode, setAnalysisMode] =
+    useState<AuthorityAnalysisResponse["analysisMode"]>("demo_fallback");
+  const [analysisError, setAnalysisError] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [areas, setAreas] = useState<DetectedArea[]>([]);
   const [primaryArea, setPrimaryArea] = useState("");
   const [selectedAddArea, setSelectedAddArea] = useState<string>(
@@ -1428,8 +1557,8 @@ function AssessmentSection() {
       return null;
     }
 
-    return profileForPrimaryArea(primaryArea || getPrimaryArea(areas), profile);
-  }, [areas, primaryArea, profile]);
+    return profile;
+  }, [profile]);
 
   useEffect(() => {
     if (stage !== "scanning") {
@@ -1437,6 +1566,10 @@ function AssessmentSection() {
     }
 
     if (activeStep >= scanningSteps.length - 1) {
+      if (isAnalyzing || !profile) {
+        return;
+      }
+
       const timer = window.setTimeout(() => setStage("areas"), 800);
       return () => window.clearTimeout(timer);
     }
@@ -1446,9 +1579,9 @@ function AssessmentSection() {
     }, 620);
 
     return () => window.clearTimeout(timer);
-  }, [activeStep, stage]);
+  }, [activeStep, isAnalyzing, profile, stage]);
 
-  function handleAnalyze(event: FormEvent<HTMLFormElement>) {
+  async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!event.currentTarget.reportValidity() || !isValidEmail(email)) {
       return;
@@ -1462,12 +1595,47 @@ function AssessmentSection() {
     };
     saveMockUser(record);
 
-    const nextProfile = inferProfile(linkedInUrl);
-    setProfile(nextProfile);
-    setAreas(nextProfile.detectedAreas);
-    setPrimaryArea(nextProfile.detectedAreas[0]?.name ?? nextProfile.primaryArea);
+    setAnalysisError("");
+    setIsAnalyzing(true);
+    setProfile(null);
+    setAreas([]);
+    setScoreBreakdown(null);
+    setShareText("");
     setActiveStep(0);
     setStage("scanning");
+
+    try {
+      const analysis = await requestProfileAnalysis({
+        email: email.trim(),
+        linkedInUrl: linkedInUrl.trim(),
+        profileText: profileText.trim(),
+      });
+      const nextProfile = analysisToProfile(analysis);
+      setProfile(nextProfile);
+      setAreas(analysis.detectedProfessionalAreas);
+      setPrimaryArea(
+        analysis.detectedProfessionalAreas[0]?.name ?? nextProfile.primaryArea,
+      );
+      setScoreBreakdown(analysis.scoreBreakdown);
+      setShareText(analysis.shareText);
+      setAnalysisMode(analysis.analysisMode);
+    } catch {
+      const fallback = createDemoFallbackAnalysis(linkedInUrl);
+      const nextProfile = analysisToProfile(fallback);
+      setProfile(nextProfile);
+      setAreas(fallback.detectedProfessionalAreas);
+      setPrimaryArea(
+        fallback.detectedProfessionalAreas[0]?.name ?? nextProfile.primaryArea,
+      );
+      setScoreBreakdown(fallback.scoreBreakdown);
+      setShareText(fallback.shareText);
+      setAnalysisMode("demo_fallback");
+      setAnalysisError(
+        "AI analysis could not be completed, so INConnect is showing a demo fallback assessment.",
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   function handleRemoveArea(id: string) {
@@ -1537,7 +1705,9 @@ function AssessmentSection() {
             linkedInUrl={linkedInUrl}
             onEmail={setEmail}
             onLinkedInUrl={setLinkedInUrl}
+            onProfileText={setProfileText}
             onSubmit={handleAnalyze}
+            profileText={profileText}
           />
 
           <div className="min-w-0">
@@ -1552,9 +1722,9 @@ function AssessmentSection() {
                     generation.
                   </h3>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
-                    Run a mock profile scan to detect professional areas,
-                    confirm your authority lane, and reveal a limited-depth free
-                    assessment.
+                    Paste LinkedIn profile text for AI analysis, or run a demo
+                    fallback assessment without scraping LinkedIn. Confirm your
+                    authority lane and reveal a limited-depth free assessment.
                   </p>
                 </div>
 
@@ -1592,8 +1762,12 @@ function AssessmentSection() {
 
             {stage === "results" && displayProfile && (
               <Results
+                analysisMode={analysisMode}
                 areas={areas}
+                errorMessage={analysisError}
                 profile={displayProfile}
+                scoreBreakdown={scoreBreakdown}
+                shareText={shareText || createShareText(displayProfile.score, areas, displayProfile)}
               />
             )}
           </div>

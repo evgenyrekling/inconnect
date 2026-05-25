@@ -1,24 +1,44 @@
 # INConnect Freemium SaaS Prototype
 
-INConnect is a polished mock freemium SaaS prototype for an AI-powered
-LinkedIn assistant aimed at professionals across industries.
+INConnect is an AI LinkedIn Growth Assistant for professionals and companies
+that want clearer LinkedIn authority, trend relevance, and content direction.
 
 ## Included
 
 - Next.js App Router project with TypeScript and Tailwind CSS
-- Premium dark SaaS landing page
-- LinkedIn profile URL and optional company website/domain/name input
-- Mock AI scanning flow
+- Premium SaaS landing page and official INConnect falcon brand assets
+- Assessment form with LinkedIn profile URL, email address, and optional pasted LinkedIn profile text
+- `POST /api/analyze-profile` authority scoring route
+- OpenAI structured JSON analysis when profile text is provided
+- Demo fallback analysis when profile text is empty or AI analysis fails
+- Weighted LinkedIn Authority Score model:
+  - Profile Clarity, 20%
+  - Professional Positioning, 20%
+  - Authority Signals, 20%
+  - Content Potential, 15%
+  - Network Relevance, 15%
+  - Growth Opportunity, 10%
 - Editable professional area detection with confidence scores
-- Email capture modal before results
-- Limited-depth free assessment with unlimited free analyses
 - Shareable LinkedIn Authority Score card and generated share text
 - Trend Radar with 3 visible insights and locked Pro insights
 - One personalized topic idea with Pro idea lock
 - Free and Pro pricing section
-- Built-for professional area cards
-- Future integration placeholders for OpenAI, Supabase, Stripe, trend feeds, and accounts
+- Future integration placeholders for Supabase, Stripe, trend feeds, and accounts
 - Responsive layout ready for Vercel deployment
+
+## Environment
+
+Create `.env.local` from `.env.example` and add your OpenAI API key:
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+Optional:
+
+```bash
+OPENAI_MODEL=gpt-4o-mini
+```
 
 ## Local development
 
@@ -36,4 +56,6 @@ npm run typecheck
 npm run build
 ```
 
-Vercel can deploy the repository with the default Next.js preset.
+Vercel can deploy the repository with the default Next.js preset. Add
+`OPENAI_API_KEY` in Vercel project environment variables before using real
+profile-text analysis in production.
