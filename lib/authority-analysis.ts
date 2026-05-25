@@ -1,131 +1,160 @@
-import {
-  createShareText,
-  type AreaProfile,
-  type DetectedArea,
-  inferProfile,
-  type TopicIdea,
-  type TrendInsight,
+import type {
+  AreaProfile,
+  DetectedArea,
+  TopicIdea,
+  TrendInsight,
 } from "@/lib/mock-intelligence";
-
-export type ScoreCategory =
-  | "profileClarity"
-  | "professionalPositioning"
-  | "authoritySignals"
-  | "contentPotential"
-  | "networkRelevance"
-  | "growthOpportunity";
-
-export type ScoreCategoryResult = {
-  score: number;
-  explanation: string;
-  improvementHint: string;
-};
-
-export type ScoreBreakdown = Record<ScoreCategory, ScoreCategoryResult>;
 
 export type AuthorityAnalysisResponse = {
   totalScore: number;
-  scoreBreakdown: ScoreBreakdown;
-  detectedProfessionalAreas: DetectedArea[];
-  topStrengths: string[];
-  visibilityPotential: string[];
-  visibilityOpportunities: string[];
-  trendAngles: TrendInsight[];
-  personalizedTopicIdea: TopicIdea;
+  primaryIndustry: string;
+  topExpertiseAreas: string[];
+  strengths: string[];
+  weaknesses: string[];
+  contentOpportunities: string[];
+  authoritySummary: string;
+  improvementActions: string[];
+  trendPositioning: string[];
   shareText: string;
-  analysisMode: "ai" | "demo_fallback";
 };
 
-const scoreWeights: Record<ScoreCategory, number> = {
-  profileClarity: 0.2,
-  professionalPositioning: 0.2,
-  authoritySignals: 0.2,
-  contentPotential: 0.15,
-  networkRelevance: 0.15,
-  growthOpportunity: 0.1,
-};
+export function normalizeAuthorityAnalysis(
+  analysis: AuthorityAnalysisResponse,
+): AuthorityAnalysisResponse {
+  const totalScore = clampScore(analysis.totalScore);
+  const normalized: AuthorityAnalysisResponse = {
+    totalScore,
+    primaryIndustry: normalizeText(analysis.primaryIndustry, "Professional Growth"),
+    topExpertiseAreas: normalizeList(analysis.topExpertiseAreas).slice(0, 5),
+    strengths: normalizeList(analysis.strengths).slice(0, 4),
+    weaknesses: normalizeList(analysis.weaknesses).slice(0, 4),
+    contentOpportunities: normalizeList(analysis.contentOpportunities).slice(0, 5),
+    authoritySummary: normalizeText(
+      analysis.authoritySummary,
+      "Your LinkedIn positioning shows professional authority potential, with clearer specialization and content direction creating the strongest next step.",
+    ),
+    improvementActions: normalizeList(analysis.improvementActions).slice(0, 5),
+    trendPositioning: normalizeList(analysis.trendPositioning).slice(0, 5),
+    shareText: normalizeText(analysis.shareText, ""),
+  };
 
-export function calculateWeightedScore(scoreBreakdown: ScoreBreakdown) {
-  return Math.round(
-    Object.entries(scoreWeights).reduce((total, [category, weight]) => {
-      return total + scoreBreakdown[category as ScoreCategory].score * weight;
-    }, 0),
-  );
+  if (normalized.topExpertiseAreas.length === 0) {
+    normalized.topExpertiseAreas = [normalized.primaryIndustry];
+  }
+
+  if (!normalized.shareText.includes("I just checked my LinkedIn Authority Score using INConnect.")) {
+    normalized.shareText = createShareTextForAnalysis(normalized);
+  }
+
+  return normalized;
 }
 
-export function createDemoFallbackAnalysis(linkedInUrl: string): AuthorityAnalysisResponse {
-  const profile = inferProfile(linkedInUrl);
-  const scoreBreakdown = createFallbackScoreBreakdown(profile.score);
-  const totalScore = calculateWeightedScore(scoreBreakdown);
-  const normalizedProfile = { ...profile, score: totalScore };
-
-  return {
-    totalScore,
-    scoreBreakdown,
-    detectedProfessionalAreas: profile.detectedAreas,
-    topStrengths: profile.strengths,
-    visibilityPotential: profile.authorityPotential,
-    visibilityOpportunities: profile.opportunities,
-    trendAngles: profile.trends,
-    personalizedTopicIdea: profile.topic,
-    shareText: createShareText(totalScore, profile.detectedAreas, normalizedProfile),
-    analysisMode: "demo_fallback",
-  };
+export function analysisToDetectedAreas(
+  analysis: AuthorityAnalysisResponse,
+): DetectedArea[] {
+  return analysis.topExpertiseAreas.slice(0, 5).map((name, index) => ({
+    id: slugify(name) || `expertise-${index + 1}`,
+    name,
+    confidence: Math.max(72, 94 - index * 5),
+  }));
 }
 
 export function analysisToProfile(analysis: AuthorityAnalysisResponse): AreaProfile {
-  const primaryArea = analysis.detectedProfessionalAreas[0]?.name ?? "Technology";
+  const detectedAreas = analysisToDetectedAreas(analysis);
 
   return {
     score: analysis.totalScore,
-    primaryArea: primaryArea as AreaProfile["primaryArea"],
-    detectedAreas: analysis.detectedProfessionalAreas,
-    authorityPotential: analysis.visibilityPotential,
-    strongAuthorityPotential: analysis.visibilityPotential.slice(0, 3),
-    strengths: analysis.topStrengths,
-    opportunities: analysis.visibilityOpportunities,
-    trends: analysis.trendAngles,
-    topic: analysis.personalizedTopicIdea,
+    primaryArea: analysis.primaryIndustry as AreaProfile["primaryArea"],
+    detectedAreas,
+    authorityPotential: analysis.topExpertiseAreas.slice(0, 3),
+    strongAuthorityPotential: analysis.topExpertiseAreas.slice(0, 3),
+    strengths: analysis.strengths,
+    opportunities: analysis.weaknesses,
+    trends: analysis.trendPositioning.map(toTrendInsight),
+    topic: toTopicIdea(analysis),
   };
 }
 
-function createFallbackScoreBreakdown(baseScore: number): ScoreBreakdown {
-  const bounded = clampScore(baseScore);
-
-  return {
-    profileClarity: {
-      score: clampScore(bounded - 2),
-      explanation: "The profile presents a recognizable professional direction.",
-      improvementHint: "Make the headline and About section more specific to one authority lane.",
-    },
-    professionalPositioning: {
-      score: clampScore(bounded + 1),
-      explanation: "The positioning suggests a clear market or industry context.",
-      improvementHint: "Connect expertise to measurable business or industry outcomes.",
-    },
-    authoritySignals: {
-      score: clampScore(bounded - 4),
-      explanation: "There are signals of credible professional experience.",
-      improvementHint: "Add proof points, examples, and stronger evidence of impact.",
-    },
-    contentPotential: {
-      score: clampScore(bounded + 3),
-      explanation: "The profile has strong potential for useful LinkedIn content themes.",
-      improvementHint: "Turn recurring work themes into repeatable insight-led posts.",
-    },
-    networkRelevance: {
-      score: clampScore(bounded),
-      explanation: "The expertise can map to relevant professional conversations.",
-      improvementHint: "Name the audience, ecosystem, and decision-makers more directly.",
-    },
-    growthOpportunity: {
-      score: clampScore(bounded + 5),
-      explanation: "There is meaningful room to grow visibility with clearer thought leadership.",
-      improvementHint: "Publish more consistently around a narrow set of authority themes.",
-    },
-  };
+export function createShareTextForAnalysis(analysis: AuthorityAnalysisResponse) {
+  return [
+    "I just checked my LinkedIn Authority Score using INConnect.",
+    "",
+    `My score: ${analysis.totalScore}/100`,
+    "",
+    "Primary professional area:",
+    analysis.primaryIndustry,
+    "",
+    "Top expertise areas:",
+    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `- ${area}`),
+    "",
+    analysis.authoritySummary,
+    "",
+    "Check your professional authority:",
+    "https://inconnect.app",
+    "",
+    "#LinkedIn #ProfessionalBranding #PersonalBranding #ThoughtLeadership #INConnect",
+  ].join("\n");
 }
 
 export function clampScore(score: number) {
   return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+function toTrendInsight(item: string, index: number): TrendInsight {
+  const [title, ...summaryParts] = item.split(":");
+
+  return {
+    title: normalizeText(title, `Positioning angle ${index + 1}`),
+    momentum:
+      index === 0
+        ? "Executive priority"
+        : index === 1
+          ? "High signal"
+          : index === 2
+            ? "Accelerating"
+            : "Emerging",
+    summary: normalizeText(
+      summaryParts.join(":"),
+      "A relevant market conversation that can strengthen professional authority when connected to specific expertise.",
+    ),
+  };
+}
+
+function toTopicIdea(analysis: AuthorityAnalysisResponse): TopicIdea {
+  const firstOpportunity =
+    analysis.contentOpportunities[0] ??
+    `How ${analysis.primaryIndustry} professionals can build clearer authority`;
+
+  return {
+    title: firstOpportunity,
+    hook:
+      analysis.contentOpportunities[1] ??
+      "The professionals who become easiest to trust are usually the clearest about the problems they understand.",
+    whyNow:
+      analysis.trendPositioning[0] ??
+      "LinkedIn rewards useful, specific expertise more than broad professional updates.",
+    cta:
+      analysis.improvementActions[0] ??
+      "What professional topic should more people in your industry be discussing?",
+    hashtags: ["#LinkedIn", "#ProfessionalBranding", "#ThoughtLeadership", "#INConnect"],
+  };
+}
+
+function normalizeList(value: string[]) {
+  return Array.isArray(value)
+    ? value.map((item) => item.trim()).filter((item) => item.length > 0)
+    : [];
+}
+
+function normalizeText(value: string, fallback: string) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : fallback;
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }

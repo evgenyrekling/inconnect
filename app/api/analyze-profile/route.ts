@@ -1,13 +1,9 @@
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  calculateWeightedScore,
-  clampScore,
-  createDemoFallbackAnalysis,
+  normalizeAuthorityAnalysis,
   type AuthorityAnalysisResponse,
-  type ScoreBreakdown,
 } from "@/lib/authority-analysis";
-import { createShareText } from "@/lib/mock-intelligence";
-import { analysisToProfile } from "@/lib/authority-analysis";
 
 type AnalyzeProfileRequest = {
   linkedinUrl?: string;
@@ -15,111 +11,51 @@ type AnalyzeProfileRequest = {
   profileText?: string;
 };
 
+const missingProfileTextMessage =
+  "Please paste LinkedIn About section or recent content for AI analysis.";
+
 const responseSchema = {
   type: "object",
   additionalProperties: false,
   required: [
     "totalScore",
-    "scoreBreakdown",
-    "detectedProfessionalAreas",
-    "topStrengths",
-    "visibilityPotential",
-    "visibilityOpportunities",
-    "trendAngles",
-    "personalizedTopicIdea",
+    "primaryIndustry",
+    "topExpertiseAreas",
+    "strengths",
+    "weaknesses",
+    "contentOpportunities",
+    "authoritySummary",
+    "improvementActions",
+    "trendPositioning",
     "shareText",
   ],
   properties: {
-    totalScore: { type: "integer" },
-    scoreBreakdown: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "profileClarity",
-        "professionalPositioning",
-        "authoritySignals",
-        "contentPotential",
-        "networkRelevance",
-        "growthOpportunity",
-      ],
-      properties: Object.fromEntries(
-        [
-          "profileClarity",
-          "professionalPositioning",
-          "authoritySignals",
-          "contentPotential",
-          "networkRelevance",
-          "growthOpportunity",
-        ].map((category) => [
-          category,
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["score", "explanation", "improvementHint"],
-            properties: {
-              score: { type: "integer" },
-              explanation: { type: "string" },
-              improvementHint: { type: "string" },
-            },
-          },
-        ]),
-      ),
-    },
-    detectedProfessionalAreas: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "name", "confidence"],
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          confidence: { type: "integer" },
-        },
-      },
-    },
-    topStrengths: {
+    totalScore: { type: "number" },
+    primaryIndustry: { type: "string" },
+    topExpertiseAreas: {
       type: "array",
       items: { type: "string" },
     },
-    visibilityPotential: {
+    strengths: {
       type: "array",
       items: { type: "string" },
     },
-    visibilityOpportunities: {
+    weaknesses: {
       type: "array",
       items: { type: "string" },
     },
-    trendAngles: {
+    contentOpportunities: {
       type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["title", "momentum", "summary"],
-        properties: {
-          title: { type: "string" },
-          momentum: {
-            type: "string",
-            enum: ["Emerging", "Accelerating", "High signal", "Executive priority"],
-          },
-          summary: { type: "string" },
-        },
-      },
+      items: { type: "string" },
     },
-    personalizedTopicIdea: {
-      type: "object",
-      additionalProperties: false,
-      required: ["title", "hook", "whyNow", "cta", "hashtags"],
-      properties: {
-        title: { type: "string" },
-        hook: { type: "string" },
-        whyNow: { type: "string" },
-        cta: { type: "string" },
-        hashtags: {
-          type: "array",
-          items: { type: "string" },
-        },
-      },
+    authoritySummary: { type: "string" },
+    improvementActions: {
+      type: "array",
+      items: { type: "string" },
+    },
+    trendPositioning: {
+      type: "array",
+      items: { type: "string" },
     },
     shareText: { type: "string" },
   },
@@ -139,7 +75,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!profileText) {
-    return NextResponse.json(createDemoFallbackAnalysis(linkedinUrl));
+    return NextResponse.json({ error: missingProfileTextMessage }, { status: 400 });
   }
 
   if (!process.env.OPENAI_API_KEY) {
@@ -156,14 +92,14 @@ export async function POST(request: NextRequest) {
       profileText,
     });
 
-    // Supabase storage will be added here later, using email + LinkedIn URL as
-    // the unique user identifier and storing the normalized analysis payload.
+    // Supabase storage will be added here later. Use email + LinkedIn URL as the
+    // unique user identifier and persist the normalized authority analysis.
 
     return NextResponse.json(analysis);
   } catch (error) {
     console.error("OpenAI profile analysis failed", error);
     return NextResponse.json(
-      { error: "Could not analyze the LinkedIn profile text." },
+      { error: "AI analysis could not be completed. Please try again." },
       { status: 502 },
     );
   }
@@ -178,125 +114,81 @@ async function analyzeProfileWithOpenAI({
   email: string;
   profileText: string;
 }): Promise<AuthorityAnalysisResponse> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "You are INConnect's LinkedIn Authority Scoring Engine. Analyze only the user-provided LinkedIn text. Do not claim to access LinkedIn, scrape websites, or use hidden data. Return professional, positive, executive-level JSON.",
-        },
-        {
-          role: "user",
-          content: [
-            "Analyze this LinkedIn profile input for professional authority.",
-            `LinkedIn URL: ${linkedinUrl}`,
-            `Email: ${email}`,
-            "",
-            "Scoring weights:",
-            "- Profile Clarity: 20%",
-            "- Professional Positioning: 20%",
-            "- Authority Signals: 20%",
-            "- Content Potential: 15%",
-            "- Network Relevance: 15%",
-            "- Growth Opportunity: 10%",
-            "",
-            "Profile text:",
-            profileText.slice(0, 12000),
-          ].join("\n"),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "inconnect_authority_analysis",
-          strict: true,
-          schema: responseSchema,
-        },
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const response = await openai.responses.parse({
+    model: process.env.OPENAI_MODEL ?? "gpt-5.5",
+    input: [
+      {
+        role: "system",
+        content: [
+          "You are INConnect's LinkedIn Authority Scoring Engine.",
+          "Analyze only the user-provided LinkedIn profile text, About section, headline, or posts.",
+          "Do not scrape LinkedIn, call LinkedIn APIs, infer hidden profile data, or claim access to unavailable context.",
+          "Score conservatively and evidence-first. A generic profile should score lower than a specialized expert profile.",
+          "The score must be based on the rubric, not randomly assigned.",
+          "Write in a professional, executive, LinkedIn-native SaaS tone.",
+        ].join(" "),
       },
-    }),
+      {
+        role: "user",
+        content: [
+          "Return strict JSON for an INConnect LinkedIn Authority Assessment.",
+          "",
+          "User identifiers:",
+          `LinkedIn URL: ${linkedinUrl}`,
+          `Email: ${email}`,
+          "",
+          "Analyze these 10 authority dimensions:",
+          "1. Professional clarity",
+          "2. Industry positioning",
+          "3. Authority potential",
+          "4. Thought leadership potential",
+          "5. Market relevance",
+          "6. Content opportunity",
+          "7. Trend alignment",
+          "8. Niche strength",
+          "9. Expertise differentiation",
+          "10. Visibility potential",
+          "",
+          "Scoring logic:",
+          "- Reward specialization clarity, niche uniqueness, strategic positioning, industry focus, leadership language, technical depth, future relevance, market alignment, communication quality, and content scalability.",
+          "- Penalize broad generic descriptions, weak audience definition, vague claims, unclear industry focus, missing proof points, and low content direction.",
+          "- A generic sales profile should score lower.",
+          "- A highly specialized airport automation expert with strategic language, technical depth, and market relevance should score higher.",
+          "- Use the full 0-100 range when justified, but avoid inflated scores without evidence.",
+          "",
+          "Required output guidance:",
+          "- totalScore: realistic 0-100 authority score.",
+          "- primaryIndustry: the clearest industry or professional category.",
+          "- topExpertiseAreas: 3-5 concise areas.",
+          "- strengths: 3-4 specific strengths grounded in the provided text.",
+          "- weaknesses: 3-4 constructive underdeveloped visibility areas.",
+          "- contentOpportunities: 4-5 authority topic ideas or content lanes.",
+          "- authoritySummary: 2-3 sentence reasoning for the score.",
+          "- improvementActions: 4-5 practical actions to improve authority.",
+          "- trendPositioning: 3-5 future-facing positioning angles connected to market trends.",
+          "- shareText: include the exact first sentence: I just checked my LinkedIn Authority Score using INConnect.",
+          "",
+          "Profile text to analyze:",
+          profileText.slice(0, 14000),
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "inconnect_authority_analysis",
+        strict: true,
+        schema: responseSchema,
+      },
+    },
   });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI request failed with ${response.status}`);
+  if (!response.output_parsed) {
+    throw new Error("OpenAI response did not include parsed JSON.");
   }
 
-  const data = await response.json();
-  const parsed = JSON.parse(extractOutputText(data)) as Omit<
-    AuthorityAnalysisResponse,
-    "analysisMode"
-  >;
-
-  const normalized: AuthorityAnalysisResponse = {
-    ...parsed,
-    scoreBreakdown: normalizeScoreBreakdown(parsed.scoreBreakdown),
-    detectedProfessionalAreas: parsed.detectedProfessionalAreas.map((area) => ({
-      ...area,
-      id: area.id || slugify(area.name),
-      confidence: clampScore(area.confidence),
-    })),
-    totalScore: 0,
-    analysisMode: "ai",
-  };
-
-  normalized.totalScore = calculateWeightedScore(normalized.scoreBreakdown);
-  normalized.shareText = createShareText(
-    normalized.totalScore,
-    normalized.detectedProfessionalAreas,
-    analysisToProfile(normalized),
+  return normalizeAuthorityAnalysis(
+    response.output_parsed as AuthorityAnalysisResponse,
   );
-
-  return normalized;
-}
-
-function normalizeScoreBreakdown(scoreBreakdown: ScoreBreakdown): ScoreBreakdown {
-  return Object.fromEntries(
-    Object.entries(scoreBreakdown).map(([key, value]) => [
-      key,
-      { ...value, score: clampScore(value.score) },
-    ]),
-  ) as ScoreBreakdown;
-}
-
-function extractOutputText(data: unknown): string {
-  if (
-    data &&
-    typeof data === "object" &&
-    "output_text" in data &&
-    typeof data.output_text === "string"
-  ) {
-    return data.output_text;
-  }
-
-  const output = (data as { output?: Array<{ content?: Array<unknown> }> })?.output;
-  const text = output
-    ?.flatMap((item) => item.content ?? [])
-    .find(
-      (content): content is { type: string; text: string } =>
-        typeof content === "object" &&
-        content !== null &&
-        "type" in content &&
-        content.type === "output_text" &&
-        "text" in content &&
-        typeof content.text === "string",
-    )?.text;
-
-  if (!text) {
-    throw new Error("OpenAI response did not include output_text.");
-  }
-
-  return text;
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
 }

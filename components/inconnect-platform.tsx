@@ -33,13 +33,11 @@ import {
 import { toPng } from "html-to-image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  analysisToDetectedAreas,
   analysisToProfile,
-  createDemoFallbackAnalysis,
   type AuthorityAnalysisResponse,
-  type ScoreBreakdown,
 } from "@/lib/authority-analysis";
 import {
-  createShareText,
   type DetectedArea,
   type MockUserRecord,
   professionalAreas,
@@ -54,12 +52,12 @@ const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-authority-score.png";
 
 const scanningSteps = [
-  "Analyzing LinkedIn profile",
-  "Detecting professional expertise",
-  "Identifying relevant industries",
-  "Checking company positioning",
-  "Scanning relevant trends",
-  "Preparing LinkedIn growth assessment",
+  "Reading pasted LinkedIn profile text",
+  "Assessing professional clarity",
+  "Mapping industry positioning",
+  "Evaluating authority signals",
+  "Finding content and trend opportunities",
+  "Preparing your authority score",
 ];
 
 const navItems = [
@@ -200,7 +198,10 @@ async function requestProfileAnalysis({
   });
 
   if (!response.ok) {
-    throw new Error("Profile analysis request failed.");
+    const errorBody = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    throw new Error(errorBody?.error ?? "Profile analysis request failed.");
   }
 
   return (await response.json()) as AuthorityAnalysisResponse;
@@ -248,7 +249,7 @@ function ScoreRing({ score }: { score: number }) {
   return (
     <div
       aria-label={`LinkedIn Authority Score ${score} out of 100`}
-      className="grid h-40 w-40 place-items-center rounded-full p-2 shadow-[0_16px_34px_rgba(10,25,47,0.16)]"
+      className="score-reveal grid h-40 w-40 place-items-center rounded-full p-2 shadow-[0_16px_34px_rgba(10,25,47,0.16)]"
       style={{
         background: `conic-gradient(#0A66C2 0deg ${degrees}deg, #D9DDE3 ${degrees}deg 360deg)`,
       }}
@@ -670,6 +671,7 @@ function TrendRadarSection() {
 
 function ProfileInput({
   email,
+  errorMessage,
   isScanning,
   linkedInUrl,
   onEmail,
@@ -679,6 +681,7 @@ function ProfileInput({
   profileText,
 }: {
   email: string;
+  errorMessage: string;
   isScanning: boolean;
   linkedInUrl: string;
   onEmail: (value: string) => void;
@@ -746,11 +749,17 @@ function ProfileInput({
             value={profileText}
           />
           <span className="text-xs font-normal leading-5 text-[#666666]">
-            Optional. If left empty, INConnect uses demo fallback data without
-            scraping LinkedIn.
+            Paste your About section, headline, experience summary, or recent
+            posts. INConnect does not scrape LinkedIn.
           </span>
         </label>
       </div>
+
+      {errorMessage && (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+          {errorMessage}
+        </p>
+      )}
 
       <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
@@ -794,8 +803,12 @@ function Scanner({
             AI scanning flow
           </p>
           <h3 className="mt-2 text-2xl font-semibold">
-            LinkedIn growth scan
+            AI is analyzing your positioning...
           </h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">
+            INConnect is scoring clarity, authority signals, content potential,
+            and market relevance from your pasted LinkedIn content.
+          </p>
         </div>
         <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
           <ScanLine className="h-6 w-6" />
@@ -882,8 +895,8 @@ function AreaDetection({
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#666666]">
             INConnect detects professional areas from the profile text you
-            provide. If no text is provided, demo fallback data is used. Edit
-            the areas, choose your primary area, then reveal the free assessment.
+            provide. Edit the areas, choose your primary area, then reveal the
+            free assessment.
           </p>
         </div>
         <button
@@ -1248,256 +1261,130 @@ function ShareScoreCard({
   );
 }
 
-function ScoreBreakdownGrid({
-  scoreBreakdown,
-}: {
-  scoreBreakdown: ScoreBreakdown;
-}) {
-  const categoryLabels: Array<[keyof ScoreBreakdown, string, string]> = [
-    ["profileClarity", "Profile Clarity", "20%"],
-    ["professionalPositioning", "Professional Positioning", "20%"],
-    ["authoritySignals", "Authority Signals", "20%"],
-    ["contentPotential", "Content Potential", "15%"],
-    ["networkRelevance", "Network Relevance", "15%"],
-    ["growthOpportunity", "Growth Opportunity", "10%"],
-  ];
-
-  return (
-    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-      <div className="border-b border-[#D9DDE3] pb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Scoring model
-        </p>
-        <h3 className="mt-3 text-2xl font-semibold">
-          LinkedIn Authority Score breakdown
-        </h3>
-      </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        {categoryLabels.map(([key, label, weight]) => {
-          const category = scoreBreakdown[key];
-
-          return (
-            <article
-              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={key}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h4 className="font-semibold">{label}</h4>
-                  <p className="mt-1 text-xs font-semibold text-[#0A66C2]">
-                    Weight: {weight}
-                  </p>
-                </div>
-                <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#191919] shadow-[0_6px_16px_rgba(10,25,47,0.06)]">
-                  {category.score}/100
-                </span>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-[#666666]">
-                {category.explanation}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-[#191919]">
-                <span className="font-semibold">Improvement hint:</span>{" "}
-                {category.improvementHint}
-              </p>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function Results({
-  analysisMode,
+  analysis,
   areas,
-  errorMessage,
   profile,
-  scoreBreakdown,
-  shareText,
 }: {
-  analysisMode: AuthorityAnalysisResponse["analysisMode"];
+  analysis: AuthorityAnalysisResponse;
   areas: DetectedArea[];
-  errorMessage: string;
   profile: AreaProfile;
-  scoreBreakdown: ScoreBreakdown | null;
-  shareText: string;
 }) {
   return (
     <div className="grid gap-6">
-      {(analysisMode === "demo_fallback" || errorMessage) && (
-        <section className="rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-          <span className="font-semibold text-[#191919]">
-            {analysisMode === "demo_fallback" ? "Demo fallback active." : "Fallback result shown."}
-          </span>{" "}
-          {errorMessage ||
-            "No LinkedIn profile text was provided, so this assessment uses demo fallback data instead of OpenAI analysis."}
-        </section>
-      )}
       <ScoreHero areas={areas} profile={profile} />
       <ShareScoreCard
         areas={areas}
         profile={profile}
-        shareText={shareText}
+        shareText={analysis.shareText}
       />
 
-      {scoreBreakdown && <ScoreBreakdownGrid scoreBreakdown={scoreBreakdown} />}
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        {profile.strengths.map((strength) => (
-          <article
-            className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
-            key={strength}
-          >
-            <BadgeCheck className="h-5 w-5 text-[#057642]" />
-            <h3 className="mt-4 text-lg font-semibold">{strength}</h3>
-            <p className="mt-3 text-sm leading-6 text-[#666666]">
-              A strong signal for professional visibility and credible
-              LinkedIn authority.
-            </p>
-          </article>
-        ))}
-      </section>
-
       <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Visibility potential
+          Your strongest positioning areas
         </p>
-        <h3 className="mt-3 text-2xl font-semibold">
-          Your strongest visibility potential is in:
-        </h3>
-        <ul className="mt-5 grid gap-3 md:grid-cols-3">
-          {profile.authorityPotential.map((item) => (
-            <li
-              className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm font-semibold text-[#191919]"
-              key={item}
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Visibility Opportunities
+        <h3 className="mt-3 text-2xl font-semibold">{analysis.primaryIndustry}</h3>
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-[#666666]">
+          {analysis.authoritySummary}
         </p>
-        <div className="mt-5 grid gap-3">
-          {profile.opportunities.map((opportunity) => (
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {analysis.topExpertiseAreas.slice(0, 3).map((area) => (
             <article
-              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={opportunity}
+              className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4"
+              key={area}
             >
-              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
-              <p className="text-sm leading-6 text-[#666666]">{opportunity}</p>
+              <BadgeCheck className="h-5 w-5 text-[#057642]" />
+              <h4 className="mt-4 font-semibold">{area}</h4>
+            </article>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {analysis.strengths.slice(0, 3).map((strength) => (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]"
+              key={strength}
+            >
+              {strength}
             </article>
           ))}
         </div>
       </section>
 
-      <section
-        className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
-      >
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Where your visibility is underdeveloped
+        </p>
+        <div className="mt-5 grid gap-3">
+          {analysis.weaknesses.map((weakness) => (
+            <article
+              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
+              key={weakness}
+            >
+              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
+              <p className="text-sm leading-6 text-[#666666]">{weakness}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Suggested authority topics
+        </p>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {analysis.contentOpportunities.map((topic) => (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
+              key={topic}
+            >
+              <LineChart className="h-5 w-5 text-[#0A66C2]" />
+              <h4 className="mt-4 font-semibold">{topic}</h4>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Recommended LinkedIn content directions
+        </p>
+        <div className="mt-5 grid gap-3">
+          {analysis.improvementActions.map((action) => (
+            <article
+              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
+              key={action}
+            >
+              <Target className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
+              <p className="text-sm leading-6 text-[#666666]">{action}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
         <div className="flex flex-col gap-4 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-              Trend Radar
+              Suggested future positioning angles
             </p>
             <h3 className="mt-3 text-2xl font-semibold">
-              Trends matched to your professional area
+              Trend-aligned authority paths
             </h3>
           </div>
           <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs font-semibold text-[#666666]">
-            3 visible on Free
+            AI-generated
           </span>
         </div>
-
         <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {profile.trends.slice(0, 3).map((trend) => (
+          {analysis.trendPositioning.slice(0, 3).map((angle) => (
             <article
               className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4"
-              key={trend.title}
+              key={angle}
             >
-              <div className="flex items-center justify-between gap-3">
-                <h4 className="font-semibold">{trend.title}</h4>
-                <span className="rounded-lg bg-white px-2 py-1 text-xs font-semibold text-[#0A66C2]">
-                  {trend.momentum}
-                </span>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-[#666666]">
-                {trend.summary}
-              </p>
+              <Radar className="h-5 w-5 text-[#0A66C2]" />
+              <p className="mt-4 text-sm font-semibold leading-6">{angle}</p>
             </article>
           ))}
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {profile.trends.slice(3).map((trend) => (
-            <article
-              className="relative overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={trend.title}
-            >
-              <div className="opacity-35">
-                <h4 className="font-semibold">{trend.title}</h4>
-                <p className="mt-3 text-sm leading-6 text-[#666666]">
-                  {trend.summary}
-                </p>
-              </div>
-              <div className="absolute inset-0 grid place-items-center bg-white/72">
-                <span className="inline-flex items-center gap-2 rounded-lg border border-[#0A66C2]/20 bg-white px-3 py-2 text-sm font-semibold text-[#0A66C2] shadow-[0_10px_22px_rgba(10,25,47,0.1)]">
-                  <LockKeyhole className="h-4 w-4" />
-                  Unlock full Trend Radar in Pro.
-                </span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <div className="grid gap-6 lg:grid-cols-[0.82fr_1fr]">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-              Personalized Topic Idea
-            </p>
-            <h3 className="mt-3 text-2xl font-semibold">
-              {profile.topic.title}
-            </h3>
-            <p className="mt-4 text-lg leading-8 text-[#191919]">
-              {profile.topic.hook}
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-              <p className="text-sm font-semibold text-[#0A66C2]">
-                Why this matters now
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                {profile.topic.whyNow}
-              </p>
-            </article>
-            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-              <p className="text-sm font-semibold text-[#0A66C2]">CTA</p>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                {profile.topic.cta}
-              </p>
-            </article>
-            <div className="flex flex-wrap gap-2">
-              {profile.topic.hashtags.map((hashtag) => (
-                <span
-                  className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-xs font-semibold text-[#0A66C2]"
-                  key={hashtag}
-                >
-                  {hashtag}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
-          Unlock unlimited personalized post ideas tailored to your expertise,
-          industry, and trends with Pro.
         </div>
       </section>
 
@@ -1505,15 +1392,14 @@ function Results({
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-              Pro Upgrade CTA
+              Unlock deeper analysis
             </p>
             <h3 className="mt-3 text-3xl font-semibold">
-              Unlock unlimited personalized post ideas tailored to your
-              expertise, industry, and trends with Pro.
+              Turn this assessment into a deeper LinkedIn authority roadmap.
             </h3>
             <p className="mt-3 text-sm leading-6 text-white/75">
-              Future Stripe checkout will connect here. Current prototype uses a
-              placeholder action only.
+              Pro will expand this into saved analysis history, deeper profile
+              scoring, weekly content roadmaps, and advanced positioning angles.
             </p>
           </div>
           <a
@@ -1539,11 +1425,8 @@ function AssessmentSection() {
   const [profileText, setProfileText] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [activeStep, setActiveStep] = useState(0);
+  const [analysis, setAnalysis] = useState<AuthorityAnalysisResponse | null>(null);
   const [profile, setProfile] = useState<AreaProfile | null>(null);
-  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
-  const [shareText, setShareText] = useState("");
-  const [analysisMode, setAnalysisMode] =
-    useState<AuthorityAnalysisResponse["analysisMode"]>("demo_fallback");
   const [analysisError, setAnalysisError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [areas, setAreas] = useState<DetectedArea[]>([]);
@@ -1570,7 +1453,7 @@ function AssessmentSection() {
         return;
       }
 
-      const timer = window.setTimeout(() => setStage("areas"), 800);
+      const timer = window.setTimeout(() => setStage("results"), 800);
       return () => window.clearTimeout(timer);
     }
 
@@ -1587,6 +1470,13 @@ function AssessmentSection() {
       return;
     }
 
+    if (!profileText.trim()) {
+      setAnalysisError(
+        "Please paste LinkedIn About section or recent content for AI analysis.",
+      );
+      return;
+    }
+
     const record: MockUserRecord = {
       email: email.trim(),
       linkedInUrl: linkedInUrl.trim(),
@@ -1597,41 +1487,31 @@ function AssessmentSection() {
 
     setAnalysisError("");
     setIsAnalyzing(true);
+    setAnalysis(null);
     setProfile(null);
     setAreas([]);
-    setScoreBreakdown(null);
-    setShareText("");
     setActiveStep(0);
     setStage("scanning");
 
     try {
-      const analysis = await requestProfileAnalysis({
+      const nextAnalysis = await requestProfileAnalysis({
         email: email.trim(),
         linkedInUrl: linkedInUrl.trim(),
         profileText: profileText.trim(),
       });
-      const nextProfile = analysisToProfile(analysis);
+      const nextProfile = analysisToProfile(nextAnalysis);
       setProfile(nextProfile);
-      setAreas(analysis.detectedProfessionalAreas);
+      setAnalysis(nextAnalysis);
+      setAreas(analysisToDetectedAreas(nextAnalysis));
       setPrimaryArea(
-        analysis.detectedProfessionalAreas[0]?.name ?? nextProfile.primaryArea,
+        nextAnalysis.topExpertiseAreas[0] ?? nextProfile.primaryArea,
       );
-      setScoreBreakdown(analysis.scoreBreakdown);
-      setShareText(analysis.shareText);
-      setAnalysisMode(analysis.analysisMode);
-    } catch {
-      const fallback = createDemoFallbackAnalysis(linkedInUrl);
-      const nextProfile = analysisToProfile(fallback);
-      setProfile(nextProfile);
-      setAreas(fallback.detectedProfessionalAreas);
-      setPrimaryArea(
-        fallback.detectedProfessionalAreas[0]?.name ?? nextProfile.primaryArea,
-      );
-      setScoreBreakdown(fallback.scoreBreakdown);
-      setShareText(fallback.shareText);
-      setAnalysisMode("demo_fallback");
+    } catch (error) {
+      setStage("idle");
       setAnalysisError(
-        "AI analysis could not be completed, so INConnect is showing a demo fallback assessment.",
+        error instanceof Error
+          ? error.message
+          : "AI analysis could not be completed. Please try again.",
       );
     } finally {
       setIsAnalyzing(false);
@@ -1701,6 +1581,7 @@ function AssessmentSection() {
         <div className="mt-8 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
           <ProfileInput
             email={email}
+            errorMessage={analysisError}
             isScanning={stage === "scanning"}
             linkedInUrl={linkedInUrl}
             onEmail={setEmail}
@@ -1722,14 +1603,15 @@ function AssessmentSection() {
                     generation.
                   </h3>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
-                    Paste LinkedIn profile text for AI analysis, or run a demo
-                    fallback assessment without scraping LinkedIn. Confirm your
-                    authority lane and reveal a limited-depth free assessment.
+                    Paste LinkedIn profile text for AI analysis. INConnect
+                    scores professional clarity, positioning, authority
+                    potential, trend alignment, and content opportunity without
+                    scraping LinkedIn.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {["Area detection", "Score card", "Trend Radar"].map((item) => (
+                  {["AI scoring", "Score card", "Content directions"].map((item) => (
                     <div
                       className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm font-semibold"
                       key={item}
@@ -1746,28 +1628,11 @@ function AssessmentSection() {
               <Scanner activeStep={activeStep} isScanning={stage === "scanning"} />
             )}
 
-            {stage === "areas" && (
-              <AreaDetection
-                areas={areas}
-                onAddArea={handleAddArea}
-                onConfirm={() => setStage("results")}
-                onMoveArea={handleMoveArea}
-                onPrimaryArea={setPrimaryArea}
-                onRemoveArea={handleRemoveArea}
-                primaryArea={primaryArea}
-                selectedAddArea={selectedAddArea}
-                setSelectedAddArea={setSelectedAddArea}
-              />
-            )}
-
-            {stage === "results" && displayProfile && (
+            {stage === "results" && displayProfile && analysis && (
               <Results
-                analysisMode={analysisMode}
+                analysis={analysis}
                 areas={areas}
-                errorMessage={analysisError}
                 profile={displayProfile}
-                scoreBreakdown={scoreBreakdown}
-                shareText={shareText || createShareText(displayProfile.score, areas, displayProfile)}
               />
             )}
           </div>

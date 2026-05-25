@@ -64,6 +64,10 @@ button:disabled {
   animation: scanner-pulse 1.45s ease-in-out infinite;
 }
 
+.score-reveal {
+  animation: score-reveal 0.72s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .hero-visual-grid {
   background-image:
     radial-gradient(circle at 24% 18%, rgba(120, 183, 244, 0.18), transparent 28%),
@@ -163,6 +167,18 @@ button:disabled {
   }
 }
 
+@keyframes score-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 @keyframes hero-grid-drift {
   0% {
     background-position:
@@ -216,6 +232,7 @@ button:disabled {
   .hero-signal-path,
   .hero-node-pulse,
   .hero-float-card,
+  .score-reveal,
   .scanner-active {
     animation: none;
   }
