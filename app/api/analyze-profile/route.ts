@@ -8,7 +8,9 @@ import {
 type AnalyzeProfileRequest = {
   linkedinUrl?: string;
   email?: string;
-  profileText?: string;
+  headline?: string;
+  about?: string;
+  postsText?: string;
 };
 
 const missingProfileTextMessage =
@@ -65,7 +67,9 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as AnalyzeProfileRequest | null;
   const linkedinUrl = body?.linkedinUrl?.trim() ?? "";
   const email = body?.email?.trim() ?? "";
-  const profileText = body?.profileText?.trim() ?? "";
+  const headline = body?.headline?.trim() ?? "";
+  const about = body?.about?.trim() ?? "";
+  const postsText = body?.postsText?.trim() ?? "";
 
   if (!linkedinUrl || !email) {
     return NextResponse.json(
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!profileText) {
+  if (!headline || !about) {
     return NextResponse.json({ error: missingProfileTextMessage }, { status: 400 });
   }
 
@@ -89,7 +93,9 @@ export async function POST(request: NextRequest) {
     const analysis = await analyzeProfileWithOpenAI({
       linkedinUrl,
       email,
-      profileText,
+      headline,
+      about,
+      postsText,
     });
 
     // Supabase storage will be added here later. Use email + LinkedIn URL as the
@@ -108,11 +114,15 @@ export async function POST(request: NextRequest) {
 async function analyzeProfileWithOpenAI({
   linkedinUrl,
   email,
-  profileText,
+  headline,
+  about,
+  postsText,
 }: {
   linkedinUrl: string;
   email: string;
-  profileText: string;
+  headline: string;
+  about: string;
+  postsText: string;
 }): Promise<AuthorityAnalysisResponse> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.parse({
@@ -122,7 +132,7 @@ async function analyzeProfileWithOpenAI({
         role: "system",
         content: [
           "You are INConnect's LinkedIn Authority Scoring Engine.",
-          "Analyze only the user-provided LinkedIn profile text, About section, headline, or posts.",
+          "Analyze only the user-provided LinkedIn headline, About section, and recent posts.",
           "Do not scrape LinkedIn, call LinkedIn APIs, infer hidden profile data, or claim access to unavailable context.",
           "Score conservatively and evidence-first. A generic profile should score lower than a specialized expert profile.",
           "The score must be based on the rubric, not randomly assigned.",
@@ -169,8 +179,19 @@ async function analyzeProfileWithOpenAI({
           "- trendPositioning: 3-5 future-facing positioning angles connected to market trends.",
           "- shareText: include the exact first sentence: I just checked my LinkedIn Authority Score using INConnect.",
           "",
-          "Profile text to analyze:",
-          profileText.slice(0, 14000),
+          "Use the fields separately:",
+          "- Headline: evaluate positioning clarity, specialization, and audience signal.",
+          "- About section: evaluate expertise depth, authority signals, proof points, and positioning clarity.",
+          "- Recent posts: evaluate content consistency, thought leadership potential, market relevance, trend alignment, and content scalability. If posts are sparse, lower confidence in content consistency.",
+          "",
+          "LinkedIn headline:",
+          headline.slice(0, 1000),
+          "",
+          "LinkedIn About section:",
+          about.slice(0, 7000),
+          "",
+          "Recent LinkedIn posts:",
+          postsText ? postsText.slice(0, 9000) : "No recent posts provided.",
         ].join("\n"),
       },
     ],

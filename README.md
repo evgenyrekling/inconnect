@@ -7,10 +7,10 @@ that want clearer LinkedIn authority, trend relevance, and content direction.
 
 - Next.js App Router project with TypeScript and Tailwind CSS
 - Premium SaaS landing page and official INConnect falcon brand assets
-- Assessment form with LinkedIn profile URL, email address, and optional pasted LinkedIn profile text
+- Four-step assessment onboarding for identity, LinkedIn headline, About section, and recent posts
 - `POST /api/analyze-profile` authority scoring route
-- OpenAI structured JSON analysis when profile text is provided
-- Clear prompt to paste LinkedIn About section or recent content when profile text is empty
+- OpenAI structured JSON analysis using headline, About section, and posts as separate inputs
+- Assessment confidence based on available profile content
 - Authority scoring across professional clarity, industry positioning, authority potential, thought leadership potential, market relevance, content opportunity, trend alignment, niche strength, expertise differentiation, and visibility potential
 - Shareable LinkedIn Authority Score card and generated share text
 - AI-generated strengths, visibility gaps, authority topics, content directions, and future positioning angles

@@ -65,7 +65,7 @@ export function analysisToProfile(analysis: AuthorityAnalysisResponse): AreaProf
     primaryArea: analysis.primaryIndustry as AreaProfile["primaryArea"],
     detectedAreas,
     authorityPotential: analysis.topExpertiseAreas.slice(0, 3),
-    strongAuthorityPotential: analysis.topExpertiseAreas.slice(0, 3),
+    strongAuthorityPotential: getAuthorityGrowthAreas(analysis),
     strengths: analysis.strengths,
     opportunities: analysis.weaknesses,
     trends: analysis.trendPositioning.map(toTrendInsight),
@@ -83,10 +83,10 @@ export function createShareTextForAnalysis(analysis: AuthorityAnalysisResponse) 
     analysis.primaryIndustry,
     "",
     "My strongest professional positioning areas:",
-    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `• ${area}`),
+    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `- ${area}`),
     "",
     "Authority potential:",
-    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `• ${area}`),
+    ...getAuthorityGrowthAreas(analysis).map((area) => `- ${area}`),
     "",
     createPositiveShareSummary(analysis),
     "",
@@ -97,14 +97,37 @@ export function createShareTextForAnalysis(analysis: AuthorityAnalysisResponse) 
   ].join("\n");
 }
 
-function createPositiveShareSummary(analysis: AuthorityAnalysisResponse) {
-  const leadingArea = analysis.topExpertiseAreas[0] ?? analysis.primaryIndustry;
-
-  return `INConnect describes my profile as having strong professional expertise and clear positioning around ${analysis.primaryIndustry}, with authority potential in ${leadingArea}.`;
-}
-
 export function clampScore(score: number) {
   return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+function createPositiveShareSummary(analysis: AuthorityAnalysisResponse) {
+  const growthArea = getAuthorityGrowthAreas(analysis)[0] ?? "professional authority";
+
+  return `INConnect describes my profile as having strong professional expertise and clear positioning around ${analysis.primaryIndustry}, with authority potential in ${growthArea}.`;
+}
+
+function getAuthorityGrowthAreas(analysis: AuthorityAnalysisResponse) {
+  const expertise = analysis.topExpertiseAreas.map((item) => item.toLowerCase());
+  const candidates = [...analysis.trendPositioning, ...analysis.contentOpportunities]
+    .map((item) => item.split(":")[0]?.trim() ?? item.trim())
+    .filter((item) => item.length > 0)
+    .filter(
+      (item, index, list) =>
+        list.findIndex((other) => other.toLowerCase() === item.toLowerCase()) ===
+        index,
+    )
+    .filter((item) => {
+      const normalized = item.toLowerCase();
+      return !expertise.some((area) => normalized.includes(area) || area.includes(normalized));
+    });
+
+  return [
+    ...candidates,
+    "Executive Visibility",
+    "Market Education",
+    "Thought Leadership",
+  ].slice(0, 3);
 }
 
 function toTrendInsight(item: string, index: number): TrendInsight {

@@ -48,13 +48,14 @@ import { Logo } from "@/components/Logo";
 
 type Stage = "idle" | "scanning" | "areas" | "results";
 type ShareStatus = "idle" | "sharing" | "success" | "error";
+type AssessmentConfidence = "Low" | "Medium" | "High";
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
 const INCONNECT_SITE_URL = "https://in-connect.app";
 
 const scanningSteps = [
-  "Reading pasted LinkedIn profile text",
+  "Reading your LinkedIn headline and About section",
   "Assessing professional clarity",
   "Mapping industry positioning",
   "Evaluating authority signals",
@@ -176,26 +177,135 @@ function getPrimaryArea(areas: DetectedArea[]) {
   return areas[0]?.name ?? "Technology";
 }
 
+function countRecentPosts(postsText: string) {
+  return postsText
+    .split(/\n\s*\n|---+|Post\s+\d+[:.)-]?/i)
+    .map((post) => post.trim())
+    .filter((post) => post.length >= 40).length;
+}
+
+function getAssessmentConfidence({
+  about,
+  headline,
+  postsText,
+}: {
+  about: string;
+  headline: string;
+  postsText: string;
+}): AssessmentConfidence {
+  if (headline.trim() && about.trim() && countRecentPosts(postsText) >= 3) {
+    return "High";
+  }
+
+  if (headline.trim() && about.trim()) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function confidenceLabel(confidence: AssessmentConfidence) {
+  return confidence === "Low" ? "Limited profile data" : `${confidence} confidence`;
+}
+
+function uniqueItems(items: string[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const normalized = item.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!normalized || seen.has(normalized)) {
+      return false;
+    }
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function compactLabel(value: string) {
+  const compact = value.replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return compact.length > 46 ? `${compact.slice(0, 43).trim()}...` : compact;
+}
+
+function overlapsAny(item: string, comparisonItems: string[]) {
+  const normalized = item.toLowerCase();
+  return comparisonItems.some((comparison) => {
+    const other = comparison.toLowerCase();
+    return normalized.includes(other) || other.includes(normalized);
+  });
+}
+
+function getPositioningLevel(score: number) {
+  if (score >= 88) {
+    return "Global Thought Leader Potential";
+  }
+  if (score >= 76) {
+    return "Strategic Industry Expert";
+  }
+  if (score >= 62) {
+    return "Industry Specialist";
+  }
+  return "Emerging Specialist";
+}
+
+function getShareCardContent(analysis: AuthorityAnalysisResponse) {
+  const keyExpertiseAreas = uniqueItems(analysis.topExpertiseAreas.map(compactLabel)).slice(0, 3);
+  const growthCandidates = uniqueItems(
+    [...analysis.trendPositioning, ...analysis.contentOpportunities].map((item) =>
+      compactLabel(item.split(":")[0] ?? item),
+    ),
+  ).filter((item) => !overlapsAny(item, keyExpertiseAreas));
+  const authorityGrowthAreas = growthCandidates.slice(0, 3);
+
+  while (authorityGrowthAreas.length < 3) {
+    const fallback = ["Market Education", "Executive Visibility", "Thought Leadership"][
+      authorityGrowthAreas.length
+    ];
+    if (!overlapsAny(fallback, keyExpertiseAreas)) {
+      authorityGrowthAreas.push(fallback);
+    }
+  }
+
+  return {
+    corePositioning: compactLabel(analysis.primaryIndustry),
+    keyExpertiseAreas,
+    authorityGrowthAreas,
+    positioningLevel: getPositioningLevel(analysis.totalScore),
+    strategicSummary: createStrategicSummary(analysis),
+  };
+}
+
+function createStrategicSummary(analysis: AuthorityAnalysisResponse) {
+  const area = analysis.topExpertiseAreas[0] ?? analysis.primaryIndustry;
+  const growth = analysis.trendPositioning[0]?.split(":")[0] ?? "professional authority";
+
+  return `Strong positioning around ${area}, with authority potential in ${growth}.`;
+}
+
 function saveMockUser(record: MockUserRecord) {
   window.localStorage.setItem("inconnect.mockUser", JSON.stringify(record));
 }
 
 async function requestProfileAnalysis({
+  about,
   email,
+  headline,
   linkedInUrl,
-  profileText,
+  postsText,
 }: {
+  about: string;
   email: string;
+  headline: string;
   linkedInUrl: string;
-  profileText: string;
+  postsText: string;
 }) {
   const response = await fetch("/api/analyze-profile", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email,
+      headline,
       linkedinUrl: linkedInUrl,
-      profileText,
+      about,
+      postsText,
     }),
   });
 
@@ -672,28 +782,62 @@ function TrendRadarSection() {
 }
 
 function ProfileInput({
+  about,
   email,
   errorMessage,
+  headline,
   isScanning,
   linkedInUrl,
+  onboardingStep,
+  onAbout,
   onEmail,
+  onHeadline,
   onLinkedInUrl,
-  onProfileText,
+  onOnboardingStep,
+  onPostsText,
   onSubmit,
-  profileText,
+  postsText,
 }: {
+  about: string;
   email: string;
   errorMessage: string;
+  headline: string;
   isScanning: boolean;
   linkedInUrl: string;
+  onboardingStep: number;
+  onAbout: (value: string) => void;
   onEmail: (value: string) => void;
+  onHeadline: (value: string) => void;
   onLinkedInUrl: (value: string) => void;
-  onProfileText: (value: string) => void;
+  onOnboardingStep: (value: number) => void;
+  onPostsText: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  profileText: string;
+  postsText: string;
 }) {
-  const canSubmit =
+  const postCount = countRecentPosts(postsText);
+  const confidence = getAssessmentConfidence({ about, headline, postsText });
+  const canContinueIdentity =
     linkedInUrl.trim().length > 0 && email.trim().length > 0 && isValidEmail(email);
+  const canContinue =
+    onboardingStep === 1
+      ? canContinueIdentity
+      : onboardingStep === 2
+        ? headline.trim().length > 0
+        : onboardingStep === 3
+          ? about.trim().length > 0
+          : true;
+
+  function goToNextStep() {
+    if (!canContinue || onboardingStep >= 4) {
+      return;
+    }
+
+    onOnboardingStep(onboardingStep + 1);
+  }
+
+  function goToPreviousStep() {
+    onOnboardingStep(Math.max(1, onboardingStep - 1));
+  }
 
   return (
     <form
@@ -706,8 +850,8 @@ function ProfileInput({
             Analyze your LinkedIn profile
           </h3>
           <p className="mt-2 text-sm leading-6 text-[#666666]">
-            Enter your LinkedIn profile and email to receive your free LinkedIn
-            Authority Assessment.
+            Complete four quick steps with your own LinkedIn content. INConnect
+            does not scrape LinkedIn or use the LinkedIn API.
           </p>
         </div>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
@@ -715,46 +859,143 @@ function ProfileInput({
         </span>
       </div>
 
-      <div className="mt-5 grid gap-4">
-        <label className="grid gap-2 text-sm font-medium text-[#191919]">
-          LinkedIn profile URL
-          <input
-            className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-            onChange={(event) => onLinkedInUrl(event.target.value)}
-            placeholder="https://www.linkedin.com/in/alex-morgan"
-            required
-            type="url"
-            value={linkedInUrl}
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium text-[#191919]">
-          Email address
-          <input
-            className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-            autoComplete="email"
-            inputMode="email"
-            onChange={(event) => onEmail(event.target.value)}
-            placeholder="name@company.com"
-            required
-            type="email"
-            value={email}
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium text-[#191919]">
-          LinkedIn profile text, About section, headline, or recent posts
-          <textarea
-            className="min-h-36 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-            onChange={(event) => onProfileText(event.target.value)}
-            placeholder="Optional: paste your headline, About section, featured experience, or recent LinkedIn posts for a real AI-based authority analysis."
-            value={profileText}
-          />
-          <span className="text-xs font-normal leading-5 text-[#666666]">
-            Paste your About section, headline, experience summary, or recent
-            posts. INConnect does not scrape LinkedIn.
+      <div className="mt-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Step {onboardingStep} of 4
           </span>
-        </label>
+          <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
+            {confidenceLabel(confidence)}
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[1, 2, 3, 4].map((step) => (
+            <div
+              className={classNames(
+                "h-2 rounded-full transition",
+                step <= onboardingStep ? "bg-[#0A66C2]" : "bg-[#D9DDE3]",
+              )}
+              key={step}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4">
+        {onboardingStep === 1 && (
+          <>
+            <div>
+              <h4 className="text-lg font-semibold text-[#191919]">Identity</h4>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                No registration required. We use your LinkedIn URL and email to
+                identify your assessment and weekly usage limit.
+              </p>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              LinkedIn profile URL
+              <input
+                className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => onLinkedInUrl(event.target.value)}
+                placeholder="https://www.linkedin.com/in/alex-morgan"
+                required
+                type="url"
+                value={linkedInUrl}
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Email address
+              <input
+                className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                autoComplete="email"
+                inputMode="email"
+                onChange={(event) => onEmail(event.target.value)}
+                placeholder="name@company.com"
+                required
+                type="email"
+                value={email}
+              />
+            </label>
+          </>
+        )}
+
+        {onboardingStep === 2 && (
+          <>
+            <div>
+              <h4 className="text-lg font-semibold text-[#191919]">
+                LinkedIn Headline
+              </h4>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                Paste your current LinkedIn headline. This helps us understand
+                your professional positioning.
+              </p>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              LinkedIn headline
+              <textarea
+                className="min-h-28 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => onHeadline(event.target.value)}
+                placeholder="Example: Industrial automation leader | Intelligent sensing | Airport automation"
+                required
+                value={headline}
+              />
+            </label>
+          </>
+        )}
+
+        {onboardingStep === 3 && (
+          <>
+            <div>
+              <h4 className="text-lg font-semibold text-[#191919]">
+                About Section
+              </h4>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                Paste your LinkedIn About section. This helps us evaluate your
+                expertise, authority signals, and positioning clarity.
+              </p>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              LinkedIn About section
+              <textarea
+                className="min-h-44 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => onAbout(event.target.value)}
+                placeholder="Paste your About section here..."
+                required
+                value={about}
+              />
+            </label>
+          </>
+        )}
+
+        {onboardingStep === 4 && (
+          <>
+            <div>
+              <h4 className="text-lg font-semibold text-[#191919]">
+                Recent Posts
+              </h4>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                Paste at least 3 recent LinkedIn posts. The more examples you
+                provide, the more accurate your authority assessment becomes.
+              </p>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Recent LinkedIn posts
+              <textarea
+                className="min-h-44 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => onPostsText(event.target.value)}
+                placeholder="Paste 3 or more recent posts. Separate posts with a blank line for best results."
+                value={postsText}
+              />
+            </label>
+            {postCount < 3 && (
+              <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
+                We detected {postCount} recent post{postCount === 1 ? "" : "s"}.
+                You can continue, but assessment confidence will be Medium until
+                3 posts are provided.
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       {errorMessage && (
@@ -770,18 +1011,41 @@ function ProfileInput({
         to LinkedIn automatically.
       </p>
 
-      <button
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
-        disabled={isScanning || !canSubmit}
-        type="submit"
-      >
-        {isScanning ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : (
-          <Sparkles className="h-4 w-4" />
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        {onboardingStep > 1 && (
+          <button
+            className="inline-flex h-12 w-full items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 font-semibold text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] sm:w-auto"
+            onClick={goToPreviousStep}
+            type="button"
+          >
+            Back
+          </button>
         )}
-        Analyze Profile
-      </button>
+        {onboardingStep < 4 ? (
+          <button
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+            disabled={!canContinue}
+            onClick={goToNextStep}
+            type="button"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+            disabled={isScanning || !canContinueIdentity || !headline.trim() || !about.trim()}
+            type="submit"
+          >
+            {isScanning ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Analyze Profile
+          </button>
+        )}
+      </div>
     </form>
   );
 }
@@ -1022,9 +1286,11 @@ function AreaDetection({
 
 function ScoreHero({
   areas,
+  confidence,
   profile,
 }: {
   areas: DetectedArea[];
+  confidence: AssessmentConfidence;
   profile: AreaProfile;
 }) {
   return (
@@ -1039,6 +1305,9 @@ function ScoreHero({
           <h3 className="mt-3 text-3xl font-semibold sm:text-5xl">
             {profile.score} / 100
           </h3>
+          <span className="mt-4 inline-flex rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
+            {confidenceLabel(confidence)}
+          </span>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/75">
             You are positioned at the intersection of:
           </p>
@@ -1066,15 +1335,17 @@ function ScoreHero({
 function ShareScoreCard({
   analysis,
   areas,
+  confidence,
   profile,
   shareText,
 }: {
   analysis: AuthorityAnalysisResponse;
   areas: DetectedArea[];
+  confidence: AssessmentConfidence;
   profile: AreaProfile;
   shareText: string;
 }) {
-  const primary = getPrimaryArea(areas);
+  const cardContent = getShareCardContent(analysis);
   const cardRef = useRef<HTMLDivElement>(null);
   const toastTimerRef = useRef<number | null>(null);
   const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
@@ -1244,20 +1515,33 @@ function ShareScoreCard({
                 LinkedIn Authority Score
               </p>
               <p className="mt-3 text-4xl font-semibold">{profile.score} / 100</p>
-              <p className="mt-3 text-sm text-[#666666]">
-                Primary Professional Area
-              </p>
-              <p className="mt-1 text-lg font-semibold text-[#0A66C2]">{primary}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
+                  {confidenceLabel(confidence)}
+                </span>
+                <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-1 text-xs font-semibold text-[#666666]">
+                  {cardContent.positioningLevel}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+              Core Positioning
+            </p>
+            <p className="mt-2 text-lg font-semibold text-[#191919]">
+              {cardContent.corePositioning}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm font-semibold text-[#191919]">
-                Strong Authority Potential In:
+                Key Expertise Areas
               </p>
               <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-                {profile.strongAuthorityPotential.slice(0, 3).map((item) => (
+                {cardContent.keyExpertiseAreas.map((item) => (
                   <li className="flex items-center gap-2" key={item}>
                     <BadgeCheck className="h-4 w-4 text-[#057642]" />
                     {item}
@@ -1267,25 +1551,44 @@ function ShareScoreCard({
             </div>
             <div>
               <p className="text-sm font-semibold text-[#191919]">
-                Top Expertise Areas
+                Authority Growth Areas
               </p>
               <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-                {areas.slice(0, 3).map((area) => (
-                  <li className="flex items-center gap-2" key={area.id}>
+                {cardContent.authorityGrowthAreas.map((item) => (
+                  <li className="flex items-center gap-2" key={item}>
                     <BadgeCheck className="h-4 w-4 text-[#057642]" />
-                    {area.name}
+                    {item}
                   </li>
                 ))}
               </ul>
             </div>
           </div>
 
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-[#D9DDE3] bg-white/80 p-4">
+              <p className="text-sm font-semibold text-[#191919]">
+                Positioning Level
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                {cardContent.positioningLevel}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#D9DDE3] bg-white/80 p-4">
+              <p className="text-sm font-semibold text-[#191919]">
+                Assessment Confidence
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                {confidenceLabel(confidence)}
+              </p>
+            </div>
+          </div>
+
           <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
             <p className="text-sm font-semibold text-[#191919]">
-              Positive authority insight
+              Strategic Summary
             </p>
             <p className="mt-2 text-sm leading-6 text-[#666666]">
-              {analysis.authoritySummary}
+              {cardContent.strategicSummary}
             </p>
           </div>
         </div>
@@ -1311,18 +1614,21 @@ function ShareScoreCard({
 function Results({
   analysis,
   areas,
+  confidence,
   profile,
 }: {
   analysis: AuthorityAnalysisResponse;
   areas: DetectedArea[];
+  confidence: AssessmentConfidence;
   profile: AreaProfile;
 }) {
   return (
     <div className="grid gap-6">
-      <ScoreHero areas={areas} profile={profile} />
+      <ScoreHero areas={areas} confidence={confidence} profile={profile} />
       <ShareScoreCard
         analysis={analysis}
         areas={areas}
+        confidence={confidence}
         profile={profile}
         shareText={analysis.shareText}
       />
@@ -1470,7 +1776,10 @@ function Results({
 function AssessmentSection() {
   const [linkedInUrl, setLinkedInUrl] = useState("");
   const [email, setEmail] = useState("");
-  const [profileText, setProfileText] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [about, setAbout] = useState("");
+  const [postsText, setPostsText] = useState("");
+  const [onboardingStep, setOnboardingStep] = useState(1);
   const [stage, setStage] = useState<Stage>("idle");
   const [activeStep, setActiveStep] = useState(0);
   const [analysis, setAnalysis] = useState<AuthorityAnalysisResponse | null>(null);
@@ -1481,6 +1790,10 @@ function AssessmentSection() {
   const [primaryArea, setPrimaryArea] = useState("");
   const [selectedAddArea, setSelectedAddArea] = useState<string>(
     professionalAreas[0],
+  );
+  const assessmentConfidence = useMemo(
+    () => getAssessmentConfidence({ about, headline, postsText }),
+    [about, headline, postsText],
   );
 
   const displayProfile = useMemo(() => {
@@ -1514,14 +1827,13 @@ function AssessmentSection() {
 
   async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.reportValidity() || !isValidEmail(email)) {
-      return;
-    }
-
-    if (!profileText.trim()) {
-      setAnalysisError(
-        "Please paste LinkedIn About section or recent content for AI analysis.",
-      );
+    if (
+      !linkedInUrl.trim() ||
+      !email.trim() ||
+      !isValidEmail(email) ||
+      !headline.trim() ||
+      !about.trim()
+    ) {
       return;
     }
 
@@ -1543,9 +1855,11 @@ function AssessmentSection() {
 
     try {
       const nextAnalysis = await requestProfileAnalysis({
+        about: about.trim(),
         email: email.trim(),
+        headline: headline.trim(),
         linkedInUrl: linkedInUrl.trim(),
-        profileText: profileText.trim(),
+        postsText: postsText.trim(),
       });
       const nextProfile = analysisToProfile(nextAnalysis);
       setProfile(nextProfile);
@@ -1628,15 +1942,21 @@ function AssessmentSection() {
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
           <ProfileInput
+            about={about}
             email={email}
             errorMessage={analysisError}
+            headline={headline}
             isScanning={stage === "scanning"}
             linkedInUrl={linkedInUrl}
+            onboardingStep={onboardingStep}
+            onAbout={setAbout}
             onEmail={setEmail}
+            onHeadline={setHeadline}
             onLinkedInUrl={setLinkedInUrl}
-            onProfileText={setProfileText}
+            onOnboardingStep={setOnboardingStep}
+            onPostsText={setPostsText}
             onSubmit={handleAnalyze}
-            profileText={profileText}
+            postsText={postsText}
           />
 
           <div className="min-w-0">
@@ -1651,10 +1971,10 @@ function AssessmentSection() {
                     generation.
                   </h3>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
-                    Paste LinkedIn profile text for AI analysis. INConnect
-                    scores professional clarity, positioning, authority
-                    potential, trend alignment, and content opportunity without
-                    scraping LinkedIn.
+                    Complete the four-step onboarding flow with your LinkedIn
+                    headline, About section, and recent posts. INConnect scores
+                    positioning, authority potential, trend alignment, and
+                    content opportunity without scraping LinkedIn.
                   </p>
                 </div>
 
@@ -1680,6 +2000,7 @@ function AssessmentSection() {
               <Results
                 analysis={analysis}
                 areas={areas}
+                confidence={assessmentConfidence}
                 profile={displayProfile}
               />
             )}
