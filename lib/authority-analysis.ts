@@ -42,9 +42,7 @@ export function normalizeAuthorityAnalysis(
     normalized.topExpertiseAreas = [normalized.primaryIndustry];
   }
 
-  if (!normalized.shareText.includes("I just checked my LinkedIn Authority Score using INConnect.")) {
-    normalized.shareText = createShareTextForAnalysis(normalized);
-  }
+  normalized.shareText = createShareTextForAnalysis(normalized);
 
   return normalized;
 }
@@ -84,16 +82,25 @@ export function createShareTextForAnalysis(analysis: AuthorityAnalysisResponse) 
     "Primary professional area:",
     analysis.primaryIndustry,
     "",
-    "Top expertise areas:",
-    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `- ${area}`),
+    "My strongest professional positioning areas:",
+    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `• ${area}`),
     "",
-    analysis.authoritySummary,
+    "Authority potential:",
+    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `• ${area}`),
     "",
-    "Check your professional authority:",
-    "https://inconnect.app",
+    createPositiveShareSummary(analysis),
     "",
-    "#LinkedIn #ProfessionalBranding #PersonalBranding #ThoughtLeadership #INConnect",
+    "Check your own LinkedIn Authority Score:",
+    "https://in-connect.app",
+    "",
+    "#INConnect #LinkedIn #PersonalBranding #ProfessionalGrowth",
   ].join("\n");
+}
+
+function createPositiveShareSummary(analysis: AuthorityAnalysisResponse) {
+  const leadingArea = analysis.topExpertiseAreas[0] ?? analysis.primaryIndustry;
+
+  return `INConnect describes my profile as having strong professional expertise and clear positioning around ${analysis.primaryIndustry}, with authority potential in ${leadingArea}.`;
 }
 
 export function clampScore(score: number) {

@@ -11,6 +11,7 @@ import {
   ChevronUp,
   CircleDashed,
   Database,
+  Download,
   ExternalLink,
   Globe2,
   GripVertical,
@@ -49,7 +50,8 @@ type Stage = "idle" | "scanning" | "areas" | "results";
 type ShareStatus = "idle" | "sharing" | "success" | "error";
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
-const SCORE_IMAGE_FILENAME = "inconnect-authority-score.png";
+const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
+const INCONNECT_SITE_URL = "https://in-connect.app";
 
 const scanningSteps = [
   "Reading pasted LinkedIn profile text",
@@ -1062,10 +1064,12 @@ function ScoreHero({
 }
 
 function ShareScoreCard({
+  analysis,
   areas,
   profile,
   shareText,
 }: {
+  analysis: AuthorityAnalysisResponse;
   areas: DetectedArea[];
   profile: AreaProfile;
   shareText: string;
@@ -1097,50 +1101,69 @@ function ShareScoreCard({
     }, 4200);
   }
 
+  function openLinkedIn() {
+    const linkedInTab = window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
+    if (!linkedInTab) {
+      showToast(
+        "error",
+        "LinkedIn could not open automatically. Please open LinkedIn manually.",
+      );
+    }
+  }
+
   async function handleLinkedInShare() {
     const card = cardRef.current;
-    const linkedInTab = window.open("about:blank", "_blank");
-
-    if (linkedInTab) {
-      linkedInTab.opener = null;
-    }
 
     try {
       if (!card) {
-        throw new Error("Share card is not ready yet.");
+        showToast("error", "Could not download score card. Please try again.");
+        return;
       }
 
       setShareStatus("sharing");
       setShareMessage("");
 
-      const imageUrl = await toPng(card, {
-        backgroundColor: "#FFFFFF",
-        cacheBust: true,
-        pixelRatio: 2,
-        style: {
-          margin: "0",
-        },
-      });
-
-      downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
-
       const copiedText = await copyTextToClipboard(shareText);
       if (!copiedText) {
-        throw new Error("Could not copy the LinkedIn post text.");
+        showToast(
+          "error",
+          "Could not copy text automatically. Please copy it manually.",
+        );
+        return;
       }
 
+      try {
+        const imageUrl = await toPng(card, {
+          backgroundColor: "#FFFFFF",
+          cacheBust: true,
+          pixelRatio: 2,
+          style: {
+            margin: "0",
+          },
+        });
+        downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
+      } catch (error) {
+        console.error(error);
+        showToast("error", "Could not download score card. Please try again.");
+        return;
+      }
+
+      const linkedInTab = window.open(
+        LINKEDIN_FEED_URL,
+        "_blank",
+        "noopener,noreferrer",
+      );
       if (linkedInTab) {
-        linkedInTab.location.href = LINKEDIN_FEED_URL;
-      } else {
-        window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
+        linkedInTab.opener = null;
       }
 
       showToast(
-        "success",
-        "Score image downloaded and LinkedIn post copied.",
+        linkedInTab ? "success" : "error",
+        linkedInTab
+          ? "Post text copied. Score card downloaded. Open LinkedIn and attach the image to your post."
+          : "LinkedIn could not open automatically. Please open LinkedIn manually.",
       );
     } catch (error) {
-      linkedInTab?.close();
       console.error(error);
       showToast(
         "error",
@@ -1163,8 +1186,13 @@ function ShareScoreCard({
             See how your professional authority compares across industries.
             Share your score on LinkedIn.
           </p>
+          <p className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
+            LinkedIn post text will be copied automatically. Your score card
+            image will be downloaded, please attach it manually to your LinkedIn
+            post.
+          </p>
 
-          <div className="mt-5">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <button
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-wait disabled:opacity-70 sm:w-auto"
               disabled={shareStatus === "sharing"}
@@ -1174,9 +1202,19 @@ function ShareScoreCard({
               {shareStatus === "sharing" ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
-                <ExternalLink className="h-4 w-4" />
+                <Download className="h-4 w-4" />
               )}
-              {shareStatus === "sharing" ? "Preparing share..." : "Share on LinkedIn"}
+              {shareStatus === "sharing"
+                ? "Preparing share..."
+                : "Copy Text & Download Card"}
+            </button>
+            <button
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-4 font-semibold text-[#0A66C2] transition hover:border-[#0A66C2]/35 hover:bg-[#E8F1FB] sm:w-auto"
+              onClick={openLinkedIn}
+              type="button"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open LinkedIn
             </button>
           </div>
         </div>
@@ -1195,7 +1233,7 @@ function ShareScoreCard({
               </div>
             </div>
             <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-              Free assessment
+              {INCONNECT_SITE_URL.replace("https://", "")}
             </span>
           </div>
 
@@ -1219,7 +1257,7 @@ function ShareScoreCard({
                 Strong Authority Potential In:
               </p>
               <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-                {profile.strongAuthorityPotential.map((item) => (
+                {profile.strongAuthorityPotential.slice(0, 3).map((item) => (
                   <li className="flex items-center gap-2" key={item}>
                     <BadgeCheck className="h-4 w-4 text-[#057642]" />
                     {item}
@@ -1240,6 +1278,15 @@ function ShareScoreCard({
                 ))}
               </ul>
             </div>
+          </div>
+
+          <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+            <p className="text-sm font-semibold text-[#191919]">
+              Positive authority insight
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#666666]">
+              {analysis.authoritySummary}
+            </p>
           </div>
         </div>
       </div>
@@ -1274,6 +1321,7 @@ function Results({
     <div className="grid gap-6">
       <ScoreHero areas={areas} profile={profile} />
       <ShareScoreCard
+        analysis={analysis}
         areas={areas}
         profile={profile}
         shareText={analysis.shareText}

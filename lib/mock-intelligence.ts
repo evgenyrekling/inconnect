@@ -497,7 +497,7 @@ export function createShareText(score: number, areas: DetectedArea[], profile: A
     ...authorityPotential.map((area) => `- ${area}`),
     "",
     "Check your professional authority:",
-    "https://inconnect.app",
+    "https://in-connect.app",
     "",
     "#LinkedIn #ProfessionalBranding #PersonalBranding #ThoughtLeadership #INConnect",
   ].join("\n");
