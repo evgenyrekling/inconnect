@@ -1,85 +1,112 @@
+import crypto from "node:crypto";
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  normalizeAuthorityAnalysis,
-  type AuthorityAnalysisResponse,
+  normalizeProfileAssessment,
+  type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
 
-type AnalyzeProfileRequest = {
-  linkedinUrl?: string;
-  email?: string;
-  headline?: string;
-  about?: string;
-  postsText?: string;
-};
-
-const missingProfileTextMessage =
-  "Please paste LinkedIn About section or recent content for AI analysis.";
+export const runtime = "nodejs";
 
 const responseSchema = {
   type: "object",
   additionalProperties: false,
   required: [
+    "userKey",
     "totalScore",
-    "primaryIndustry",
-    "topExpertiseAreas",
-    "strengths",
-    "weaknesses",
-    "contentOpportunities",
-    "authoritySummary",
-    "improvementActions",
-    "trendPositioning",
+    "assessmentConfidence",
+    "confidenceReason",
+    "corePositioning",
+    "profileClarity",
+    "topCompetencies",
+    "keyExpertiseDomains",
+    "authorityGrowthAreas",
+    "profileImprovementRecommendations",
+    "visibilityGaps",
+    "positiveHighlights",
     "shareText",
   ],
   properties: {
+    userKey: { type: "string" },
     totalScore: { type: "number" },
-    primaryIndustry: { type: "string" },
-    topExpertiseAreas: {
-      type: "array",
-      items: { type: "string" },
+    assessmentConfidence: { type: "string", enum: ["HIGH"] },
+    confidenceReason: { type: "string" },
+    corePositioning: { type: "string" },
+    profileClarity: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "externalReaderView",
+        "professionalImage",
+        "positioningClarity",
+        "positioningFocus",
+      ],
+      properties: {
+        externalReaderView: { type: "string" },
+        professionalImage: { type: "string" },
+        positioningClarity: { type: "string" },
+        positioningFocus: { type: "string" },
+      },
     },
-    strengths: {
-      type: "array",
-      items: { type: "string" },
+    topCompetencies: { type: "array", items: { type: "string" } },
+    keyExpertiseDomains: { type: "array", items: { type: "string" } },
+    authorityGrowthAreas: { type: "array", items: { type: "string" } },
+    profileImprovementRecommendations: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "currentHeadline",
+        "suggestedHeadline",
+        "currentPositioning",
+        "recommendedPositioning",
+        "headlineImprovements",
+        "aboutSectionImprovements",
+        "positioningImprovements",
+        "missingAuthoritySignals",
+        "missingKeywords",
+        "missingIndustryThemes",
+      ],
+      properties: {
+        currentHeadline: { type: "string" },
+        suggestedHeadline: { type: "string" },
+        currentPositioning: { type: "string" },
+        recommendedPositioning: { type: "string" },
+        headlineImprovements: { type: "array", items: { type: "string" } },
+        aboutSectionImprovements: { type: "array", items: { type: "string" } },
+        positioningImprovements: { type: "array", items: { type: "string" } },
+        missingAuthoritySignals: { type: "array", items: { type: "string" } },
+        missingKeywords: { type: "array", items: { type: "string" } },
+        missingIndustryThemes: { type: "array", items: { type: "string" } },
+      },
     },
-    weaknesses: {
-      type: "array",
-      items: { type: "string" },
-    },
-    contentOpportunities: {
-      type: "array",
-      items: { type: "string" },
-    },
-    authoritySummary: { type: "string" },
-    improvementActions: {
-      type: "array",
-      items: { type: "string" },
-    },
-    trendPositioning: {
-      type: "array",
-      items: { type: "string" },
-    },
+    visibilityGaps: { type: "array", items: { type: "string" } },
+    positiveHighlights: { type: "array", items: { type: "string" } },
     shareText: { type: "string" },
   },
 } as const;
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => null)) as AnalyzeProfileRequest | null;
-  const linkedinUrl = body?.linkedinUrl?.trim() ?? "";
-  const email = body?.email?.trim() ?? "";
-  const headline = body?.headline?.trim() ?? "";
-  const about = body?.about?.trim() ?? "";
-  const postsText = body?.postsText?.trim() ?? "";
+  const formData = await request.formData().catch(() => null);
+  if (!formData) {
+    return NextResponse.json({ error: "Invalid assessment submission." }, { status: 400 });
+  }
 
-  if (!linkedinUrl || !email) {
+  const linkedinUrl = getFormString(formData, "linkedinUrl");
+  const email = getFormString(formData, "email");
+  const pdfFile = formData.get("profilePdf");
+
+  if (!linkedinUrl || !email || !(pdfFile instanceof File)) {
     return NextResponse.json(
-      { error: "LinkedIn profile URL and email are required." },
+      { error: "LinkedIn profile URL, email, and LinkedIn Profile PDF are required." },
       { status: 400 },
     );
   }
 
-  if (!headline || !about) {
-    return NextResponse.json({ error: missingProfileTextMessage }, { status: 400 });
+  if (pdfFile.type && pdfFile.type !== "application/pdf") {
+    return NextResponse.json(
+      { error: "Please upload your LinkedIn Profile PDF." },
+      { status: 400 },
+    );
   }
 
   if (!process.env.OPENAI_API_KEY) {
@@ -89,21 +116,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const userKey = createUserKey(email, linkedinUrl);
+  const pdfText = await extractPdfText(pdfFile).catch((error) => {
+    console.error("PDF extraction failed", error);
+    return "";
+  });
+
+  if (pdfText.trim().length < 300) {
+    return NextResponse.json(
+      { error: "Could not extract enough text from this PDF. Please upload the LinkedIn Profile PDF export." },
+      { status: 400 },
+    );
+  }
+
   try {
-    const analysis = await analyzeProfileWithOpenAI({
-      linkedinUrl,
+    const assessment = await analyzeProfilePdf({
       email,
-      headline,
-      about,
-      postsText,
+      linkedinUrl,
+      pdfText,
+      userKey,
     });
 
-    // Supabase storage will be added here later. Use email + LinkedIn URL as the
-    // unique user identifier and persist the normalized authority analysis.
+    // Supabase storage will be added here later. Use userKey for weekly limits,
+    // assessment history, and Pro account matching.
 
-    return NextResponse.json(analysis);
+    return NextResponse.json(assessment);
   } catch (error) {
-    console.error("OpenAI profile analysis failed", error);
+    console.error("OpenAI PDF profile analysis failed", error);
     return NextResponse.json(
       { error: "AI analysis could not be completed. Please try again." },
       { status: 502 },
@@ -111,94 +150,74 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function analyzeProfileWithOpenAI({
-  linkedinUrl,
+async function analyzeProfilePdf({
   email,
-  headline,
-  about,
-  postsText,
+  linkedinUrl,
+  pdfText,
+  userKey,
 }: {
-  linkedinUrl: string;
   email: string;
-  headline: string;
-  about: string;
-  postsText: string;
-}): Promise<AuthorityAnalysisResponse> {
+  linkedinUrl: string;
+  pdfText: string;
+  userKey: string;
+}) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.parse({
-    model: process.env.OPENAI_MODEL ?? "gpt-5.5",
+    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
     input: [
       {
         role: "system",
         content: [
-          "You are INConnect's LinkedIn Authority Scoring Engine.",
-          "Analyze only the user-provided LinkedIn headline, About section, and recent posts.",
-          "Do not scrape LinkedIn, call LinkedIn APIs, infer hidden profile data, or claim access to unavailable context.",
-          "Score conservatively and evidence-first. A generic profile should score lower than a specialized expert profile.",
-          "The score must be based on the rubric, not randomly assigned.",
-          "Write in a professional, executive, LinkedIn-native SaaS tone.",
+          "You are INConnect, an AI LinkedIn Profile Intelligence Platform.",
+          "Analyze only the uploaded LinkedIn Profile PDF text provided by the user.",
+          "Do not scrape LinkedIn, use LinkedIn APIs, or infer facts not present in the PDF.",
+          "Be constructive, premium, professional, and specific.",
+          "The share card and share text must remain positive and never include weaknesses or gaps.",
         ].join(" "),
       },
       {
         role: "user",
         content: [
-          "Return strict JSON for an INConnect LinkedIn Authority Assessment.",
+          "Generate a comprehensive LinkedIn Profile Intelligence Assessment.",
           "",
-          "User identifiers:",
+          "User metadata:",
+          `userKey: ${userKey}`,
           `LinkedIn URL: ${linkedinUrl}`,
           `Email: ${email}`,
           "",
-          "Analyze these 10 authority dimensions:",
-          "1. Professional clarity",
-          "2. Industry positioning",
-          "3. Authority potential",
-          "4. Thought leadership potential",
-          "5. Market relevance",
-          "6. Content opportunity",
-          "7. Trend alignment",
-          "8. Niche strength",
-          "9. Expertise differentiation",
-          "10. Visibility potential",
+          "Analyze these PDF sections when present:",
+          "- Headline",
+          "- About",
+          "- Experience",
+          "- Skills",
+          "- Certifications",
+          "- Education",
+          "- Projects",
+          "- Keywords",
+          "- Positioning language",
           "",
-          "Scoring logic:",
-          "- Reward specialization clarity, niche uniqueness, strategic positioning, industry focus, leadership language, technical depth, future relevance, market alignment, communication quality, and content scalability.",
-          "- Penalize broad generic descriptions, weak audience definition, vague claims, unclear industry focus, missing proof points, and low content direction.",
-          "- A generic sales profile should score lower.",
-          "- A highly specialized airport automation expert with strategic language, technical depth, and market relevance should score higher.",
-          "- Use the full 0-100 range when justified, but avoid inflated scores without evidence.",
+          "Required analysis:",
+          "- LinkedIn Authority Score, realistic 0-100.",
+          "- Assessment Confidence must be HIGH with reason: Based on comprehensive LinkedIn Profile PDF analysis.",
+          "- Core Positioning Statement.",
+          "- How Your Profile Is Currently Positioned: external reader view, professional image, positioning clarity, positioning focus.",
+          "- Top Competencies.",
+          "- Key Expertise Domains.",
+          "- Authority Growth Areas that are different from expertise domains.",
+          "- How To Improve Your Profile: headline improvements, About improvements, positioning improvements, missing authority signals, missing keywords, missing industry themes, current headline, suggested headline, current positioning, recommended positioning.",
+          "- What Is Missing: constructive visibility gaps only.",
+          "- Positive highlights for shareable results.",
+          "- Positive LinkedIn share text only.",
           "",
-          "Required output guidance:",
-          "- totalScore: realistic 0-100 authority score.",
-          "- primaryIndustry: the clearest industry or professional category.",
-          "- topExpertiseAreas: 3-5 concise areas.",
-          "- strengths: 3-4 specific strengths grounded in the provided text.",
-          "- weaknesses: 3-4 constructive underdeveloped visibility areas.",
-          "- contentOpportunities: 4-5 authority topic ideas or content lanes.",
-          "- authoritySummary: 2-3 sentence reasoning for the score.",
-          "- improvementActions: 4-5 practical actions to improve authority.",
-          "- trendPositioning: 3-5 future-facing positioning angles connected to market trends.",
-          "- shareText: include the exact first sentence: I just checked my LinkedIn Authority Score using INConnect.",
-          "",
-          "Use the fields separately:",
-          "- Headline: evaluate positioning clarity, specialization, and audience signal.",
-          "- About section: evaluate expertise depth, authority signals, proof points, and positioning clarity.",
-          "- Recent posts: evaluate content consistency, thought leadership potential, market relevance, trend alignment, and content scalability. If posts are sparse, lower confidence in content consistency.",
-          "",
-          "LinkedIn headline:",
-          headline.slice(0, 1000),
-          "",
-          "LinkedIn About section:",
-          about.slice(0, 7000),
-          "",
-          "Recent LinkedIn posts:",
-          postsText ? postsText.slice(0, 9000) : "No recent posts provided.",
+          "PDF text:",
+          pdfText.slice(0, 24000),
         ].join("\n"),
       },
     ],
     text: {
       format: {
         type: "json_schema",
-        name: "inconnect_authority_analysis",
+        name: "inconnect_profile_intelligence",
         strict: true,
         schema: responseSchema,
       },
@@ -209,7 +228,45 @@ async function analyzeProfileWithOpenAI({
     throw new Error("OpenAI response did not include parsed JSON.");
   }
 
-  return normalizeAuthorityAnalysis(
-    response.output_parsed as AuthorityAnalysisResponse,
+  return normalizeProfileAssessment(
+    response.output_parsed as ProfileIntelligenceAssessment,
+    userKey,
   );
+}
+
+async function extractPdfText(file: File) {
+  const { PDFParse } = await import("pdf-parse");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const parser = new PDFParse({ data: buffer });
+
+  try {
+    const result = await parser.getText();
+    return result.text;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+function getFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function createUserKey(email: string, linkedinUrl: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
+
+  return crypto
+    .createHash("sha256")
+    .update(`${normalizedEmail}|${normalizedLinkedInUrl}`)
+    .digest("hex");
+}
+
+function normalizeLinkedInUrl(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/+$/, "");
 }

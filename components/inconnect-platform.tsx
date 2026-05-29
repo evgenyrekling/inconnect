@@ -1,331 +1,70 @@
-﻿"use client";
+"use client";
 
 import {
-  ArrowRight,
   BadgeCheck,
-  BarChart3,
-  Building2,
   Check,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  CircleDashed,
-  Database,
   Download,
   ExternalLink,
-  Globe2,
-  GripVertical,
-  Layers3,
-  LineChart,
+  FileText,
   LoaderCircle,
   LockKeyhole,
-  Plus,
   Radar,
-  ScanLine,
   ShieldCheck,
   Sparkles,
-  Star,
   Target,
-  Trash2,
-  UserRound,
-  WalletCards,
+  Upload,
   Zap,
 } from "lucide-react";
 import { toPng } from "html-to-image";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useRef, useState } from "react";
 import {
-  analysisToDetectedAreas,
-  analysisToProfile,
-  type AuthorityAnalysisResponse,
+  getPositioningLevel,
+  type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
-import {
-  type DetectedArea,
-  type MockUserRecord,
-  professionalAreas,
-  type AreaProfile,
-} from "@/lib/mock-intelligence";
 import { Logo } from "@/components/Logo";
 
-type Stage = "idle" | "scanning" | "areas" | "results";
 type ShareStatus = "idle" | "sharing" | "success" | "error";
-type AssessmentConfidence = "Low" | "Medium" | "High";
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
-const INCONNECT_SITE_URL = "https://in-connect.app";
-
-const scanningSteps = [
-  "Reading your LinkedIn headline and About section",
-  "Assessing professional clarity",
-  "Mapping industry positioning",
-  "Evaluating authority signals",
-  "Finding content and trend opportunities",
-  "Preparing your authority score",
-];
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
-  { label: "Features", href: "#features" },
   { label: "Trend Radar", href: "#trend-radar" },
+  { label: "Content Intelligence", href: "#content-intelligence" },
   { label: "Pricing", href: "#pricing" },
   { label: "Contact", href: "#contact" },
-];
-
-const featureCards = [
-  {
-    title: "Profile Positioning",
-    copy: "Turns LinkedIn signals into executive-level positioning insights.",
-    icon: UserRound,
-  },
-  {
-    title: "Professional Area Detection",
-    copy: "Finds the expertise clusters that shape your authority lane.",
-    icon: Layers3,
-  },
-  {
-    title: "Trend Radar",
-    copy: "Connects your expertise with timely conversations in your market.",
-    icon: Radar,
-  },
-  {
-    title: "Content Opportunity Engine",
-    copy: "Creates premium topic angles without feeling like a generic writing tool.",
-    icon: LineChart,
-  },
-];
-
-const trendRadarCards = [
-  {
-    title: "AI leadership signals",
-    momentum: "High signal",
-    summary:
-      "Track where AI is reshaping professional positioning and executive-level conversations.",
-  },
-  {
-    title: "Professional growth themes",
-    momentum: "Rising",
-    summary:
-      "Spot content angles that connect expertise, credibility, and career authority.",
-  },
-  {
-    title: "Market timing opportunities",
-    momentum: "Now",
-    summary:
-      "Identify timely LinkedIn topics before they become saturated category noise.",
-  },
-];
-
-const builtForAreas = [
-  ["Industrial Automation", "Technical authority and smart infrastructure"],
-  ["Hospitality & Hotels", "Guest experience and operations leadership"],
-  ["Logistics & Supply Chain", "Flow, resilience, and automation signals"],
-  ["Robotics & AI", "Human-machine systems and intelligent automation"],
-  ["Smart Mobility", "Connected infrastructure and movement systems"],
-  ["Healthcare", "Care systems, operations, and patient experience"],
-  ["Finance", "Trust, transformation, and market education"],
-  ["Consulting", "Executive insight and transformation leadership"],
-  ["Real Estate", "Market positioning and asset strategy"],
-  ["Manufacturing Technology", "Operational excellence and product systems"],
-  ["Marketing & Sales", "Revenue insight and category authority"],
-  ["Education", "Learning systems and professional knowledge transfer"],
-];
-
-const pricing = [
-  {
-    name: "FREE",
-    price: "0",
-    cadence: "unlimited assessments",
-    features: [
-      "Unlimited LinkedIn profile assessments",
-      "Limited result depth",
-      "1 personalized topic idea per assessment",
-      "3 trend insights per assessment",
-      "Shareable authority score",
-    ],
-  },
-  {
-    name: "PRO",
-    price: "5",
-    cadence: "per month",
-    featured: true,
-    features: [
-      "Unlimited assessments",
-      "Unlimited personalized post ideas",
-      "Full Trend Radar",
-      "Deeper profile analysis",
-      "Company positioning analysis",
-      "Weekly content roadmap",
-      "Saved idea history",
-      "Advanced industry-specific hooks",
-    ],
-  },
 ];
 
 function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function createAreaId(name: string) {
-  return `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
-}
-
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-function getPrimaryArea(areas: DetectedArea[]) {
-  return areas[0]?.name ?? "Technology";
+function compactLabel(value: string, max = 48) {
+  const clean = value.replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return clean.length > max ? `${clean.slice(0, max - 3).trim()}...` : clean;
 }
 
-function countRecentPosts(postsText: string) {
-  return postsText
-    .split(/\n\s*\n|---+|Post\s+\d+[:.)-]?/i)
-    .map((post) => post.trim())
-    .filter((post) => post.length >= 40).length;
-}
-
-function getAssessmentConfidence({
-  about,
-  headline,
-  postsText,
-}: {
-  about: string;
-  headline: string;
-  postsText: string;
-}): AssessmentConfidence {
-  if (headline.trim() && about.trim() && countRecentPosts(postsText) >= 3) {
-    return "High";
-  }
-
-  if (headline.trim() && about.trim()) {
-    return "Medium";
-  }
-
-  return "Low";
-}
-
-function confidenceLabel(confidence: AssessmentConfidence) {
-  return confidence === "Low" ? "Limited profile data" : `${confidence} confidence`;
-}
-
-function uniqueItems(items: string[]) {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const normalized = item.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!normalized || seen.has(normalized)) {
-      return false;
-    }
-    seen.add(normalized);
-    return true;
-  });
-}
-
-function compactLabel(value: string) {
-  const compact = value.replace(/\s+/g, " ").trim().replace(/\.$/, "");
-  return compact.length > 46 ? `${compact.slice(0, 43).trim()}...` : compact;
-}
-
-function overlapsAny(item: string, comparisonItems: string[]) {
-  const normalized = item.toLowerCase();
-  return comparisonItems.some((comparison) => {
-    const other = comparison.toLowerCase();
-    return normalized.includes(other) || other.includes(normalized);
-  });
-}
-
-function getPositioningLevel(score: number) {
-  if (score >= 88) {
-    return "Global Thought Leader Potential";
-  }
-  if (score >= 76) {
-    return "Strategic Industry Expert";
-  }
-  if (score >= 62) {
-    return "Industry Specialist";
-  }
-  return "Emerging Specialist";
-}
-
-function getShareCardContent(analysis: AuthorityAnalysisResponse) {
-  const keyExpertiseAreas = uniqueItems(analysis.topExpertiseAreas.map(compactLabel)).slice(0, 3);
-  const growthCandidates = uniqueItems(
-    [...analysis.trendPositioning, ...analysis.contentOpportunities].map((item) =>
-      compactLabel(item.split(":")[0] ?? item),
-    ),
-  ).filter((item) => !overlapsAny(item, keyExpertiseAreas));
-  const authorityGrowthAreas = growthCandidates.slice(0, 3);
-
-  while (authorityGrowthAreas.length < 3) {
-    const fallback = ["Market Education", "Executive Visibility", "Thought Leadership"][
-      authorityGrowthAreas.length
-    ];
-    if (!overlapsAny(fallback, keyExpertiseAreas)) {
-      authorityGrowthAreas.push(fallback);
-    }
-  }
-
-  return {
-    corePositioning: compactLabel(analysis.primaryIndustry),
-    keyExpertiseAreas,
-    authorityGrowthAreas,
-    positioningLevel: getPositioningLevel(analysis.totalScore),
-    strategicSummary: createStrategicSummary(analysis),
-  };
-}
-
-function createStrategicSummary(analysis: AuthorityAnalysisResponse) {
-  const area = analysis.topExpertiseAreas[0] ?? analysis.primaryIndustry;
-  const growth = analysis.trendPositioning[0]?.split(":")[0] ?? "professional authority";
-
-  return `Strong positioning around ${area}, with authority potential in ${growth}.`;
-}
-
-function saveMockUser(record: MockUserRecord) {
-  window.localStorage.setItem("inconnect.mockUser", JSON.stringify(record));
-}
-
-async function requestProfileAnalysis({
-  about,
+function getAssessmentError({
   email,
-  headline,
-  linkedInUrl,
-  postsText,
+  linkedinUrl,
+  profilePdf,
 }: {
-  about: string;
   email: string;
-  headline: string;
-  linkedInUrl: string;
-  postsText: string;
+  linkedinUrl: string;
+  profilePdf: File | null;
 }) {
-  const response = await fetch("/api/analyze-profile", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email,
-      headline,
-      linkedinUrl: linkedInUrl,
-      about,
-      postsText,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as
-      | { error?: string }
-      | null;
-    throw new Error(errorBody?.error ?? "Profile analysis request failed.");
+  if (!linkedinUrl.trim()) return "LinkedIn profile URL is required.";
+  if (!email.trim() || !isValidEmail(email)) return "A valid email address is required.";
+  if (!profilePdf) return "LinkedIn Profile PDF is required.";
+  if (profilePdf.type && profilePdf.type !== "application/pdf") {
+    return "Please upload a PDF file.";
   }
-
-  return (await response.json()) as AuthorityAnalysisResponse;
-}
-
-function downloadDataUrl(dataUrl: string, filename: string) {
-  const link = document.createElement("a");
-  link.download = filename;
-  link.href = dataUrl;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  return "";
 }
 
 async function copyTextToClipboard(text: string) {
@@ -355,6 +94,15 @@ async function copyTextToClipboard(text: string) {
   }
 }
 
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = dataUrl;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 function ScoreRing({ score }: { score: number }) {
   const degrees = Math.round((score / 100) * 360);
 
@@ -380,1216 +128,572 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function SectionEyebrow({
-  children,
-  icon: Icon,
-}: {
-  children: React.ReactNode;
-  icon: typeof Sparkles;
-}) {
+function Header() {
   return (
-    <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-      <Icon className="h-4 w-4" />
-      {children}
-    </p>
-  );
-}
-
-function HeroKeyVisual() {
-  const authoritySignals = [
-    ["Profile clarity", "92%"],
-    ["Authority fit", "84%"],
-    ["Trend match", "78%"],
-  ];
-  const trendSignals = ["Executive presence", "Category authority", "Market timing"];
-
-  return (
-    <div
-      aria-label="AI-powered professional growth and LinkedIn authority platform preview."
-      className="relative mx-auto min-h-[500px] w-full max-w-xl sm:min-h-[540px] lg:ml-auto lg:min-h-[570px]"
-      role="img"
-    >
-      <div className="hero-visual-grid absolute inset-0 rounded-[28px] border border-[#D9DDE3] bg-white" />
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-        viewBox="0 0 560 590"
-      >
-        <defs>
-          <linearGradient id="heroSignalGradient" x1="74" x2="484" y1="92" y2="446">
-            <stop stopColor="#78B7F4" stopOpacity="0.18" />
-            <stop offset="0.52" stopColor="#0A66C2" stopOpacity="0.55" />
-            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0.16" />
-          </linearGradient>
-        </defs>
-        <path
-          className="hero-signal-path"
-          d="M72 160 C162 102 246 125 316 208 C384 286 430 290 500 248"
-          fill="none"
-          stroke="url(#heroSignalGradient)"
-          strokeWidth="2"
-        />
-        <path
-          className="hero-signal-path hero-signal-path-delayed"
-          d="M94 420 C178 342 250 368 318 300 C386 232 452 208 520 142"
-          fill="none"
-          stroke="url(#heroSignalGradient)"
-          strokeWidth="2"
-        />
-        {[
-          [72, 160],
-          [214, 128],
-          [316, 208],
-          [500, 248],
-          [94, 420],
-          [318, 300],
-          [520, 142],
-        ].map(([cx, cy]) => (
-          <circle
-            className="hero-node-pulse"
-            cx={cx}
-            cy={cy}
-            fill="#FFFFFF"
-            key={`${cx}-${cy}`}
-            r="4"
-            stroke="#0A66C2"
-            strokeWidth="2"
-          />
-        ))}
-      </svg>
-
-      <div className="hero-float-card relative ml-auto mt-10 w-full rounded-lg border border-[#D9DDE3] bg-white p-4 text-[#191919] shadow-[0_26px_70px_rgba(0,0,0,0.26)] sm:w-[94%] sm:p-5">
-        <div className="flex items-center justify-between border-b border-[#D9DDE3] pb-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[#0A66C2]">
-              Professional authority analysis
-            </p>
-            <h2 className="mt-2 text-xl font-semibold">
-              LinkedIn growth dashboard
-            </h2>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-2 text-xs font-semibold text-[#0A66C2]">
-            <span className="h-2 w-2 rounded-full bg-[#057642]" />
-            Live preview
-          </span>
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-[0.78fr_1fr]">
-          <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#666666]">
-              Authority score
-            </p>
-            <div className="mt-4 flex items-center gap-4">
-              <div
-                className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-1.5"
-                style={{
-                  background:
-                    "conic-gradient(#0A66C2 0deg 266deg, #D9DDE3 266deg 360deg)",
-                }}
-              >
-                <div className="grid h-full w-full place-items-center rounded-full bg-white">
-                  <div className="text-center">
-                    <p className="text-3xl font-semibold">74</p>
-                    <p className="text-[10px] font-semibold uppercase text-[#0A66C2]">
-                      / 100
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Strong authority potential</p>
-                <p className="mt-2 text-xs leading-5 text-[#666666]">
-                  Your expertise is becoming easier to understand, trust, and follow.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[#D9DDE3] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Profile analytics</p>
-              <LineChart className="h-4 w-4 text-[#0A66C2]" />
-            </div>
-            <div className="mt-4 grid gap-3">
-              {authoritySignals.map(([label, value]) => (
-                <div className="grid gap-2" key={label}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#666666]">{label}</span>
-                    <span className="font-semibold text-[#191919]">{value}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[#D9DDE3]">
-                    <div
-                      className="h-full rounded-full bg-[#0A66C2]"
-                      style={{ width: value }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_0.82fr]">
-          <div className="rounded-lg border border-[#D9DDE3] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Trend radar</p>
-              <Radar className="h-4 w-4 text-[#0A66C2]" />
-            </div>
-            <div className="mt-4 grid gap-2">
-              {trendSignals.map((signal, index) => (
-                <div
-                  className="flex items-center justify-between rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs"
-                  key={signal}
-                >
-                  <span className="font-medium">{signal}</span>
-                  <span className="text-[#0A66C2]">
-                    {index === 0 ? "High" : index === 1 ? "Rising" : "Now"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="hidden rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-[#191919] md:block">
-            <p className="text-xs uppercase tracking-[0.18em] text-[#666666]">
-              Network signals
-            </p>
-            <div className="mt-4 flex items-end gap-2">
-              {[46, 68, 54, 82, 76, 94, 88].map((height, index) => (
-                <div
-                  className="flex-1 rounded-t-sm bg-[#0A66C2]"
-                  key={height}
-                  style={{
-                    height: `${height}px`,
-                    opacity: 0.34 + index * 0.08,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="hero-float-card hero-float-card-delayed absolute bottom-4 left-0 hidden w-72 rounded-lg border border-[#D9DDE3] bg-white p-4 text-[#191919] shadow-[0_18px_48px_rgba(0,0,0,0.22)] lg:block">
-        <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
-            <UserRound className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold">Professional positioning</p>
-            <p className="mt-1 text-xs text-[#666666]">
-              Expertise, trends, and audience fit aligned.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="hero-float-card absolute right-2 top-0 hidden rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-[#191919] shadow-[0_18px_44px_rgba(10,25,47,0.12)] sm:block">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <BadgeCheck className="h-4 w-4 text-[#0A66C2]" />
-          Authority path detected
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LandingHero() {
-  return (
-    <section className="relative isolate overflow-hidden bg-[#F3F2EF] text-[#191919]">
-      <div className="absolute inset-0 tech-grid opacity-45" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(243,242,239,0.96))]" />
-
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
-        <a className="flex items-center gap-3" href="#" aria-label="INConnect home">
-          <Logo />
+    <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
+        <a href="#assessment" aria-label="INConnect assessment">
+          <Logo markSize={46} />
         </a>
-
-        <nav className="hidden items-center gap-1 text-sm text-[#666666] lg:flex">
+        <nav className="hidden items-center gap-1 lg:flex">
           {navItems.map((item) => (
             <a
-              className="rounded-lg px-3 py-2 transition hover:bg-white hover:text-[#0A66C2]"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
               href={item.href}
-              key={item.href}
+              key={item.label}
             >
               {item.label}
             </a>
           ))}
         </nav>
-
-        <a
-          className="hidden h-10 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] md:inline-flex"
-          href="#assessment"
-        >
-          Start free
-        </a>
-      </header>
-
-      <nav className="relative z-10 mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 pb-2 text-sm text-[#666666] sm:px-8 lg:hidden">
+      </div>
+      <nav className="flex gap-2 overflow-x-auto border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
         {navItems.map((item) => (
           <a
-            className="shrink-0 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
+            className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
             href={item.href}
-            key={item.href}
+            key={item.label}
           >
             {item.label}
           </a>
         ))}
       </nav>
-
-      <div className="relative z-10 mx-auto grid min-h-[calc(100svh-80px)] max-w-7xl items-center gap-10 px-5 pb-16 pt-10 sm:px-8 lg:grid-cols-[1fr_0.9fr] lg:px-10">
-        <div className="max-w-3xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-sm text-[#666666]">
-            <Sparkles className="h-4 w-4 text-[#0A66C2]" />
-            Your AI LinkedIn Growth Assistant
-          </div>
-
-          <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] text-[#191919] sm:text-5xl lg:text-6xl">
-            Most professionals and companies are invisible on LinkedIn.
-            <span className="block text-[#0A66C2]">INConnect helps change that.</span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-[#666666] sm:text-lg">
-            Analyze LinkedIn positioning, discover relevant trends, and generate
-            personalized content ideas designed to grow professional and company
-            authority.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 font-semibold text-white shadow-[0_10px_28px_rgba(10,102,194,0.22)] transition hover:bg-[#004182]"
-              href="#assessment"
-            >
-              Analyze My LinkedIn Profile
-              <ArrowRight className="h-4 w-4" />
-            </a>
-            <a
-              className="inline-flex h-12 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 font-semibold text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
-              href="#features"
-            >
-              Explore platform
-            </a>
-          </div>
-
-          <div className="mt-10 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              ["Positioning", "Authority score"],
-              ["Detection", "Expertise areas"],
-              ["Radar", "Trend insights"],
-            ].map(([label, value]) => (
-              <div
-                className="rounded-lg border border-[#D9DDE3] bg-white p-4"
-                key={label}
-              >
-                <p className="text-xs uppercase tracking-[0.2em] text-[#666666]">
-                  {label}
-                </p>
-                <p className="mt-2 font-semibold text-[#191919]">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <HeroKeyVisual />
-      </div>
-    </section>
+    </header>
   );
 }
 
-function FeaturesSection() {
-  return (
-    <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10" id="features">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.75fr_1fr] lg:items-end">
-          <div>
-            <SectionEyebrow icon={Target}>Features</SectionEyebrow>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              Built for LinkedIn growth with professional context.
-            </h2>
-          </div>
-          <p className="max-w-2xl text-base leading-7 text-[#666666]">
-            INConnect is structured around positioning, area detection, trend
-            relevance, and shareable authority signals. It is not a generic AI
-            writing surface.
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {featureCards.map((feature) => (
-            <article
-              className="group rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
-              key={feature.title}
-            >
-              <span className="grid h-11 w-11 place-items-center rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] text-[#0A66C2] transition group-hover:border-[#0A66C2]/35">
-                <feature.icon className="h-5 w-5" />
-              </span>
-              <h3 className="mt-5 text-lg font-semibold">{feature.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-[#666666]">
-                {feature.copy}
-              </p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TrendRadarSection() {
-  return (
-    <section
-      className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10"
-      id="trend-radar"
-    >
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.78fr_1fr] lg:items-end">
-          <div>
-            <SectionEyebrow icon={Radar}>Trend Radar</SectionEyebrow>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              See which LinkedIn conversations match your authority lane.
-            </h2>
-          </div>
-          <p className="max-w-2xl text-base leading-7 text-[#666666]">
-            INConnect connects your detected expertise with professional trends,
-            market timing, and content angles that can strengthen LinkedIn
-            authority.
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {trendRadarCards.map((trend) => (
-            <article
-              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
-              key={trend.title}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] text-[#0A66C2]">
-                  <Radar className="h-5 w-5" />
-                </span>
-                <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-2 py-1 text-xs font-semibold text-[#0A66C2]">
-                  {trend.momentum}
-                </span>
-              </div>
-              <h3 className="mt-5 text-lg font-semibold">{trend.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-[#666666]">
-                {trend.summary}
-              </p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ProfileInput({
-  about,
-  email,
-  errorMessage,
-  headline,
-  isScanning,
-  linkedInUrl,
-  onboardingStep,
-  onAbout,
-  onEmail,
-  onHeadline,
-  onLinkedInUrl,
-  onOnboardingStep,
-  onPostsText,
+function AssessmentForm({
+  error,
+  isAnalyzing,
   onSubmit,
-  postsText,
 }: {
-  about: string;
-  email: string;
-  errorMessage: string;
-  headline: string;
-  isScanning: boolean;
-  linkedInUrl: string;
-  onboardingStep: number;
-  onAbout: (value: string) => void;
-  onEmail: (value: string) => void;
-  onHeadline: (value: string) => void;
-  onLinkedInUrl: (value: string) => void;
-  onOnboardingStep: (value: number) => void;
-  onPostsText: (value: string) => void;
+  error: string;
+  isAnalyzing: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  postsText: string;
 }) {
-  const postCount = countRecentPosts(postsText);
-  const confidence = getAssessmentConfidence({ about, headline, postsText });
-  const canContinueIdentity =
-    linkedInUrl.trim().length > 0 && email.trim().length > 0 && isValidEmail(email);
-  const canContinue =
-    onboardingStep === 1
-      ? canContinueIdentity
-      : onboardingStep === 2
-        ? headline.trim().length > 0
-        : onboardingStep === 3
-          ? about.trim().length > 0
-          : true;
-
-  function goToNextStep() {
-    if (!canContinue || onboardingStep >= 4) {
-      return;
-    }
-
-    onOnboardingStep(onboardingStep + 1);
-  }
-
-  function goToPreviousStep() {
-    onOnboardingStep(Math.max(1, onboardingStep - 1));
-  }
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [email, setEmail] = useState("");
+  const [profilePdf, setProfilePdf] = useState<File | null>(null);
+  const validationError = getAssessmentError({ email, linkedinUrl, profilePdf });
 
   return (
     <form
-      className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]"
+      className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
       onSubmit={onSubmit}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-[#D9DDE3] pb-5">
-        <div>
-          <h3 className="text-xl font-semibold text-[#191919]">
-            Analyze your LinkedIn profile
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-[#666666]">
-            Complete four quick steps with your own LinkedIn content. INConnect
-            does not scrape LinkedIn or use the LinkedIn API.
-          </p>
-        </div>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
-          <ScanLine className="h-5 w-5" />
-        </span>
+      <input name="linkedinUrl" type="hidden" value={linkedinUrl} />
+      <input name="email" type="hidden" value={email} />
+      <div className="border-b border-[#D9DDE3] pb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Profile Intelligence Assessment
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold leading-tight text-[#191919] sm:text-5xl">
+          Your AI LinkedIn Profile Intelligence Platform
+        </h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
+          Upload your LinkedIn Profile PDF and receive a comprehensive authority,
+          positioning, visibility, and profile-improvement assessment.
+        </p>
       </div>
 
-      <div className="mt-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Step {onboardingStep} of 4
+      <div className="mt-6 grid gap-4">
+        <label className="grid gap-2 text-sm font-medium text-[#191919]">
+          LinkedIn profile URL
+          <input
+            className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            onChange={(event) => setLinkedinUrl(event.target.value)}
+            placeholder="https://www.linkedin.com/in/your-profile"
+            required
+            type="url"
+            value={linkedinUrl}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-medium text-[#191919]">
+          Email address
+          <input
+            className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@company.com"
+            required
+            type="email"
+            value={email}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-medium text-[#191919]">
+          LinkedIn Profile PDF
+          <span className="flex min-h-28 cursor-pointer items-center gap-4 rounded-lg border border-dashed border-[#0A66C2]/35 bg-[#E8F1FB] p-4 text-[#191919] transition hover:border-[#0A66C2]">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white text-[#0A66C2]">
+              <Upload className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block font-semibold">
+                {profilePdf ? profilePdf.name : "Upload LinkedIn Profile PDF"}
+              </span>
+              <span className="mt-1 block text-sm font-normal text-[#666666]">
+                Assessment cannot run without the exported PDF.
+              </span>
+            </span>
           </span>
-          <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-            {confidenceLabel(confidence)}
-          </span>
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {[1, 2, 3, 4].map((step) => (
-            <div
-              className={classNames(
-                "h-2 rounded-full transition",
-                step <= onboardingStep ? "bg-[#0A66C2]" : "bg-[#D9DDE3]",
-              )}
-              key={step}
-            />
-          ))}
-        </div>
+          <input
+            accept="application/pdf"
+            className="sr-only"
+            name="profilePdf"
+            onChange={(event) => setProfilePdf(event.target.files?.[0] ?? null)}
+            required
+            type="file"
+          />
+        </label>
       </div>
 
-      <div className="mt-5 grid gap-4">
-        {onboardingStep === 1 && (
-          <>
-            <div>
-              <h4 className="text-lg font-semibold text-[#191919]">Identity</h4>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                No registration required. We use your LinkedIn URL and email to
-                identify your assessment and weekly usage limit.
-              </p>
-            </div>
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              LinkedIn profile URL
-              <input
-                className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                onChange={(event) => onLinkedInUrl(event.target.value)}
-                placeholder="https://www.linkedin.com/in/alex-morgan"
-                required
-                type="url"
-                value={linkedInUrl}
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Email address
-              <input
-                className="h-12 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                autoComplete="email"
-                inputMode="email"
-                onChange={(event) => onEmail(event.target.value)}
-                placeholder="name@company.com"
-                required
-                type="email"
-                value={email}
-              />
-            </label>
-          </>
-        )}
-
-        {onboardingStep === 2 && (
-          <>
-            <div>
-              <h4 className="text-lg font-semibold text-[#191919]">
-                LinkedIn Headline
-              </h4>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                Paste your current LinkedIn headline. This helps us understand
-                your professional positioning.
-              </p>
-            </div>
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              LinkedIn headline
-              <textarea
-                className="min-h-28 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                onChange={(event) => onHeadline(event.target.value)}
-                placeholder="Example: Industrial automation leader | Intelligent sensing | Airport automation"
-                required
-                value={headline}
-              />
-            </label>
-          </>
-        )}
-
-        {onboardingStep === 3 && (
-          <>
-            <div>
-              <h4 className="text-lg font-semibold text-[#191919]">
-                About Section
-              </h4>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                Paste your LinkedIn About section. This helps us evaluate your
-                expertise, authority signals, and positioning clarity.
-              </p>
-            </div>
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              LinkedIn About section
-              <textarea
-                className="min-h-44 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                onChange={(event) => onAbout(event.target.value)}
-                placeholder="Paste your About section here..."
-                required
-                value={about}
-              />
-            </label>
-          </>
-        )}
-
-        {onboardingStep === 4 && (
-          <>
-            <div>
-              <h4 className="text-lg font-semibold text-[#191919]">
-                Recent Posts
-              </h4>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                Paste at least 3 recent LinkedIn posts. The more examples you
-                provide, the more accurate your authority assessment becomes.
-              </p>
-            </div>
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Recent LinkedIn posts
-              <textarea
-                className="min-h-44 w-full resize-y rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-[#191919] outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                onChange={(event) => onPostsText(event.target.value)}
-                placeholder="Paste 3 or more recent posts. Separate posts with a blank line for best results."
-                value={postsText}
-              />
-            </label>
-            {postCount < 3 && (
-              <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
-                We detected {postCount} recent post{postCount === 1 ? "" : "s"}.
-                You can continue, but assessment confidence will be Medium until
-                3 posts are provided.
-              </p>
-            )}
-          </>
-        )}
-      </div>
-
-      {errorMessage && (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
-          {errorMessage}
+      {(error || validationError) && (
+        <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+          {error || validationError}
         </p>
       )}
 
-      <p className="mt-5 flex items-start gap-2 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
-        We use your LinkedIn profile and email to generate and save your
-        professional authority analysis. We respect your privacy and never post
-        to LinkedIn automatically.
-      </p>
-
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        {onboardingStep > 1 && (
-          <button
-            className="inline-flex h-12 w-full items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 font-semibold text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] sm:w-auto"
-            onClick={goToPreviousStep}
-            type="button"
-          >
-            Back
-          </button>
-        )}
-        {onboardingStep < 4 ? (
-          <button
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
-            disabled={!canContinue}
-            onClick={goToNextStep}
-            type="button"
-          >
-            Continue
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
-            disabled={isScanning || !canContinueIdentity || !headline.trim() || !about.trim()}
-            type="submit"
-          >
-            {isScanning ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Analyze Profile
-          </button>
-        )}
+      <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+        <div className="flex items-start gap-3">
+          <FileText className="mt-1 h-5 w-5 shrink-0 text-[#0A66C2]" />
+          <div>
+            <h2 className="font-semibold text-[#191919]">
+              How to get your LinkedIn Profile PDF
+            </h2>
+            <ol className="mt-3 grid gap-2 text-sm leading-6 text-[#666666]">
+              <li>1. Open LinkedIn on desktop</li>
+              <li>2. Go to your profile</li>
+              <li>3. Click More or Resources</li>
+              <li>4. Select Save to PDF</li>
+              <li>5. Upload the PDF here</li>
+            </ol>
+            <p className="mt-3 text-sm leading-6 text-[#666666]">
+              LinkedIn Profile PDF export is only available on desktop and may
+              not be available for all LinkedIn users.
+            </p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-[#191919]">
+              For a reliable assessment, INConnect analyzes your LinkedIn
+              profile PDF instead of scraping LinkedIn.
+            </p>
+          </div>
+        </div>
       </div>
+
+      <PlanLimits />
+
+      <button
+        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+        disabled={isAnalyzing || Boolean(validationError)}
+        type="submit"
+      >
+        {isAnalyzing ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : (
+          <Sparkles className="h-4 w-4" />
+        )}
+        {isAnalyzing ? "Analyzing profile PDF..." : "Start Profile Intelligence Assessment"}
+      </button>
     </form>
   );
 }
 
-function Scanner({
-  activeStep,
-  isScanning,
+function PlanLimits() {
+  return (
+    <section className="mt-6" id="pricing">
+      <p className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
+        Your free plan includes one comprehensive LinkedIn profile assessment
+        per week. Upgrade to Pro for unlimited assessments, Trend Radar, and
+        Content Intelligence.
+      </p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <PlanCard
+          name="FREE PLAN"
+          items={[
+            "1 comprehensive profile assessment per week",
+            "Full profile intelligence assessment",
+            "Authority score",
+            "Positioning analysis",
+            "Profile improvement recommendations",
+            "Shareable authority score card",
+          ]}
+        />
+        <PlanCard
+          featured
+          name="PRO PLAN"
+          items={[
+            "Unlimited profile assessments",
+            "Trend Radar",
+            "Content Intelligence",
+            "Authority growth tracking",
+            "Advanced positioning insights",
+            "Weekly content roadmap",
+          ]}
+        />
+      </div>
+    </section>
+  );
+}
+
+function PlanCard({
+  featured,
+  items,
+  name,
 }: {
-  activeStep: number;
-  isScanning: boolean;
+  featured?: boolean;
+  items: string[];
+  name: string;
 }) {
-  const progress = isScanning
-    ? Math.max(8, Math.round(((activeStep + 1) / scanningSteps.length) * 100))
-    : 0;
+  return (
+    <article
+      className={classNames(
+        "rounded-lg border p-4",
+        featured ? "border-[#0A66C2]/35 bg-[#E8F1FB]" : "border-[#D9DDE3] bg-white",
+      )}
+    >
+      <h3 className="font-semibold text-[#191919]">{name}</h3>
+      <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#666666]">
+        {items.map((item) => (
+          <li className="flex gap-2" key={item}>
+            <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function LoadingAssessment() {
+  const steps = [
+    "Extracting LinkedIn Profile PDF text",
+    "Reading headline, About, experience, skills, and keywords",
+    "Scoring authority, positioning, and visibility",
+    "Preparing profile improvement recommendations",
+  ];
 
   return (
-    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
-      <div className="flex items-center justify-between gap-4 border-b border-[#D9DDE3] pb-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            AI scanning flow
-          </p>
-          <h3 className="mt-2 text-2xl font-semibold">
-            AI is analyzing your positioning...
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-[#666666]">
-            INConnect is scoring clarity, authority signals, content potential,
-            and market relevance from your pasted LinkedIn content.
-          </p>
-        </div>
-        <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
-          <ScanLine className="h-6 w-6" />
-        </span>
-      </div>
-
-      <div className="mt-5">
-        <div className="mb-4 flex items-center justify-between text-sm text-[#666666]">
-          <span>Analysis progress</span>
-          <span>{progress}%</span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-[#D9DDE3]">
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+        AI profile intelligence
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+        INConnect is analyzing your LinkedIn Profile PDF...
+      </h2>
+      <div className="mt-6 grid gap-3">
+        {steps.map((step) => (
           <div
-            className="h-full rounded-full bg-[#0A66C2] transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      <ol className="mt-6 grid gap-3">
-        {scanningSteps.map((step, index) => {
-          const complete = isScanning && index < activeStep;
-          const current = isScanning && index === activeStep;
-
-          return (
-            <li
-              className={classNames(
-                "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition",
-                complete && "border-[#057642]/25 bg-[#EEF7F2] text-[#191919]",
-                current &&
-                  "scanner-active border-[#0A66C2]/45 bg-[#E8F1FB] text-[#191919]",
-                !complete &&
-                  !current &&
-                  "border-[#D9DDE3] bg-[#F8F8F6] text-[#666666]",
-              )}
-              key={step}
-            >
-              {complete ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#057642]" />
-              ) : current ? (
-                <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-[#0A66C2]" />
-              ) : (
-                <CircleDashed className="h-4 w-4 shrink-0" />
-              )}
-              {step}
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function AreaDetection({
-  areas,
-  onAddArea,
-  onConfirm,
-  onMoveArea,
-  onPrimaryArea,
-  onRemoveArea,
-  primaryArea,
-  selectedAddArea,
-  setSelectedAddArea,
-}: {
-  areas: DetectedArea[];
-  onAddArea: () => void;
-  onConfirm: () => void;
-  onMoveArea: (index: number, direction: -1 | 1) => void;
-  onPrimaryArea: (areaName: string) => void;
-  onRemoveArea: (id: string) => void;
-  primaryArea: string;
-  selectedAddArea: string;
-  setSelectedAddArea: (value: string) => void;
-}) {
-  return (
-    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
-      <div className="grid gap-4 border-b border-[#D9DDE3] pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Professional area detection
-          </p>
-          <h3 className="mt-2 text-2xl font-semibold">
-            Confirm your authority lane
-          </h3>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#666666]">
-            INConnect detects professional areas from the profile text you
-            provide. Edit the areas, choose your primary area, then reveal the
-            free assessment.
-          </p>
-        </div>
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182]"
-          onClick={onConfirm}
-          type="button"
-        >
-          Confirm areas
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-3">
-        {areas.map((area, index) => {
-          const isPrimary = area.name === primaryArea;
-
-          return (
-            <article
-              className={classNames(
-                "grid gap-4 rounded-lg border p-4 transition md:grid-cols-[1fr_auto]",
-                isPrimary
-                  ? "border-[#0A66C2]/45 bg-[#E8F1FB]"
-                  : "border-[#D9DDE3] bg-white",
-              )}
-              key={area.id}
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="mt-1 text-[#666666]">
-                  <GripVertical className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-semibold text-[#191919]">{area.name}</h4>
-                    {isPrimary && (
-                      <span className="rounded-lg bg-[#0A66C2] px-2 py-1 text-xs font-semibold text-white">
-                        Primary
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="h-2 w-36 overflow-hidden rounded-full bg-[#D9DDE3]">
-                      <div
-                        className="h-full rounded-full bg-[#0A66C2]"
-                        style={{ width: `${area.confidence}%` }}
-                      />
-                    </div>
-                    <span className="text-sm text-[#666666]">
-                      {area.confidence}% confidence
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <button
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={index === 0}
-                  onClick={() => onMoveArea(index, -1)}
-                  type="button"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </button>
-                <button
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={index === areas.length - 1}
-                  onClick={() => onMoveArea(index, 1)}
-                  type="button"
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#191919] transition hover:border-[#0A66C2]/35 hover:text-[#0A66C2]"
-                  onClick={() => onPrimaryArea(area.name)}
-                  type="button"
-                >
-                  <Star className="h-4 w-4" />
-                  Set primary
-                </button>
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm text-[#666666] transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={areas.length <= 1}
-                  onClick={() => onRemoveArea(area.id)}
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Remove
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="mt-5 grid gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 sm:grid-cols-[1fr_auto]">
-        <label className="grid gap-2 text-sm font-medium text-[#191919]">
-          Manually add area
-          <select
-            className="h-11 w-full rounded-lg border border-[#D9DDE3] bg-white px-3 text-[#191919] outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-            onChange={(event) => setSelectedAddArea(event.target.value)}
-            value={selectedAddArea}
+            className="scanner-active flex items-center gap-3 rounded-lg border border-[#0A66C2]/25 bg-[#E8F1FB] p-4 text-sm font-semibold text-[#191919]"
+            key={step}
           >
-            {professionalAreas.map((area) => (
-              <option key={area} value={area}>
-                {area}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 self-end rounded-lg border border-[#0A66C2]/25 bg-white px-4 font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
-          onClick={onAddArea}
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          Add area
-        </button>
+            <LoaderCircle className="h-4 w-4 animate-spin text-[#0A66C2]" />
+            {step}
+          </div>
+        ))}
       </div>
     </section>
   );
 }
 
-function ScoreHero({
-  areas,
-  confidence,
-  profile,
+function AssessmentResults({
+  assessment,
 }: {
-  areas: DetectedArea[];
-  confidence: AssessmentConfidence;
-  profile: AreaProfile;
+  assessment: ProfileIntelligenceAssessment;
 }) {
   return (
-    <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
-      <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
-        <ScoreRing score={profile.score} />
-
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-            LinkedIn Authority Score
-          </p>
-          <h3 className="mt-3 text-3xl font-semibold sm:text-5xl">
-            {profile.score} / 100
-          </h3>
-          <span className="mt-4 inline-flex rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
-            {confidenceLabel(confidence)}
-          </span>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-white/75">
-            You are positioned at the intersection of:
-          </p>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-3">
-            {areas.slice(0, 3).map((area) => (
-              <li
-                className="flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-sm font-semibold"
-                key={area.id}
-              >
-                <Check className="h-4 w-4 text-[#78B7F4]" />
-                {area.name}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-white/75">
-            Your profile demonstrates strong professional expertise and clear
-            positioning within your industry ecosystem.
-          </p>
+    <div className="grid gap-6">
+      <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
+        <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
+          <ScoreRing score={assessment.totalScore} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
+              LinkedIn Authority Score
+            </p>
+            <h2 className="mt-3 text-4xl font-semibold sm:text-5xl">
+              {assessment.totalScore} / 100
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
+                {assessment.assessmentConfidence} confidence
+              </span>
+              <span className="rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-white/80">
+                {getPositioningLevel(assessment.totalScore)}
+              </span>
+            </div>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/75">
+              {assessment.confidenceReason}
+            </p>
+            <p className="mt-4 text-xl font-semibold">
+              {assessment.corePositioning}
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <ShareableResults assessment={assessment} />
+
+      <InfoSection
+        eyebrow="Profile clarity"
+        title="How Your Profile Is Currently Positioned"
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[
+            ["External reader view", assessment.profileClarity.externalReaderView],
+            ["Professional image", assessment.profileClarity.professionalImage],
+            ["Positioning clarity", assessment.profileClarity.positioningClarity],
+            ["Positioning focus", assessment.profileClarity.positioningFocus],
+          ].map(([label, text]) => (
+            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={label}>
+              <h3 className="font-semibold text-[#191919]">{label}</h3>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">{text}</p>
+            </article>
+          ))}
+        </div>
+      </InfoSection>
+
+      <InfoSection eyebrow="Competencies" title="Top Competencies">
+        <TagGrid items={assessment.topCompetencies} />
+      </InfoSection>
+
+      <InfoSection eyebrow="Expertise" title="Key Expertise Domains">
+        <TagGrid items={assessment.keyExpertiseDomains} />
+      </InfoSection>
+
+      <InfoSection eyebrow="Authority growth" title="Authority Growth Areas">
+        <TagGrid items={assessment.authorityGrowthAreas} />
+      </InfoSection>
+
+      <ImprovementSection assessment={assessment} />
+
+      <InfoSection eyebrow="Visibility gaps" title="What Is Missing">
+        <div className="grid gap-3">
+          {assessment.visibilityGaps.map((gap) => (
+            <article
+              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]"
+              key={gap}
+            >
+              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
+              {gap}
+            </article>
+          ))}
+        </div>
+      </InfoSection>
+    </div>
+  );
+}
+
+function InfoSection({
+  children,
+  eyebrow,
+  title,
+}: {
+  children: ReactNode;
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold">{title}</h2>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function ShareScoreCard({
-  analysis,
-  areas,
-  confidence,
-  profile,
-  shareText,
+function TagGrid({ items }: { items: string[] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item) => (
+        <div
+          className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm font-semibold text-[#191919]"
+          key={item}
+        >
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ImprovementSection({
+  assessment,
 }: {
-  analysis: AuthorityAnalysisResponse;
-  areas: DetectedArea[];
-  confidence: AssessmentConfidence;
-  profile: AreaProfile;
-  shareText: string;
+  assessment: ProfileIntelligenceAssessment;
 }) {
-  const cardContent = getShareCardContent(analysis);
+  const rec = assessment.profileImprovementRecommendations;
+  const groups = [
+    ["Headline Improvements", rec.headlineImprovements],
+    ["About Section Improvements", rec.aboutSectionImprovements],
+    ["Positioning Improvements", rec.positioningImprovements],
+    ["Missing Authority Signals", rec.missingAuthoritySignals],
+    ["Missing Keywords", rec.missingKeywords],
+    ["Missing Industry Themes", rec.missingIndustryThemes],
+  ] as const;
+
+  return (
+    <InfoSection eyebrow="Profile recommendations" title="How To Improve Your Profile">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+          <h3 className="font-semibold">Current Headline</h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">{rec.currentHeadline}</p>
+        </article>
+        <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+          <h3 className="font-semibold">Suggested Headline</h3>
+          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.suggestedHeadline}</p>
+        </article>
+        <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+          <h3 className="font-semibold">Current Positioning</h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">{rec.currentPositioning}</p>
+        </article>
+        <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+          <h3 className="font-semibold">Recommended Positioning</h3>
+          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.recommendedPositioning}</p>
+        </article>
+      </div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {groups.map(([title, items]) => (
+          <article className="rounded-lg border border-[#D9DDE3] bg-white p-4" key={title}>
+            <h3 className="font-semibold text-[#191919]">{title}</h3>
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#666666]">
+              {items.map((item) => (
+                <li className="flex gap-2" key={item}>
+                  <Target className="mt-1 h-4 w-4 shrink-0 text-[#0A66C2]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </InfoSection>
+  );
+}
+
+function ShareableResults({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
   const cardRef = useRef<HTMLDivElement>(null);
   const toastTimerRef = useRef<number | null>(null);
   const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
   const [shareMessage, setShareMessage] = useState("");
 
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) {
-        window.clearTimeout(toastTimerRef.current);
-      }
-    };
-  }, []);
-
   function showToast(status: Exclude<ShareStatus, "idle" | "sharing">, message: string) {
-    if (toastTimerRef.current) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     setShareStatus(status);
     setShareMessage(message);
     toastTimerRef.current = window.setTimeout(() => {
       setShareStatus("idle");
       setShareMessage("");
-    }, 4200);
+    }, 4800);
   }
 
-  function openLinkedIn() {
-    const linkedInTab = window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
-    if (!linkedInTab) {
-      showToast(
-        "error",
-        "LinkedIn could not open automatically. Please open LinkedIn manually.",
-      );
-    }
-  }
-
-  async function handleLinkedInShare() {
+  async function handleShare() {
     const card = cardRef.current;
+    if (!card) {
+      showToast("error", "Could not download score card. Please try again.");
+      return;
+    }
+
+    setShareStatus("sharing");
+    const copied = await copyTextToClipboard(assessment.shareText);
+    if (!copied) {
+      showToast("error", "Could not copy text automatically. Please copy it manually.");
+      return;
+    }
 
     try {
-      if (!card) {
-        showToast("error", "Could not download score card. Please try again.");
-        return;
-      }
-
-      setShareStatus("sharing");
-      setShareMessage("");
-
-      const copiedText = await copyTextToClipboard(shareText);
-      if (!copiedText) {
-        showToast(
-          "error",
-          "Could not copy text automatically. Please copy it manually.",
-        );
-        return;
-      }
-
-      try {
-        const imageUrl = await toPng(card, {
-          backgroundColor: "#FFFFFF",
-          cacheBust: true,
-          pixelRatio: 2,
-          style: {
-            margin: "0",
-          },
-        });
-        downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
-      } catch (error) {
-        console.error(error);
-        showToast("error", "Could not download score card. Please try again.");
-        return;
-      }
-
-      const linkedInTab = window.open(
-        LINKEDIN_FEED_URL,
-        "_blank",
-        "noopener,noreferrer",
-      );
-      if (linkedInTab) {
-        linkedInTab.opener = null;
-      }
-
-      showToast(
-        linkedInTab ? "success" : "error",
-        linkedInTab
-          ? "Post text copied. Score card downloaded. Open LinkedIn and attach the image to your post."
-          : "LinkedIn could not open automatically. Please open LinkedIn manually.",
-      );
+      const imageUrl = await toPng(card, {
+        backgroundColor: "#FFFFFF",
+        cacheBust: true,
+        pixelRatio: 2,
+        style: { margin: "0" },
+      });
+      downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
     } catch (error) {
       console.error(error);
-      showToast(
-        "error",
-        "Could not prepare the LinkedIn share. Please try again.",
-      );
+      showToast("error", "Could not download score card. Please try again.");
+      return;
     }
+
+    const linkedInTab = window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
+    showToast(
+      linkedInTab ? "success" : "error",
+      linkedInTab
+        ? "Post text copied. Score card downloaded. Open LinkedIn and attach the image to your post."
+        : "LinkedIn could not open automatically. Please open LinkedIn manually.",
+    );
   }
 
   return (
     <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-      <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Shareable score card
+            Shareable results
           </p>
-          <h3 className="mt-3 text-3xl font-semibold">
-            Share Your LinkedIn Authority Score
-          </h3>
+          <h2 className="mt-3 text-2xl font-semibold">
+            Share your authority score
+          </h2>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
-            See how your professional authority compares across industries.
-            Share your score on LinkedIn.
+            Your post text will be copied automatically. Your score card image
+            will be downloaded, please attach it manually to your LinkedIn post.
           </p>
-          <p className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3 text-sm leading-6 text-[#666666]">
-            LinkedIn post text will be copied automatically. Your score card
-            image will be downloaded, please attach it manually to your LinkedIn
-            post.
-          </p>
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <button
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-              disabled={shareStatus === "sharing"}
-              onClick={handleLinkedInShare}
-              type="button"
-            >
-              {shareStatus === "sharing" ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              {shareStatus === "sharing"
-                ? "Preparing share..."
-                : "Copy Text & Download Card"}
-            </button>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-4 font-semibold text-[#0A66C2] transition hover:border-[#0A66C2]/35 hover:bg-[#E8F1FB] sm:w-auto"
-              onClick={openLinkedIn}
-              type="button"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Open LinkedIn
-            </button>
-          </div>
+          <button
+            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:opacity-70 sm:w-auto"
+            disabled={shareStatus === "sharing"}
+            onClick={handleShare}
+            type="button"
+          >
+            {shareStatus === "sharing" ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Copy Text, Download Card & Open LinkedIn
+          </button>
         </div>
 
         <div
           className="share-card rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]"
           ref={cardRef}
         >
-          <div className="flex items-center justify-between border-b border-[#D9DDE3] pb-4">
-            <div className="flex items-center gap-3">
-              <Logo markSize={40} showSubtitle={false} />
-              <div>
-                <p className="text-xs text-[#666666]">
-                  Your AI LinkedIn Growth Assistant
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between gap-4 border-b border-[#D9DDE3] pb-4">
+            <Logo markSize={40} showSubtitle={false} />
             <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-              {INCONNECT_SITE_URL.replace("https://", "")}
+              in-connect.app
             </span>
           </div>
-
           <div className="mt-5 grid gap-5 md:grid-cols-[auto_1fr] md:items-center">
-            <ScoreRing score={profile.score} />
+            <ScoreRing score={assessment.totalScore} />
             <div>
               <p className="text-sm uppercase tracking-[0.18em] text-[#666666]">
                 LinkedIn Authority Score
               </p>
-              <p className="mt-3 text-4xl font-semibold">{profile.score} / 100</p>
+              <p className="mt-3 text-4xl font-semibold">
+                {assessment.totalScore} / 100
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-                  {confidenceLabel(confidence)}
+                  {assessment.assessmentConfidence} confidence
                 </span>
                 <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-1 text-xs font-semibold text-[#666666]">
-                  {cardContent.positioningLevel}
+                  {getPositioningLevel(assessment.totalScore)}
                 </span>
               </div>
             </div>
           </div>
-
-          <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+          <div className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
               Core Positioning
             </p>
-            <p className="mt-2 text-lg font-semibold text-[#191919]">
-              {cardContent.corePositioning}
+            <p className="mt-2 text-lg font-semibold">
+              {compactLabel(assessment.corePositioning, 68)}
             </p>
           </div>
-
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold text-[#191919]">
-                Key Expertise Areas
-              </p>
-              <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-                {cardContent.keyExpertiseAreas.map((item) => (
-                  <li className="flex items-center gap-2" key={item}>
-                    <BadgeCheck className="h-4 w-4 text-[#057642]" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#191919]">
-                Authority Growth Areas
-              </p>
-              <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-                {cardContent.authorityGrowthAreas.map((item) => (
-                  <li className="flex items-center gap-2" key={item}>
-                    <BadgeCheck className="h-4 w-4 text-[#057642]" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-lg border border-[#D9DDE3] bg-white/80 p-4">
-              <p className="text-sm font-semibold text-[#191919]">
-                Positioning Level
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                {cardContent.positioningLevel}
-              </p>
-            </div>
-            <div className="rounded-lg border border-[#D9DDE3] bg-white/80 p-4">
-              <p className="text-sm font-semibold text-[#191919]">
-                Assessment Confidence
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">
-                {confidenceLabel(confidence)}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-            <p className="text-sm font-semibold text-[#191919]">
-              Strategic Summary
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#666666]">
-              {cardContent.strategicSummary}
-            </p>
+            <ShareList title="Key Expertise Areas" items={assessment.keyExpertiseDomains.slice(0, 3)} />
+            <ShareList title="Positive Highlights" items={assessment.positiveHighlights.slice(0, 3)} />
           </div>
         </div>
       </div>
@@ -1611,562 +715,57 @@ function ShareScoreCard({
   );
 }
 
-function Results({
-  analysis,
-  areas,
-  confidence,
-  profile,
-}: {
-  analysis: AuthorityAnalysisResponse;
-  areas: DetectedArea[];
-  confidence: AssessmentConfidence;
-  profile: AreaProfile;
-}) {
+function ShareList({ items, title }: { items: string[]; title: string }) {
   return (
-    <div className="grid gap-6">
-      <ScoreHero areas={areas} confidence={confidence} profile={profile} />
-      <ShareScoreCard
-        analysis={analysis}
-        areas={areas}
-        confidence={confidence}
-        profile={profile}
-        shareText={analysis.shareText}
-      />
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Your strongest positioning areas
-        </p>
-        <h3 className="mt-3 text-2xl font-semibold">{analysis.primaryIndustry}</h3>
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-[#666666]">
-          {analysis.authoritySummary}
-        </p>
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          {analysis.topExpertiseAreas.slice(0, 3).map((area) => (
-            <article
-              className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4"
-              key={area}
-            >
-              <BadgeCheck className="h-5 w-5 text-[#057642]" />
-              <h4 className="mt-4 font-semibold">{area}</h4>
-            </article>
-          ))}
-        </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-3">
-          {analysis.strengths.slice(0, 3).map((strength) => (
-            <article
-              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]"
-              key={strength}
-            >
-              {strength}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Where your visibility is underdeveloped
-        </p>
-        <div className="mt-5 grid gap-3">
-          {analysis.weaknesses.map((weakness) => (
-            <article
-              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={weakness}
-            >
-              <Zap className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
-              <p className="text-sm leading-6 text-[#666666]">{weakness}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Suggested authority topics
-        </p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {analysis.contentOpportunities.map((topic) => (
-            <article
-              className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={topic}
-            >
-              <LineChart className="h-5 w-5 text-[#0A66C2]" />
-              <h4 className="mt-4 font-semibold">{topic}</h4>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Recommended LinkedIn content directions
-        </p>
-        <div className="mt-5 grid gap-3">
-          {analysis.improvementActions.map((action) => (
-            <article
-              className="flex gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-              key={action}
-            >
-              <Target className="mt-0.5 h-4 w-4 shrink-0 text-[#0A66C2]" />
-              <p className="text-sm leading-6 text-[#666666]">{action}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-        <div className="flex flex-col gap-4 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-              Suggested future positioning angles
-            </p>
-            <h3 className="mt-3 text-2xl font-semibold">
-              Trend-aligned authority paths
-            </h3>
-          </div>
-          <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs font-semibold text-[#666666]">
-            AI-generated
-          </span>
-        </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {analysis.trendPositioning.slice(0, 3).map((angle) => (
-            <article
-              className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4"
-              key={angle}
-            >
-              <Radar className="h-5 w-5 text-[#0A66C2]" />
-              <p className="mt-4 text-sm font-semibold leading-6">{angle}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-[#0A66C2]/25 bg-[#0A192F] p-5 text-white shadow-[0_18px_54px_rgba(10,25,47,0.18)] sm:p-7">
-        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-              Unlock deeper analysis
-            </p>
-            <h3 className="mt-3 text-3xl font-semibold">
-              Turn this assessment into a deeper LinkedIn authority roadmap.
-            </h3>
-            <p className="mt-3 text-sm leading-6 text-white/75">
-              Pro will expand this into saved analysis history, deeper profile
-              scoring, weekly content roadmaps, and advanced positioning angles.
-            </p>
-          </div>
-          <a
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 font-semibold text-white transition hover:bg-[#004182]"
-            href="#pricing"
-          >
-            Upgrade to Pro
-            <ArrowRight className="h-4 w-4" />
-          </a>
-        </div>
-      </section>
-
-      <p className="text-xs text-[#666666]">
-        No LinkedIn scraping, LinkedIn API access, or automatic posting is active in this MVP.
-      </p>
+    <div>
+      <p className="text-sm font-semibold text-[#191919]">{title}</p>
+      <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
+        {items.map((item) => (
+          <li className="flex items-center gap-2" key={item}>
+            <BadgeCheck className="h-4 w-4 shrink-0 text-[#057642]" />
+            {compactLabel(item, 38)}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function AssessmentSection() {
-  const [linkedInUrl, setLinkedInUrl] = useState("");
-  const [email, setEmail] = useState("");
-  const [headline, setHeadline] = useState("");
-  const [about, setAbout] = useState("");
-  const [postsText, setPostsText] = useState("");
-  const [onboardingStep, setOnboardingStep] = useState(1);
-  const [stage, setStage] = useState<Stage>("idle");
-  const [activeStep, setActiveStep] = useState(0);
-  const [analysis, setAnalysis] = useState<AuthorityAnalysisResponse | null>(null);
-  const [profile, setProfile] = useState<AreaProfile | null>(null);
-  const [analysisError, setAnalysisError] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [areas, setAreas] = useState<DetectedArea[]>([]);
-  const [primaryArea, setPrimaryArea] = useState("");
-  const [selectedAddArea, setSelectedAddArea] = useState<string>(
-    professionalAreas[0],
-  );
-  const assessmentConfidence = useMemo(
-    () => getAssessmentConfidence({ about, headline, postsText }),
-    [about, headline, postsText],
-  );
-
-  const displayProfile = useMemo(() => {
-    if (!profile) {
-      return null;
-    }
-
-    return profile;
-  }, [profile]);
-
-  useEffect(() => {
-    if (stage !== "scanning") {
-      return;
-    }
-
-    if (activeStep >= scanningSteps.length - 1) {
-      if (isAnalyzing || !profile) {
-        return;
-      }
-
-      const timer = window.setTimeout(() => setStage("results"), 800);
-      return () => window.clearTimeout(timer);
-    }
-
-    const timer = window.setTimeout(() => {
-      setActiveStep((step) => step + 1);
-    }, 620);
-
-    return () => window.clearTimeout(timer);
-  }, [activeStep, isAnalyzing, profile, stage]);
-
-  async function handleAnalyze(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (
-      !linkedInUrl.trim() ||
-      !email.trim() ||
-      !isValidEmail(email) ||
-      !headline.trim() ||
-      !about.trim()
-    ) {
-      return;
-    }
-
-    const record: MockUserRecord = {
-      email: email.trim(),
-      linkedInUrl: linkedInUrl.trim(),
-      timestamp: new Date().toISOString(),
-      planType: "free",
-    };
-    saveMockUser(record);
-
-    setAnalysisError("");
-    setIsAnalyzing(true);
-    setAnalysis(null);
-    setProfile(null);
-    setAreas([]);
-    setActiveStep(0);
-    setStage("scanning");
-
-    try {
-      const nextAnalysis = await requestProfileAnalysis({
-        about: about.trim(),
-        email: email.trim(),
-        headline: headline.trim(),
-        linkedInUrl: linkedInUrl.trim(),
-        postsText: postsText.trim(),
-      });
-      const nextProfile = analysisToProfile(nextAnalysis);
-      setProfile(nextProfile);
-      setAnalysis(nextAnalysis);
-      setAreas(analysisToDetectedAreas(nextAnalysis));
-      setPrimaryArea(
-        nextAnalysis.topExpertiseAreas[0] ?? nextProfile.primaryArea,
-      );
-    } catch (error) {
-      setStage("idle");
-      setAnalysisError(
-        error instanceof Error
-          ? error.message
-          : "AI analysis could not be completed. Please try again.",
-      );
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }
-
-  function handleRemoveArea(id: string) {
-    setAreas((current) => {
-      const next = current.filter((area) => area.id !== id);
-      if (!next.some((area) => area.name === primaryArea)) {
-        setPrimaryArea(next[0]?.name ?? "");
-      }
-      return next;
-    });
-  }
-
-  function handleMoveArea(index: number, direction: -1 | 1) {
-    setAreas((current) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= current.length) {
-        return current;
-      }
-      const next = [...current];
-      const [item] = next.splice(index, 1);
-      next.splice(nextIndex, 0, item);
-      return next;
-    });
-  }
-
-  function handleAddArea() {
-    setAreas((current) => {
-      if (current.some((area) => area.name === selectedAddArea)) {
-        return current;
-      }
-
-      return [
-        ...current,
-        {
-          id: createAreaId(selectedAddArea),
-          name: selectedAddArea,
-          confidence: 74,
-        },
-      ];
-    });
-  }
-
+function LockedPreview({
+  id,
+  items,
+  title,
+}: {
+  id: string;
+  items: string[];
+  title: string;
+}) {
   return (
     <section
-      className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10"
-      id="assessment"
+      className="relative overflow-hidden bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10"
+      id={id}
     >
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.82fr_1fr] lg:items-end">
-          <div>
-            <SectionEyebrow icon={BarChart3}>Assessment</SectionEyebrow>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              Analyze positioning before creating content.
-            </h2>
-          </div>
-          <p className="max-w-2xl text-base leading-7 text-[#666666]">
-            Free assessments are unlimited. The prototype limits result depth,
-            not the number of analyses, so professionals can test positioning
-            across different LinkedIn positioning angles.
+      <div className="mx-auto max-w-7xl rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <div className="pointer-events-none select-none blur-[2px]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Pro intelligence
           </p>
-        </div>
-
-        <div className="mt-8 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-          <ProfileInput
-            about={about}
-            email={email}
-            errorMessage={analysisError}
-            headline={headline}
-            isScanning={stage === "scanning"}
-            linkedInUrl={linkedInUrl}
-            onboardingStep={onboardingStep}
-            onAbout={setAbout}
-            onEmail={setEmail}
-            onHeadline={setHeadline}
-            onLinkedInUrl={setLinkedInUrl}
-            onOnboardingStep={setOnboardingStep}
-            onPostsText={setPostsText}
-            onSubmit={handleAnalyze}
-            postsText={postsText}
-          />
-
-          <div className="min-w-0">
-            {stage === "idle" && (
-              <section className="grid min-h-full content-between gap-8 rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-                    Result preview
-                  </p>
-                  <h3 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
-                    LinkedIn growth guidance, not generic content
-                    generation.
-                  </h3>
-                  <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
-                    Complete the four-step onboarding flow with your LinkedIn
-                    headline, About section, and recent posts. INConnect scores
-                    positioning, authority potential, trend alignment, and
-                    content opportunity without scraping LinkedIn.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {["AI scoring", "Score card", "Content directions"].map((item) => (
-                    <div
-                      className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm font-semibold"
-                      key={item}
-                    >
-                      <ArrowRight className="mb-5 h-4 w-4 text-[#0A66C2]" />
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {stage === "scanning" && (
-              <Scanner activeStep={activeStep} isScanning={stage === "scanning"} />
-            )}
-
-            {stage === "results" && displayProfile && analysis && (
-              <Results
-                analysis={analysis}
-                areas={areas}
-                confidence={assessmentConfidence}
-                profile={displayProfile}
-              />
-            )}
+          <h2 className="mt-3 text-3xl font-semibold text-[#191919]">{title}</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            {items.map((item) => (
+              <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={item}>
+                <Radar className="h-5 w-5 text-[#0A66C2]" />
+                <h3 className="mt-4 font-semibold text-[#191919]">{item}</h3>
+              </article>
+            ))}
           </div>
         </div>
-      </div>
-
-    </section>
-  );
-}
-
-function PricingSection() {
-  return (
-    <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10" id="pricing">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
-          <div>
-            <SectionEyebrow icon={WalletCards}>Pricing</SectionEyebrow>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              Freemium by depth, not by scarcity.
-            </h2>
-          </div>
-          <p className="max-w-2xl text-base leading-7 text-[#666666]">
-            Free users can keep analyzing. Pro unlocks more insight depth,
-            richer trend context, saved history, and unlimited personalized post
-            ideas.
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-4 lg:grid-cols-2">
-          {pricing.map((tier) => (
-            <article
-              className={classNames(
-                "rounded-lg border p-6 transition sm:p-8",
-                tier.featured
-                  ? "border-[#0A66C2]/35 bg-white shadow-[0_16px_36px_rgba(10,25,47,0.12)]"
-                  : "border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
-              )}
-              key={tier.name}
-            >
-              <div className="flex flex-col gap-5 border-b border-[#D9DDE3] pb-6 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-2xl font-semibold">{tier.name}</h3>
-                  <p className="mt-2 text-sm text-[#666666]">{tier.cadence}</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-5xl font-semibold">
-                    €{tier.price}
-                  </p>
-                  <p className="mt-1 text-sm text-[#666666]">
-                    {tier.featured ? "per month" : "forever"}
-                  </p>
-                </div>
-              </div>
-
-              <ul className="mt-6 grid gap-3 text-sm text-[#666666]">
-                {tier.features.map((feature) => (
-                  <li className="flex items-start gap-3" key={feature}>
-                    <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
-              <a
-                className={classNames(
-                  "mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold transition",
-                  tier.featured
-                    ? "bg-[#0A66C2] text-white hover:bg-[#004182]"
-                    : "border border-[#D9DDE3] bg-white text-[#191919] hover:border-[#0A66C2]/35 hover:text-[#0A66C2]",
-                )}
-                href="#assessment"
-              >
-                {tier.featured ? "Upgrade to Pro" : "Start free"}
-                <ArrowRight className="h-4 w-4" />
-              </a>
-            </article>
-          ))}
-        </div>
-
-        <p className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
-          Main Pro CTA: Unlock unlimited personalized post ideas tailored to your
-          expertise, industry, and trends with Pro. Stripe checkout is prepared
-          as a placeholder integration, not connected yet.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function BuiltForSection() {
-  return (
-    <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 border-b border-[#D9DDE3] pb-8 lg:grid-cols-[0.85fr_1fr] lg:items-end">
-          <div>
-            <SectionEyebrow icon={Globe2}>Built for</SectionEyebrow>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
-              Professional areas with serious authority potential.
-            </h2>
-          </div>
-          <p className="max-w-2xl text-base leading-7 text-[#666666]">
-            The system is designed for experts whose credibility comes from
-            domain knowledge, executive judgment, and useful market perspective.
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {builtForAreas.map(([title, subtitle], index) => (
-            <article
-              className="area-card group relative min-h-48 overflow-hidden rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#0A66C2]/35 hover:shadow-[0_14px_34px_rgba(10,25,47,0.1)]"
-              key={title}
-              style={{ "--area-index": index } as React.CSSProperties}
-            >
-              <div className="area-visual absolute inset-0 opacity-90 transition duration-300 group-hover:scale-[1.02]" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.94))]" />
-              <div className="relative flex h-full flex-col justify-end">
-                <p className="text-lg font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-[#666666]">{subtitle}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ArchitectureSection() {
-  return (
-    <section className="bg-[#F3F2EF] px-5 py-16 text-[#191919] sm:px-8 sm:py-20 lg:px-10">
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-            <div>
-              <SectionEyebrow icon={Database}>Prepared architecture</SectionEyebrow>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight">
-                Mock-only now, ready for production services later.
-              </h2>
-              <p className="mt-4 text-sm leading-6 text-[#666666]">
-                The prototype keeps analysis data and future integrations
-                separated so OpenAI, Supabase, Stripe, trend feeds, and user
-                accounts can be wired without redesigning the product surface.
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                ["OpenAI API", "Profile and topic intelligence"],
-                ["Supabase", "Lead records and saved idea history"],
-                ["Stripe", "Pro subscription checkout"],
-                ["Trend feeds", "Market-specific radar hydration"],
-                ["User accounts", "Saved assessments and roadmap"],
-                ["No autoposting", "User remains in control"],
-              ].map(([title, subtitle]) => (
-                <div
-                  className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-                  key={title}
-                >
-                  <p className="font-semibold">{title}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#666666]">
-                    {subtitle}
-                  </p>
-                </div>
-              ))}
-            </div>
+        <div className="absolute inset-0 grid place-items-center bg-white/55">
+          <div className="rounded-lg border border-[#0A66C2]/20 bg-white px-5 py-4 text-center shadow-[0_18px_48px_rgba(10,25,47,0.14)]">
+            <LockKeyhole className="mx-auto h-6 w-6 text-[#0A66C2]" />
+            <p className="mt-3 font-semibold text-[#191919]">
+              Unlock {title} with Pro
+            </p>
           </div>
         </div>
       </div>
@@ -2174,25 +773,19 @@ function ArchitectureSection() {
   );
 }
 
-function ContactFooter() {
+function Footer() {
   return (
-    <footer className="bg-[#F3F2EF] px-5 py-10 text-[#191919] sm:px-8 lg:px-10" id="contact">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-[#D9DDE3] pt-8 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Logo markSize={36} showSubtitle={false} />
-          <p className="mt-2 text-sm text-[#666666]">
-            Your AI LinkedIn growth assistant.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-[#666666]">
-          <span className="inline-flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#0A66C2]" />
-            Freemium SaaS prototype
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[#057642]" />
-            Never posts automatically
-          </span>
+    <footer
+      className="border-t border-[#D9DDE3] bg-white px-5 py-8 text-[#666666] sm:px-8 lg:px-10"
+      id="contact"
+    >
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <Logo markSize={38} />
+        <div className="flex flex-wrap gap-4 text-sm">
+          <span>Copyright 2026 INConnect</span>
+          <a href="#contact">Privacy</a>
+          <a href="#contact">Terms</a>
+          <a href="mailto:hello@in-connect.app">Contact</a>
         </div>
       </div>
     </footer>
@@ -2200,14 +793,99 @@ function ContactFooter() {
 }
 
 export function INConnectPlatform() {
+  const [assessment, setAssessment] =
+    useState<ProfileIntelligenceAssessment | null>(null);
+  const [error, setError] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  async function handleAssessmentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const linkedinUrl = String(formData.get("linkedinUrl") ?? "");
+    const email = String(formData.get("email") ?? "");
+    const profilePdf = formData.get("profilePdf");
+    const validationError = getAssessmentError({
+      email,
+      linkedinUrl,
+      profilePdf: profilePdf instanceof File ? profilePdf : null,
+    });
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError("");
+    setAssessment(null);
+    setIsAnalyzing(true);
+
+    try {
+      const response = await fetch("/api/analyze-profile", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const errorMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
+          : "";
+
+      if (!response.ok || !payload || errorMessage) {
+        throw new Error(errorMessage || "Profile assessment failed.");
+      }
+
+      setAssessment(payload as ProfileIntelligenceAssessment);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Profile assessment failed.",
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
   return (
-    <main className="overflow-x-hidden bg-[#F3F2EF]">
-      <LandingHero />
-      <AssessmentSection />
-      <FeaturesSection />
-      <TrendRadarSection />
-      <PricingSection />
-      <ContactFooter />
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
+      <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
+        <div className="mx-auto grid max-w-7xl gap-6">
+          <AssessmentForm
+            error={error}
+            isAnalyzing={isAnalyzing}
+            onSubmit={handleAssessmentSubmit}
+          />
+          {isAnalyzing && <LoadingAssessment />}
+          {assessment && <AssessmentResults assessment={assessment} />}
+        </div>
+      </section>
+      <LockedPreview
+        id="trend-radar"
+        title="Trend Radar"
+        items={[
+          "Emerging Industry Trends",
+          "Authority Opportunities",
+          "Fast-Growing Topics",
+          "Industry Momentum Signals",
+        ]}
+      />
+      <LockedPreview
+        id="content-intelligence"
+        title="Content Intelligence"
+        items={[
+          "Personalized Post Ideas",
+          "Content Pillars",
+          "Weekly Topic Suggestions",
+          "Authority Building Opportunities",
+          "LinkedIn Content Roadmap",
+        ]}
+      />
+      <Footer />
     </main>
   );
 }

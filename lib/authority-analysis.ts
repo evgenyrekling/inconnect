@@ -1,190 +1,191 @@
-import type {
-  AreaProfile,
-  DetectedArea,
-  TopicIdea,
-  TrendInsight,
-} from "@/lib/mock-intelligence";
-
-export type AuthorityAnalysisResponse = {
+export type ProfileIntelligenceAssessment = {
+  userKey: string;
   totalScore: number;
-  primaryIndustry: string;
-  topExpertiseAreas: string[];
-  strengths: string[];
-  weaknesses: string[];
-  contentOpportunities: string[];
-  authoritySummary: string;
-  improvementActions: string[];
-  trendPositioning: string[];
+  assessmentConfidence: "HIGH";
+  confidenceReason: string;
+  corePositioning: string;
+  profileClarity: {
+    externalReaderView: string;
+    professionalImage: string;
+    positioningClarity: string;
+    positioningFocus: string;
+  };
+  topCompetencies: string[];
+  keyExpertiseDomains: string[];
+  authorityGrowthAreas: string[];
+  profileImprovementRecommendations: {
+    currentHeadline: string;
+    suggestedHeadline: string;
+    currentPositioning: string;
+    recommendedPositioning: string;
+    headlineImprovements: string[];
+    aboutSectionImprovements: string[];
+    positioningImprovements: string[];
+    missingAuthoritySignals: string[];
+    missingKeywords: string[];
+    missingIndustryThemes: string[];
+  };
+  visibilityGaps: string[];
+  positiveHighlights: string[];
   shareText: string;
 };
 
-export function normalizeAuthorityAnalysis(
-  analysis: AuthorityAnalysisResponse,
-): AuthorityAnalysisResponse {
-  const totalScore = clampScore(analysis.totalScore);
-  const normalized: AuthorityAnalysisResponse = {
-    totalScore,
-    primaryIndustry: normalizeText(analysis.primaryIndustry, "Professional Growth"),
-    topExpertiseAreas: normalizeList(analysis.topExpertiseAreas).slice(0, 5),
-    strengths: normalizeList(analysis.strengths).slice(0, 4),
-    weaknesses: normalizeList(analysis.weaknesses).slice(0, 4),
-    contentOpportunities: normalizeList(analysis.contentOpportunities).slice(0, 5),
-    authoritySummary: normalizeText(
-      analysis.authoritySummary,
-      "Your LinkedIn positioning shows professional authority potential, with clearer specialization and content direction creating the strongest next step.",
-    ),
-    improvementActions: normalizeList(analysis.improvementActions).slice(0, 5),
-    trendPositioning: normalizeList(analysis.trendPositioning).slice(0, 5),
-    shareText: normalizeText(analysis.shareText, ""),
+export function normalizeProfileAssessment(
+  assessment: ProfileIntelligenceAssessment,
+  userKey: string,
+): ProfileIntelligenceAssessment {
+  const normalized: ProfileIntelligenceAssessment = {
+    userKey,
+    totalScore: clampScore(assessment.totalScore),
+    assessmentConfidence: "HIGH",
+    confidenceReason: "Based on comprehensive LinkedIn Profile PDF analysis.",
+    corePositioning: cleanText(assessment.corePositioning, "Professional authority profile"),
+    profileClarity: {
+      externalReaderView: cleanText(
+        assessment.profileClarity?.externalReaderView,
+        "The profile communicates a credible professional background with room to sharpen the authority narrative.",
+      ),
+      professionalImage: cleanText(
+        assessment.profileClarity?.professionalImage,
+        "A professional with relevant experience and visible market expertise.",
+      ),
+      positioningClarity: cleanText(
+        assessment.profileClarity?.positioningClarity,
+        "The positioning is understandable, with opportunities to make the niche clearer.",
+      ),
+      positioningFocus: cleanText(
+        assessment.profileClarity?.positioningFocus,
+        "The profile can benefit from a more focused authority lane.",
+      ),
+    },
+    topCompetencies: normalizeList(assessment.topCompetencies).slice(0, 5),
+    keyExpertiseDomains: normalizeList(assessment.keyExpertiseDomains).slice(0, 5),
+    authorityGrowthAreas: uniqueWithoutOverlap(
+      normalizeList(assessment.authorityGrowthAreas),
+      normalizeList(assessment.keyExpertiseDomains),
+    ).slice(0, 5),
+    profileImprovementRecommendations: {
+      currentHeadline: cleanText(
+        assessment.profileImprovementRecommendations?.currentHeadline,
+        "Not clearly extracted from the PDF.",
+      ),
+      suggestedHeadline: cleanText(
+        assessment.profileImprovementRecommendations?.suggestedHeadline,
+        "Clarify your primary expertise, audience, and authority theme.",
+      ),
+      currentPositioning: cleanText(
+        assessment.profileImprovementRecommendations?.currentPositioning,
+        "The current positioning shows experience but can communicate authority more directly.",
+      ),
+      recommendedPositioning: cleanText(
+        assessment.profileImprovementRecommendations?.recommendedPositioning,
+        "Position the profile around a specific market, expertise domain, and business outcome.",
+      ),
+      headlineImprovements: normalizeList(
+        assessment.profileImprovementRecommendations?.headlineImprovements,
+      ).slice(0, 4),
+      aboutSectionImprovements: normalizeList(
+        assessment.profileImprovementRecommendations?.aboutSectionImprovements,
+      ).slice(0, 4),
+      positioningImprovements: normalizeList(
+        assessment.profileImprovementRecommendations?.positioningImprovements,
+      ).slice(0, 4),
+      missingAuthoritySignals: normalizeList(
+        assessment.profileImprovementRecommendations?.missingAuthoritySignals,
+      ).slice(0, 4),
+      missingKeywords: normalizeList(
+        assessment.profileImprovementRecommendations?.missingKeywords,
+      ).slice(0, 6),
+      missingIndustryThemes: normalizeList(
+        assessment.profileImprovementRecommendations?.missingIndustryThemes,
+      ).slice(0, 6),
+    },
+    visibilityGaps: normalizeList(assessment.visibilityGaps).slice(0, 6),
+    positiveHighlights: normalizeList(assessment.positiveHighlights).slice(0, 4),
+    shareText: "",
   };
 
-  if (normalized.topExpertiseAreas.length === 0) {
-    normalized.topExpertiseAreas = [normalized.primaryIndustry];
+  if (normalized.topCompetencies.length === 0) {
+    normalized.topCompetencies = ["Professional Expertise"];
+  }
+  if (normalized.keyExpertiseDomains.length === 0) {
+    normalized.keyExpertiseDomains = [normalized.corePositioning];
+  }
+  if (normalized.authorityGrowthAreas.length === 0) {
+    normalized.authorityGrowthAreas = [
+      "Industry Thought Leadership",
+      "Executive Visibility",
+      "Market Education",
+    ];
+  }
+  if (normalized.positiveHighlights.length === 0) {
+    normalized.positiveHighlights = [
+      "Clear professional credibility",
+      "Strong authority-building potential",
+      "Relevant expertise for LinkedIn visibility",
+    ];
   }
 
-  normalized.shareText = createShareTextForAnalysis(normalized);
-
+  normalized.shareText = createProfileShareText(normalized);
   return normalized;
 }
 
-export function analysisToDetectedAreas(
-  analysis: AuthorityAnalysisResponse,
-): DetectedArea[] {
-  return analysis.topExpertiseAreas.slice(0, 5).map((name, index) => ({
-    id: slugify(name) || `expertise-${index + 1}`,
-    name,
-    confidence: Math.max(72, 94 - index * 5),
-  }));
-}
-
-export function analysisToProfile(analysis: AuthorityAnalysisResponse): AreaProfile {
-  const detectedAreas = analysisToDetectedAreas(analysis);
-
-  return {
-    score: analysis.totalScore,
-    primaryArea: analysis.primaryIndustry as AreaProfile["primaryArea"],
-    detectedAreas,
-    authorityPotential: analysis.topExpertiseAreas.slice(0, 3),
-    strongAuthorityPotential: getAuthorityGrowthAreas(analysis),
-    strengths: analysis.strengths,
-    opportunities: analysis.weaknesses,
-    trends: analysis.trendPositioning.map(toTrendInsight),
-    topic: toTopicIdea(analysis),
-  };
-}
-
-export function createShareTextForAnalysis(analysis: AuthorityAnalysisResponse) {
+export function createProfileShareText(assessment: ProfileIntelligenceAssessment) {
   return [
     "I just checked my LinkedIn Authority Score using INConnect.",
     "",
-    `My score: ${analysis.totalScore}/100`,
+    `My score: ${assessment.totalScore}/100`,
     "",
-    "Primary professional area:",
-    analysis.primaryIndustry,
+    "Core positioning:",
+    assessment.corePositioning,
     "",
-    "My strongest professional positioning areas:",
-    ...analysis.topExpertiseAreas.slice(0, 3).map((area) => `- ${area}`),
+    "Key expertise areas:",
+    ...assessment.keyExpertiseDomains.slice(0, 3).map((area) => `- ${area}`),
     "",
-    "Authority potential:",
-    ...getAuthorityGrowthAreas(analysis).map((area) => `- ${area}`),
+    "Positive highlights:",
+    ...assessment.positiveHighlights.slice(0, 3).map((item) => `- ${item}`),
     "",
-    createPositiveShareSummary(analysis),
-    "",
-    "Check your own LinkedIn Authority Score:",
+    "Check your own LinkedIn Profile Intelligence Assessment:",
     "https://in-connect.app",
     "",
     "#INConnect #LinkedIn #PersonalBranding #ProfessionalGrowth",
   ].join("\n");
 }
 
+export function getPositioningLevel(score: number) {
+  if (score >= 88) return "Global Thought Leader Potential";
+  if (score >= 76) return "Strategic Industry Expert";
+  if (score >= 62) return "Industry Specialist";
+  return "Emerging Specialist";
+}
+
 export function clampScore(score: number) {
-  return Math.min(100, Math.max(0, Math.round(score)));
+  return Math.min(100, Math.max(0, Math.round(Number.isFinite(score) ? score : 0)));
 }
 
-function createPositiveShareSummary(analysis: AuthorityAnalysisResponse) {
-  const growthArea = getAuthorityGrowthAreas(analysis)[0] ?? "professional authority";
-
-  return `INConnect describes my profile as having strong professional expertise and clear positioning around ${analysis.primaryIndustry}, with authority potential in ${growthArea}.`;
-}
-
-function getAuthorityGrowthAreas(analysis: AuthorityAnalysisResponse) {
-  const expertise = analysis.topExpertiseAreas.map((item) => item.toLowerCase());
-  const candidates = [...analysis.trendPositioning, ...analysis.contentOpportunities]
-    .map((item) => item.split(":")[0]?.trim() ?? item.trim())
-    .filter((item) => item.length > 0)
-    .filter(
-      (item, index, list) =>
-        list.findIndex((other) => other.toLowerCase() === item.toLowerCase()) ===
-        index,
-    )
-    .filter((item) => {
-      const normalized = item.toLowerCase();
-      return !expertise.some((area) => normalized.includes(area) || area.includes(normalized));
-    });
-
-  return [
-    ...candidates,
-    "Executive Visibility",
-    "Market Education",
-    "Thought Leadership",
-  ].slice(0, 3);
-}
-
-function toTrendInsight(item: string, index: number): TrendInsight {
-  const [title, ...summaryParts] = item.split(":");
-
-  return {
-    title: normalizeText(title, `Positioning angle ${index + 1}`),
-    momentum:
-      index === 0
-        ? "Executive priority"
-        : index === 1
-          ? "High signal"
-          : index === 2
-            ? "Accelerating"
-            : "Emerging",
-    summary: normalizeText(
-      summaryParts.join(":"),
-      "A relevant market conversation that can strengthen professional authority when connected to specific expertise.",
-    ),
-  };
-}
-
-function toTopicIdea(analysis: AuthorityAnalysisResponse): TopicIdea {
-  const firstOpportunity =
-    analysis.contentOpportunities[0] ??
-    `How ${analysis.primaryIndustry} professionals can build clearer authority`;
-
-  return {
-    title: firstOpportunity,
-    hook:
-      analysis.contentOpportunities[1] ??
-      "The professionals who become easiest to trust are usually the clearest about the problems they understand.",
-    whyNow:
-      analysis.trendPositioning[0] ??
-      "LinkedIn rewards useful, specific expertise more than broad professional updates.",
-    cta:
-      analysis.improvementActions[0] ??
-      "What professional topic should more people in your industry be discussing?",
-    hashtags: ["#LinkedIn", "#ProfessionalBranding", "#ThoughtLeadership", "#INConnect"],
-  };
-}
-
-function normalizeList(value: string[]) {
+function normalizeList(value: unknown) {
   return Array.isArray(value)
-    ? value.map((item) => item.trim()).filter((item) => item.length > 0)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => cleanText(item, ""))
+        .filter(Boolean)
     : [];
 }
 
-function normalizeText(value: string, fallback: string) {
+function cleanText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
+    ? value.replace(/\s+/g, " ").trim()
     : fallback;
 }
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+function uniqueWithoutOverlap(items: string[], comparisonItems: string[]) {
+  const comparison = comparisonItems.map((item) => item.toLowerCase());
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const normalized = item.toLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return !comparison.some((other) => normalized.includes(other) || other.includes(normalized));
+  });
 }
