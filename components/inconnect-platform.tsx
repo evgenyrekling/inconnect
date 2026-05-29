@@ -399,6 +399,34 @@ function AssessmentResults({
 }) {
   return (
     <div className="grid gap-6">
+      {assessment.extractionStatus && (
+        <section className="rounded-lg border border-[#057642]/20 bg-[#EEF7F2] p-4 text-sm leading-6 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+          <div className="flex gap-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#057642]" />
+            <div>
+              <p className="font-semibold">{assessment.extractionStatus.message}</p>
+              {assessment.extractionStatus.warning && (
+                <p className="mt-1 text-[#666666]">
+                  {assessment.extractionStatus.warning}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {assessment.diagnostics && (
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-4 text-xs leading-5 text-[#666666]">
+          <p className="font-semibold text-[#191919]">Development diagnostics</p>
+          <p className="mt-2">
+            File: {assessment.diagnostics.fileName} | Size:{" "}
+            {assessment.diagnostics.fileSize} bytes | Extracted characters:{" "}
+            {assessment.diagnostics.extractedCharacterCount} | Pages:{" "}
+            {assessment.diagnostics.detectedPageCount}
+          </p>
+        </section>
+      )}
+
       <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
         <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
           <ScoreRing score={assessment.totalScore} />

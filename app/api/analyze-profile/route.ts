@@ -109,6 +109,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const userKey = createUserKey(email, linkedinUrl);
+  const extraction = await extractPdfText(pdfFile).catch((error) => {
+    console.error("PDF extraction failed", error);
+    return {
+      text: "",
+      pageCount: 0,
+    };
+  });
+  const extractedCharacterCount = extraction.text.trim().length;
+  const diagnostics = {
+    fileName: pdfFile.name,
+    fileSize: pdfFile.size,
+    extractedCharacterCount,
+    detectedPageCount: extraction.pageCount,
+  };
+
+  if (process.env.NODE_ENV === "development") {
+    console.info("INConnect PDF extraction diagnostics", diagnostics);
+  }
+
+  if (extractedCharacterCount < 500) {
+    return NextResponse.json(
+      {
+        error:
+          "We could not extract readable text from this PDF. Please make sure it is the LinkedIn Profile PDF export, not a screenshot or scanned file.",
+        diagnostics:
+          process.env.NODE_ENV === "development" ? diagnostics : undefined,
+      },
+      { status: 400 },
+    );
+  }
+
+  const extractionStatus = {
+    message: "LinkedIn Profile PDF detected. Profile text extracted successfully.",
+    warning:
+      extractedCharacterCount < 1500
+        ? "Limited profile text detected. Assessment quality may be reduced."
+        : undefined,
+  };
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "OPENAI_API_KEY is not configured." },
@@ -116,24 +156,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userKey = createUserKey(email, linkedinUrl);
-  const pdfText = await extractPdfText(pdfFile).catch((error) => {
-    console.error("PDF extraction failed", error);
-    return "";
-  });
-
-  if (pdfText.trim().length < 300) {
-    return NextResponse.json(
-      { error: "Could not extract enough text from this PDF. Please upload the LinkedIn Profile PDF export." },
-      { status: 400 },
-    );
-  }
-
   try {
     const assessment = await analyzeProfilePdf({
+      diagnostics,
       email,
+      extractionStatus,
       linkedinUrl,
-      pdfText,
+      pdfText: extraction.text,
       userKey,
     });
 
@@ -151,12 +180,24 @@ export async function POST(request: NextRequest) {
 }
 
 async function analyzeProfilePdf({
+  diagnostics,
   email,
+  extractionStatus,
   linkedinUrl,
   pdfText,
   userKey,
 }: {
+  diagnostics: {
+    fileName: string;
+    fileSize: number;
+    extractedCharacterCount: number;
+    detectedPageCount: number;
+  };
   email: string;
+  extractionStatus: {
+    message: string;
+    warning?: string;
+  };
   linkedinUrl: string;
   pdfText: string;
   userKey: string;
@@ -231,6 +272,10 @@ async function analyzeProfilePdf({
   return normalizeProfileAssessment(
     response.output_parsed as ProfileIntelligenceAssessment,
     userKey,
+    {
+      diagnostics: process.env.NODE_ENV === "development" ? diagnostics : undefined,
+      extractionStatus,
+    },
   );
 }
 
@@ -240,8 +285,15 @@ async function extractPdfText(file: File) {
   const parser = new PDFParse({ data: buffer });
 
   try {
-    const result = await parser.getText();
-    return result.text;
+    const result = await parser.getText({
+      lineThreshold: 1,
+      cellThreshold: 1,
+    });
+
+    return {
+      text: result.text,
+      pageCount: result.total || result.pages?.length || 0,
+    };
   } finally {
     await parser.destroy();
   }

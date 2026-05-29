@@ -1,5 +1,15 @@
 export type ProfileIntelligenceAssessment = {
   userKey: string;
+  extractionStatus?: {
+    message: string;
+    warning?: string;
+  };
+  diagnostics?: {
+    fileName: string;
+    fileSize: number;
+    extractedCharacterCount: number;
+    detectedPageCount: number;
+  };
   totalScore: number;
   assessmentConfidence: "HIGH";
   confidenceReason: string;
@@ -33,9 +43,12 @@ export type ProfileIntelligenceAssessment = {
 export function normalizeProfileAssessment(
   assessment: ProfileIntelligenceAssessment,
   userKey: string,
+  metadata?: Pick<ProfileIntelligenceAssessment, "diagnostics" | "extractionStatus">,
 ): ProfileIntelligenceAssessment {
   const normalized: ProfileIntelligenceAssessment = {
     userKey,
+    extractionStatus: metadata?.extractionStatus,
+    diagnostics: metadata?.diagnostics,
     totalScore: clampScore(assessment.totalScore),
     assessmentConfidence: "HIGH",
     confidenceReason: "Based on comprehensive LinkedIn Profile PDF analysis.",
