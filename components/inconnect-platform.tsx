@@ -424,6 +424,10 @@ function AssessmentResults({
             {assessment.diagnostics.extractedCharacterCount} | Pages:{" "}
             {assessment.diagnostics.detectedPageCount}
           </p>
+          <p className="mt-3 font-semibold text-[#191919]">First 500 extracted characters</p>
+          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-[#D9DDE3] bg-[#F3F2EF] p-3 font-sans text-[11px] leading-5 text-[#666666]">
+            {assessment.diagnostics.firstExtractedCharacters}
+          </pre>
         </section>
       )}
 

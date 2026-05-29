@@ -102,7 +102,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (pdfFile.type && pdfFile.type !== "application/pdf") {
+  const isPdfUpload =
+    pdfFile.type === "application/pdf" ||
+    pdfFile.type === "application/octet-stream" ||
+    pdfFile.name.toLowerCase().endsWith(".pdf") ||
+    !pdfFile.type;
+
+  if (!isPdfUpload) {
     return NextResponse.json(
       { error: "Please upload your LinkedIn Profile PDF." },
       { status: 400 },
@@ -121,8 +127,9 @@ export async function POST(request: NextRequest) {
   const diagnostics = {
     fileName: pdfFile.name,
     fileSize: pdfFile.size,
-    extractedCharacterCount,
     detectedPageCount: extraction.pageCount,
+    extractedCharacterCount,
+    firstExtractedCharacters: extraction.text.slice(0, 500),
   };
 
   if (process.env.NODE_ENV === "development") {
@@ -142,7 +149,7 @@ export async function POST(request: NextRequest) {
   }
 
   const extractionStatus = {
-    message: "LinkedIn Profile PDF detected. Profile text extracted successfully.",
+    message: "LinkedIn Profile PDF text extracted successfully.",
     warning:
       extractedCharacterCount < 1500
         ? "Limited profile text detected. Assessment quality may be reduced."
@@ -190,8 +197,9 @@ async function analyzeProfilePdf({
   diagnostics: {
     fileName: string;
     fileSize: number;
-    extractedCharacterCount: number;
     detectedPageCount: number;
+    extractedCharacterCount: number;
+    firstExtractedCharacters: string;
   };
   email: string;
   extractionStatus: {
@@ -226,11 +234,12 @@ async function analyzeProfilePdf({
           `LinkedIn URL: ${linkedinUrl}`,
           `Email: ${email}`,
           "",
-          "Analyze these PDF sections when present:",
+          "Analyze these PDF sections when present. Section labels can vary across LinkedIn exports, so do not require exact names:",
           "- Headline",
-          "- About",
+          "- Summary / About",
+          "- Contact",
           "- Experience",
-          "- Skills",
+          "- Top Skills / Skills",
           "- Certifications",
           "- Education",
           "- Projects",
@@ -285,18 +294,84 @@ async function extractPdfText(file: File) {
   const parser = new PDFParse({ data: buffer });
 
   try {
-    const result = await parser.getText({
-      lineThreshold: 1,
-      cellThreshold: 1,
-    });
+    const extractionParams = [
+      {
+        pageJoiner: "\n\n",
+        itemJoiner: " ",
+        cellSeparator: " ",
+        lineEnforce: true,
+        includeMarkedContent: true,
+        disableNormalization: false,
+      },
+      {
+        pageJoiner: "\n\n",
+        itemJoiner: " ",
+        cellSeparator: " ",
+        lineEnforce: false,
+        includeMarkedContent: true,
+        disableNormalization: false,
+      },
+      {
+        pageJoiner: "\n\n",
+        itemJoiner: "",
+        cellSeparator: " ",
+        lineThreshold: 4.6,
+        cellThreshold: 7,
+        includeMarkedContent: false,
+        disableNormalization: false,
+      },
+    ];
+
+    const successfulResults = [];
+    const errors = [];
+
+    for (const params of extractionParams) {
+      try {
+        successfulResults.push(await parser.getText(params));
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    if (successfulResults.length === 0) {
+      throw errors[0] ?? new Error("No PDF text extraction attempts succeeded.");
+    }
+
+    const candidates = successfulResults.flatMap((result) => [
+      {
+        text: cleanExtractedPdfText(result.text),
+        pageCount: result.total || result.pages?.length || 0,
+      },
+      {
+        text: cleanExtractedPdfText(result.pages?.map((page) => page.text).join("\n\n") ?? ""),
+        pageCount: result.total || result.pages?.length || 0,
+      },
+    ]);
+
+    const bestCandidate = candidates.reduce(
+      (best, candidate) =>
+        candidate.text.length > best.text.length ? candidate : best,
+      { text: "", pageCount: 0 },
+    );
 
     return {
-      text: result.text,
-      pageCount: result.total || result.pages?.length || 0,
+      text: bestCandidate.text,
+      pageCount:
+        bestCandidate.pageCount ||
+        Math.max(...successfulResults.map((result) => result.total || result.pages?.length || 0)),
     };
   } finally {
     await parser.destroy();
   }
+}
+
+function cleanExtractedPdfText(value: string) {
+  return value
+    .replace(/\u0000/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function getFormString(formData: FormData, key: string) {
