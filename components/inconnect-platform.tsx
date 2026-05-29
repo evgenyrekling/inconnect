@@ -61,7 +61,13 @@ function getAssessmentError({
   if (!linkedinUrl.trim()) return "LinkedIn profile URL is required.";
   if (!email.trim() || !isValidEmail(email)) return "A valid email address is required.";
   if (!profilePdf) return "LinkedIn Profile PDF is required.";
-  if (profilePdf.type && profilePdf.type !== "application/pdf") {
+  const isPdfUpload =
+    profilePdf.type === "application/pdf" ||
+    profilePdf.type === "application/octet-stream" ||
+    profilePdf.name.toLowerCase().endsWith(".pdf") ||
+    !profilePdf.type;
+
+  if (!isPdfUpload) {
     return "Please upload a PDF file.";
   }
   return "";
@@ -421,12 +427,12 @@ function AssessmentResults({
           <p className="mt-2">
             File: {assessment.diagnostics.fileName} | Size:{" "}
             {assessment.diagnostics.fileSize} bytes | Extracted characters:{" "}
-            {assessment.diagnostics.extractedCharacterCount} | Pages:{" "}
-            {assessment.diagnostics.detectedPageCount}
+            {assessment.diagnostics.characterCount} | Pages:{" "}
+            {assessment.diagnostics.pageCount}
           </p>
-          <p className="mt-3 font-semibold text-[#191919]">First 500 extracted characters</p>
+          <p className="mt-3 font-semibold text-[#191919]">First 1000 extracted characters</p>
           <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-[#D9DDE3] bg-[#F3F2EF] p-3 font-sans text-[11px] leading-5 text-[#666666]">
-            {assessment.diagnostics.firstExtractedCharacters}
+            {assessment.diagnostics.first1000Characters}
           </pre>
         </section>
       )}
@@ -853,24 +859,61 @@ export function INConnectPlatform() {
     setIsAnalyzing(true);
 
     try {
-      const response = await fetch("/api/analyze-profile", {
+      const extractionResponse = await fetch("/api/extract-pdf", {
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json().catch(() => null)) as unknown;
-      const errorMessage =
-        payload &&
-        typeof payload === "object" &&
-        "error" in payload &&
-        typeof payload.error === "string"
-          ? payload.error
+
+      const extractionPayload = (await extractionResponse.json().catch(() => null)) as unknown;
+      const extractionErrorMessage =
+        extractionPayload &&
+        typeof extractionPayload === "object" &&
+        "error" in extractionPayload &&
+        typeof extractionPayload.error === "string"
+          ? extractionPayload.error
           : "";
 
-      if (!response.ok || !payload || errorMessage) {
-        throw new Error(errorMessage || "Profile assessment failed.");
+      if (!extractionResponse.ok || !extractionPayload || extractionErrorMessage) {
+        throw new Error(extractionErrorMessage || "PDF extraction failed.");
       }
 
-      setAssessment(payload as ProfileIntelligenceAssessment);
+      const extraction = extractionPayload as {
+        pageCount: number;
+        characterCount: number;
+        first1000Characters: string;
+        fullText: string;
+      };
+
+      const analysisData = new FormData();
+      analysisData.set("linkedinUrl", linkedinUrl);
+      analysisData.set("email", email);
+      analysisData.set("fullText", extraction.fullText);
+      analysisData.set("pageCount", String(extraction.pageCount));
+      analysisData.set("characterCount", String(extraction.characterCount));
+      analysisData.set("first1000Characters", extraction.first1000Characters);
+      if (profilePdf instanceof File) {
+        analysisData.set("fileName", profilePdf.name);
+        analysisData.set("fileSize", String(profilePdf.size));
+      }
+
+      const analysisResponse = await fetch("/api/analyze-profile", {
+        method: "POST",
+        body: analysisData,
+      });
+      const analysisPayload = (await analysisResponse.json().catch(() => null)) as unknown;
+      const analysisErrorMessage =
+        analysisPayload &&
+        typeof analysisPayload === "object" &&
+        "error" in analysisPayload &&
+        typeof analysisPayload.error === "string"
+          ? analysisPayload.error
+          : "";
+
+      if (!analysisResponse.ok || !analysisPayload || analysisErrorMessage) {
+        throw new Error(analysisErrorMessage || "Profile assessment failed.");
+      }
+
+      setAssessment(analysisPayload as ProfileIntelligenceAssessment);
     } catch (submitError) {
       setError(
         submitError instanceof Error

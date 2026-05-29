@@ -7,9 +7,9 @@ export type ProfileIntelligenceAssessment = {
   diagnostics?: {
     fileName: string;
     fileSize: number;
-    extractedCharacterCount: number;
-    detectedPageCount: number;
-    firstExtractedCharacters: string;
+    pageCount: number;
+    characterCount: number;
+    first1000Characters: string;
   };
   totalScore: number;
   assessmentConfidence: "HIGH";

@@ -93,50 +93,30 @@ export async function POST(request: NextRequest) {
 
   const linkedinUrl = getFormString(formData, "linkedinUrl");
   const email = getFormString(formData, "email");
-  const pdfFile = formData.get("profilePdf");
+  const pdfText = getFormString(formData, "fullText");
 
-  if (!linkedinUrl || !email || !(pdfFile instanceof File)) {
+  if (!linkedinUrl || !email || !pdfText) {
     return NextResponse.json(
-      { error: "LinkedIn profile URL, email, and LinkedIn Profile PDF are required." },
-      { status: 400 },
-    );
-  }
-
-  const isPdfUpload =
-    pdfFile.type === "application/pdf" ||
-    pdfFile.type === "application/octet-stream" ||
-    pdfFile.name.toLowerCase().endsWith(".pdf") ||
-    !pdfFile.type;
-
-  if (!isPdfUpload) {
-    return NextResponse.json(
-      { error: "Please upload your LinkedIn Profile PDF." },
+      { error: "LinkedIn profile URL, email, and extracted profile text are required." },
       { status: 400 },
     );
   }
 
   const userKey = createUserKey(email, linkedinUrl);
-  const extraction = await extractPdfText(pdfFile).catch((error) => {
-    console.error("PDF extraction failed", error);
-    return {
-      text: "",
-      pageCount: 0,
-    };
-  });
-  const extractedCharacterCount = extraction.text.trim().length;
+  const characterCount = Number(getFormString(formData, "characterCount")) || pdfText.length;
   const diagnostics = {
-    fileName: pdfFile.name,
-    fileSize: pdfFile.size,
-    detectedPageCount: extraction.pageCount,
-    extractedCharacterCount,
-    firstExtractedCharacters: extraction.text.slice(0, 500),
+    fileName: getFormString(formData, "fileName"),
+    fileSize: Number(getFormString(formData, "fileSize")) || 0,
+    pageCount: Number(getFormString(formData, "pageCount")) || 0,
+    characterCount,
+    first1000Characters: getFormString(formData, "first1000Characters") || pdfText.slice(0, 1000),
   };
 
   if (process.env.NODE_ENV === "development") {
-    console.info("INConnect PDF extraction diagnostics", diagnostics);
+    console.info("INConnect PDF analysis diagnostics", diagnostics);
   }
 
-  if (extractedCharacterCount < 500) {
+  if (characterCount < 500) {
     return NextResponse.json(
       {
         error:
@@ -151,7 +131,7 @@ export async function POST(request: NextRequest) {
   const extractionStatus = {
     message: "LinkedIn Profile PDF text extracted successfully.",
     warning:
-      extractedCharacterCount < 1500
+      characterCount < 1500
         ? "Limited profile text detected. Assessment quality may be reduced."
         : undefined,
   };
@@ -169,7 +149,7 @@ export async function POST(request: NextRequest) {
       email,
       extractionStatus,
       linkedinUrl,
-      pdfText: extraction.text,
+      pdfText,
       userKey,
     });
 
@@ -197,9 +177,9 @@ async function analyzeProfilePdf({
   diagnostics: {
     fileName: string;
     fileSize: number;
-    detectedPageCount: number;
-    extractedCharacterCount: number;
-    firstExtractedCharacters: string;
+    pageCount: number;
+    characterCount: number;
+    first1000Characters: string;
   };
   email: string;
   extractionStatus: {
@@ -286,92 +266,6 @@ async function analyzeProfilePdf({
       extractionStatus,
     },
   );
-}
-
-async function extractPdfText(file: File) {
-  const { PDFParse } = await import("pdf-parse");
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = new PDFParse({ data: buffer });
-
-  try {
-    const extractionParams = [
-      {
-        pageJoiner: "\n\n",
-        itemJoiner: " ",
-        cellSeparator: " ",
-        lineEnforce: true,
-        includeMarkedContent: true,
-        disableNormalization: false,
-      },
-      {
-        pageJoiner: "\n\n",
-        itemJoiner: " ",
-        cellSeparator: " ",
-        lineEnforce: false,
-        includeMarkedContent: true,
-        disableNormalization: false,
-      },
-      {
-        pageJoiner: "\n\n",
-        itemJoiner: "",
-        cellSeparator: " ",
-        lineThreshold: 4.6,
-        cellThreshold: 7,
-        includeMarkedContent: false,
-        disableNormalization: false,
-      },
-    ];
-
-    const successfulResults = [];
-    const errors = [];
-
-    for (const params of extractionParams) {
-      try {
-        successfulResults.push(await parser.getText(params));
-      } catch (error) {
-        errors.push(error);
-      }
-    }
-
-    if (successfulResults.length === 0) {
-      throw errors[0] ?? new Error("No PDF text extraction attempts succeeded.");
-    }
-
-    const candidates = successfulResults.flatMap((result) => [
-      {
-        text: cleanExtractedPdfText(result.text),
-        pageCount: result.total || result.pages?.length || 0,
-      },
-      {
-        text: cleanExtractedPdfText(result.pages?.map((page) => page.text).join("\n\n") ?? ""),
-        pageCount: result.total || result.pages?.length || 0,
-      },
-    ]);
-
-    const bestCandidate = candidates.reduce(
-      (best, candidate) =>
-        candidate.text.length > best.text.length ? candidate : best,
-      { text: "", pageCount: 0 },
-    );
-
-    return {
-      text: bestCandidate.text,
-      pageCount:
-        bestCandidate.pageCount ||
-        Math.max(...successfulResults.map((result) => result.total || result.pages?.length || 0)),
-    };
-  } finally {
-    await parser.destroy();
-  }
-}
-
-function cleanExtractedPdfText(value: string) {
-  return value
-    .replace(/\u0000/g, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
 }
 
 function getFormString(formData: FormData, key: string) {
