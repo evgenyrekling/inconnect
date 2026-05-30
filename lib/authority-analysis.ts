@@ -12,6 +12,15 @@ export type ProfileIntelligenceAssessment = {
     first1000Characters: string;
   };
   totalScore: number;
+  profileSnapshot: {
+    name: string;
+    currentRole: string;
+    currentCompany: string;
+    location: string;
+    estimatedYearsOfExperience: string;
+    topSkills: string[];
+    topIndustries: string[];
+  };
   assessmentConfidence: "HIGH";
   confidenceReason: string;
   corePositioning: string;
@@ -51,6 +60,21 @@ export function normalizeProfileAssessment(
     extractionStatus: metadata?.extractionStatus,
     diagnostics: metadata?.diagnostics,
     totalScore: clampScore(assessment.totalScore),
+    profileSnapshot: {
+      name: cleanText(assessment.profileSnapshot?.name, "Not clearly extracted"),
+      currentRole: cleanText(assessment.profileSnapshot?.currentRole, "Not clearly extracted"),
+      currentCompany: cleanText(
+        assessment.profileSnapshot?.currentCompany,
+        "Not clearly extracted",
+      ),
+      location: cleanText(assessment.profileSnapshot?.location, "Not clearly extracted"),
+      estimatedYearsOfExperience: cleanText(
+        assessment.profileSnapshot?.estimatedYearsOfExperience,
+        "Not clearly estimated",
+      ),
+      topSkills: normalizeList(assessment.profileSnapshot?.topSkills).slice(0, 5),
+      topIndustries: normalizeList(assessment.profileSnapshot?.topIndustries).slice(0, 3),
+    },
     assessmentConfidence: "HIGH",
     confidenceReason: "Based on comprehensive LinkedIn Profile PDF analysis.",
     corePositioning: cleanText(assessment.corePositioning, "Professional authority profile"),
@@ -124,6 +148,12 @@ export function normalizeProfileAssessment(
   }
   if (normalized.keyExpertiseDomains.length === 0) {
     normalized.keyExpertiseDomains = [normalized.corePositioning];
+  }
+  if (normalized.profileSnapshot.topSkills.length === 0) {
+    normalized.profileSnapshot.topSkills = normalized.topCompetencies.slice(0, 5);
+  }
+  if (normalized.profileSnapshot.topIndustries.length === 0) {
+    normalized.profileSnapshot.topIndustries = normalized.keyExpertiseDomains.slice(0, 3);
   }
   if (normalized.authorityGrowthAreas.length === 0) {
     normalized.authorityGrowthAreas = [

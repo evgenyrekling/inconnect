@@ -437,6 +437,8 @@ function AssessmentResults({
         </section>
       )}
 
+      <ProfileSnapshotSection assessment={assessment} />
+
       <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
         <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
           <ScoreRing score={assessment.totalScore} />
@@ -514,6 +516,115 @@ function AssessmentResults({
         </div>
       </InfoSection>
     </div>
+  );
+}
+
+function ProfileSnapshotSection({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  const [accuracyFeedback, setAccuracyFeedback] = useState<"yes" | "needs-improvement" | null>(
+    null,
+  );
+  const snapshot = assessment.profileSnapshot;
+  const details = [
+    ["Name", snapshot.name],
+    ["Current role", snapshot.currentRole],
+    ["Current company", snapshot.currentCompany],
+    ["Location", snapshot.location],
+    ["Estimated experience", snapshot.estimatedYearsOfExperience],
+  ];
+
+  return (
+    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+      <div className="flex flex-col gap-4 border-b border-[#D9DDE3] pb-5 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Profile intelligence
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold">Profile Snapshot</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666666]">
+            This is how INConnect currently understands your professional profile.
+          </p>
+        </div>
+        <div className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-4 py-3 text-sm font-semibold text-[#0A66C2]">
+          PDF-based understanding
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {details.map(([label, value]) => (
+            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={label}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                {label}
+              </p>
+              <p className="mt-2 font-semibold text-[#191919]">{value}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="grid gap-4">
+          <article className="rounded-lg border border-[#D9DDE3] bg-white p-4">
+            <h3 className="font-semibold text-[#191919]">Top 5 skills</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {snapshot.topSkills.slice(0, 5).map((skill) => (
+                <span
+                  className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-2 text-xs font-semibold text-[#0A66C2]"
+                  key={skill}
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </article>
+          <article className="rounded-lg border border-[#D9DDE3] bg-white p-4">
+            <h3 className="font-semibold text-[#191919]">Top 3 industries</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {snapshot.topIndustries.slice(0, 3).map((industry) => (
+                <span
+                  className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-2 text-xs font-semibold text-[#191919]"
+                  key={industry}
+                >
+                  {industry}
+                </span>
+              ))}
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-semibold text-[#191919]">Is this accurate?</p>
+        <div className="flex gap-2">
+          <button
+            className={classNames(
+              "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
+              accuracyFeedback === "yes"
+                ? "border-[#057642] bg-[#EEF7F2] text-[#057642]"
+                : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#057642]",
+            )}
+            onClick={() => setAccuracyFeedback("yes")}
+            type="button"
+          >
+            Yes
+          </button>
+          <button
+            className={classNames(
+              "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
+              accuracyFeedback === "needs-improvement"
+                ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
+                : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#0A66C2]",
+            )}
+            onClick={() => setAccuracyFeedback("needs-improvement")}
+            type="button"
+          >
+            Needs Improvement
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
