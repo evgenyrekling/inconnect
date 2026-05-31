@@ -15,6 +15,17 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const PDF_EXTRACTION_ERROR =
   "We could not extract readable text from this PDF. Please make sure it is the LinkedIn Profile PDF export, not a screenshot or scanned file.";
 
+type PipelineStatus = "PENDING" | "SUCCESS" | "FAILED";
+type AssessmentDebug = {
+  failedStage?: string;
+  pdfUpload: PipelineStatus;
+  pdfExtraction: PipelineStatus;
+  extractedCharacters?: number;
+  openAIRequest: PipelineStatus;
+  supabaseInsert: PipelineStatus;
+  actualError?: string;
+};
+
 const responseSchema = {
   type: "object",
   additionalProperties: false,
@@ -145,9 +156,10 @@ const responseSchema = {
 } as const;
 
 export async function POST(request: NextRequest) {
+  const debug = createAssessmentDebug();
   const formData = await request.formData().catch(() => null);
   if (!formData) {
-    return NextResponse.json({ error: "Invalid assessment submission." }, { status: 400 });
+    return assessmentError("Assessment Generation", "Invalid assessment submission.", 400, debug);
   }
 
   const linkedinUrl = getFormString(formData, "linkedinUrl");
@@ -155,46 +167,72 @@ export async function POST(request: NextRequest) {
   const pdfFile = formData.get("profilePdf");
 
   if (!linkedinUrl || !email || !(pdfFile instanceof File)) {
-    return NextResponse.json(
-      { error: "LinkedIn profile URL, email, and LinkedIn Profile PDF are required." },
-      { status: 400 },
+    return assessmentError(
+      "Assessment Generation",
+      "LinkedIn profile URL, email, and LinkedIn Profile PDF are required.",
+      400,
+      debug,
     );
   }
 
   if (!isPdfUpload(pdfFile)) {
-    return NextResponse.json({ error: "Please upload your LinkedIn Profile PDF." }, { status: 400 });
+    return assessmentError(
+      "Assessment Generation",
+      "Please upload your LinkedIn Profile PDF.",
+      400,
+      debug,
+    );
   }
 
   if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
-    return NextResponse.json(
-      { error: "PDF file size must be 5 MB or less." },
-      { status: 400 },
+    return assessmentError(
+      "Assessment Generation",
+      "PDF file size must be 5 MB or less.",
+      400,
+      debug,
     );
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "OPENAI_API_KEY is not configured." }, { status: 500 });
+    return assessmentError(
+      "OpenAI Analysis",
+      "AI analysis could not be completed.",
+      500,
+      debug,
+      new Error("OPENAI_API_KEY is not configured."),
+    );
   }
 
   const normalizedEmail = normalizeEmail(email);
   const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
   const userKey = createUserKey(email, linkedinUrl);
-  const supabase = getSupabaseAdminClient();
+  let supabase: ReturnType<typeof getSupabaseAdminClient>;
+  try {
+    supabase = getSupabaseAdminClient();
+  } catch (error) {
+    return assessmentError(
+      "Supabase Storage",
+      "Assessment could not be stored.",
+      500,
+      debug,
+      error,
+    );
+  }
   const { periodStart, periodEnd } = getCurrentWeeklyUsagePeriod();
 
   try {
+    debug.supabaseInsert = "PENDING";
     const existingUser = await getExistingUserPlan(supabase, userKey);
     const planType = existingUser?.plan_type ?? "free";
 
     if (planType !== "pro") {
       const usage = await getUsageCount(supabase, userKey, periodStart, periodEnd);
       if (usage >= 1) {
-        return NextResponse.json(
-          {
-            error:
-              "Usage limit exceeded. Your free plan includes one comprehensive profile assessment per week. Upgrade to Pro for unlimited assessments.",
-          },
-          { status: 429 },
+        return assessmentError(
+          "Assessment Generation",
+          "Usage limit exceeded. Your free plan includes one comprehensive profile assessment per week. Upgrade to Pro for unlimited assessments.",
+          429,
+          debug,
         );
       }
     }
@@ -215,10 +253,12 @@ export async function POST(request: NextRequest) {
       fileSize: pdfFile.size,
     });
     const assessmentId = assessmentRecord.id as string;
+    debug.supabaseInsert = "SUCCESS";
     const storageObjectPath = `${userKey}/${assessmentId}.pdf`;
     const pdfStoragePath = `profile-pdfs/${storageObjectPath}`;
     const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer());
 
+    debug.pdfUpload = "PENDING";
     const uploadResult = await supabase.storage
       .from("profile-pdfs")
       .upload(storageObjectPath, pdfBuffer, {
@@ -228,21 +268,42 @@ export async function POST(request: NextRequest) {
 
     if (uploadResult.error) {
       console.error("Supabase PDF upload failed", uploadResult.error);
-      return NextResponse.json({ error: "PDF upload failed." }, { status: 502 });
+      debug.pdfUpload = "FAILED";
+      return assessmentError(
+        "PDF Upload",
+        "PDF upload failed.",
+        502,
+        debug,
+        uploadResult.error,
+      );
     }
+    debug.pdfUpload = "SUCCESS";
 
     await updateAssessmentRecord(supabase, assessmentId, {
       pdf_storage_path: pdfStoragePath,
     });
 
+    debug.pdfExtraction = "PENDING";
     const extraction = await extractPdfTextFromBuffer(pdfBuffer).catch((error) => {
       console.error("PDF extraction failed", error);
       return null;
     });
 
     if (!extraction || extraction.characterCount < 500) {
-      return NextResponse.json({ error: PDF_EXTRACTION_ERROR }, { status: 400 });
+      debug.pdfExtraction = "FAILED";
+      debug.extractedCharacters = extraction?.characterCount ?? 0;
+      return assessmentError(
+        "PDF Extraction",
+        PDF_EXTRACTION_ERROR,
+        400,
+        debug,
+        extraction
+          ? new Error(`Extracted text under 500 characters: ${extraction.characterCount}`)
+          : new Error("PDF extraction returned no readable text."),
+      );
     }
+    debug.pdfExtraction = "SUCCESS";
+    debug.extractedCharacters = extraction.characterCount;
 
     const extractionStatus = {
       message: "LinkedIn Profile PDF text extracted successfully.",
@@ -264,6 +325,7 @@ export async function POST(request: NextRequest) {
       extracted_character_count: extraction.characterCount,
     });
 
+    debug.openAIRequest = "PENDING";
     const assessment = await analyzeProfilePdf({
       email,
       extractionStatus,
@@ -273,16 +335,11 @@ export async function POST(request: NextRequest) {
       diagnostics,
       assessmentId,
     }).catch((error) => {
+      debug.openAIRequest = "FAILED";
       console.error("OpenAI profile analysis failed", error);
-      return null;
+      throw error;
     });
-
-    if (!assessment) {
-      return NextResponse.json(
-        { error: "AI analysis could not be completed. Please try again shortly." },
-        { status: 502 },
-      );
-    }
+    debug.openAIRequest = "SUCCESS";
 
     await updateAssessmentRecord(supabase, assessmentId, {
       authority_score: assessment.totalScore,
@@ -314,11 +371,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(assessment);
   } catch (error) {
     console.error("INConnect assessment storage flow failed", error);
-    const message =
-      error instanceof Error && error.message.includes("Supabase")
-        ? "Supabase insert failed."
-        : "Profile assessment failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof Error && error.message.includes("response format")) {
+      return assessmentError(
+        "Assessment Generation",
+        "Assessment response format error.",
+        502,
+        debug,
+        error,
+      );
+    }
+    if (debug.openAIRequest === "FAILED" || (error instanceof Error && error.message.includes("OpenAI"))) {
+      return assessmentError(
+        "OpenAI Analysis",
+        "AI analysis could not be completed.",
+        502,
+        debug,
+        error,
+      );
+    }
+    if (debug.supabaseInsert === "PENDING" || (error instanceof Error && error.message.includes("Supabase"))) {
+      return assessmentError(
+        "Supabase Storage",
+        "Assessment could not be stored.",
+        500,
+        debug,
+        error,
+      );
+    }
+    return assessmentError(
+      "Assessment Generation",
+      "Assessment generation failed.",
+      500,
+      debug,
+      error,
+    );
   }
 }
 
@@ -349,75 +435,96 @@ async function analyzeProfilePdf({
   userKey: string;
 }) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.responses.parse({
-    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-    temperature: 0.7,
-    max_output_tokens: 1200,
-    input: [
-      {
-        role: "system",
-        content: [
-          "You are INConnect, an AI LinkedIn Profile Intelligence Platform.",
-          "Analyze only the uploaded LinkedIn Profile PDF text provided by the user.",
-          "Do not scrape LinkedIn, use LinkedIn APIs, or infer facts not present in the PDF.",
-          "The first result should answer: How does the market see me?",
-          "Be constructive, premium, professional, and specific.",
-          "Use visibility opportunity, growth opportunity, and positioning opportunity language.",
-          "Avoid words such as weak, bad, poor, weaknesses, or criticism.",
-          "The share card and share text must remain positive and never include gaps or recommendations.",
-        ].join(" "),
+  let response: Awaited<ReturnType<typeof openai.responses.parse>>;
+  try {
+    response = await openai.responses.parse({
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      temperature: 0.7,
+      max_output_tokens: 1200,
+      input: [
+        {
+          role: "system",
+          content: [
+            "You are INConnect, an AI LinkedIn Profile Intelligence Platform.",
+            "Analyze only the uploaded LinkedIn Profile PDF text provided by the user.",
+            "Do not scrape LinkedIn, use LinkedIn APIs, or infer facts not present in the PDF.",
+            "The first result should answer: How does the market see me?",
+            "Be constructive, premium, professional, and specific.",
+            "Use visibility opportunity, growth opportunity, and positioning opportunity language.",
+            "Avoid words such as weak, bad, poor, weaknesses, or criticism.",
+            "The share card and share text must remain positive and never include gaps or recommendations.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: [
+            "Generate a Phase 1 LinkedIn Profile Intelligence Assessment.",
+            "",
+            "User metadata:",
+            `userKey: ${userKey}`,
+            `LinkedIn URL: ${linkedinUrl}`,
+            `Email: ${email}`,
+            "",
+            "Analyze these PDF sections when present. LinkedIn PDF labels vary, so do not require exact names:",
+            "- Headline",
+            "- Summary / About",
+            "- Contact",
+            "- Experience",
+            "- Top Skills / Skills",
+            "- Certifications",
+            "- Education",
+            "- Projects",
+            "- Keywords",
+            "- Positioning language",
+            "",
+            "Required output:",
+            "- Profile Snapshot: name, current role, current company, location, estimated years of experience, top 5 skills, top 3 industries.",
+            "- Market Position: one executive-level sentence describing how the market sees this person.",
+            "- Positioning Snapshot: 5 association percentages that add up to 100.",
+            "- What Makes You Unique: explain the rare combination of expertise, experience, industries, commercial impact, and technical depth.",
+            "- LinkedIn Authority Score.",
+            "- Authority Score Breakdown using exactly these weighted categories: Positioning Clarity 20, Career Progression 15, Industry Specialization 20, Leadership Signals 15, Commercial Impact 15, Authority Potential 15. Each category needs score, explanation, improvementHint.",
+            "- Positioning Gap with currentPosition, potentialPosition, gapExplanation.",
+            "- Profile Improvement Recommendations: headlineImprovement, aboutSectionImprovement, keywordsToAdd, authoritySignalsToStrengthen, missingProfessionalThemes, suggestedPositioningAngle.",
+            "- Visibility Gaps using constructive language only.",
+            "- Shareable positive highlights and share text only.",
+            "",
+            "PDF text:",
+            pdfText.slice(0, 24000),
+          ].join("\n"),
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "inconnect_phase_one_profile_intelligence",
+          strict: true,
+          schema: responseSchema,
+        },
       },
-      {
-        role: "user",
-        content: [
-          "Generate a Phase 1 LinkedIn Profile Intelligence Assessment.",
-          "",
-          "User metadata:",
-          `userKey: ${userKey}`,
-          `LinkedIn URL: ${linkedinUrl}`,
-          `Email: ${email}`,
-          "",
-          "Analyze these PDF sections when present. LinkedIn PDF labels vary, so do not require exact names:",
-          "- Headline",
-          "- Summary / About",
-          "- Contact",
-          "- Experience",
-          "- Top Skills / Skills",
-          "- Certifications",
-          "- Education",
-          "- Projects",
-          "- Keywords",
-          "- Positioning language",
-          "",
-          "Required output:",
-          "- Profile Snapshot: name, current role, current company, location, estimated years of experience, top 5 skills, top 3 industries.",
-          "- Market Position: one executive-level sentence describing how the market sees this person.",
-          "- Positioning Snapshot: 5 association percentages that add up to 100.",
-          "- What Makes You Unique: explain the rare combination of expertise, experience, industries, commercial impact, and technical depth.",
-          "- LinkedIn Authority Score.",
-          "- Authority Score Breakdown using exactly these weighted categories: Positioning Clarity 20, Career Progression 15, Industry Specialization 20, Leadership Signals 15, Commercial Impact 15, Authority Potential 15. Each category needs score, explanation, improvementHint.",
-          "- Positioning Gap with currentPosition, potentialPosition, gapExplanation.",
-          "- Profile Improvement Recommendations: headlineImprovement, aboutSectionImprovement, keywordsToAdd, authoritySignalsToStrengthen, missingProfessionalThemes, suggestedPositioningAngle.",
-          "- Visibility Gaps using constructive language only.",
-          "- Shareable positive highlights and share text only.",
-          "",
-          "PDF text:",
-          pdfText.slice(0, 24000),
-        ].join("\n"),
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "inconnect_phase_one_profile_intelligence",
-        strict: true,
-        schema: responseSchema,
-      },
-    },
+    });
+  } catch (error) {
+    console.error("OpenAI errors", error);
+    const message = getErrorMessage(error);
+    if (/json|parse|schema|format|structured/i.test(message)) {
+      throw new Error(`Assessment response format error: ${message}`);
+    }
+    throw new Error(`OpenAI analysis failed: ${message}`);
+  }
+
+  console.info("OpenAI profile analysis response", {
+    id: response.id,
+    model: response.model,
+    status: response.status,
+    outputTextLength: response.output_text?.length ?? 0,
   });
 
   if (!response.output_parsed) {
-    throw new Error("OpenAI response did not include parsed JSON.");
+    console.error("OpenAI JSON parsing error", {
+      responseId: response.id,
+      outputText: response.output_text,
+    });
+    throw new Error("Assessment response format error: OpenAI response did not include parsed JSON.");
   }
 
   return normalizeProfileAssessment(
@@ -441,7 +548,10 @@ async function getExistingUserPlan(
     .eq("user_key", userKey)
     .maybeSingle();
 
-  if (error) throw new Error(`Supabase user lookup failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase user lookup failed", error);
+    throw new Error(`Supabase user lookup failed: ${error.message}`);
+  }
   return data;
 }
 
@@ -459,7 +569,10 @@ async function getUsageCount(
     .eq("period_end", periodEnd)
     .maybeSingle();
 
-  if (error) throw new Error(`Supabase usage lookup failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase usage lookup failed", error);
+    throw new Error(`Supabase usage lookup failed: ${error.message}`);
+  }
   return Number(data?.assessment_count ?? 0);
 }
 
@@ -491,7 +604,10 @@ async function upsertUser(
     .select("id, plan_type")
     .single();
 
-  if (error) throw new Error(`Supabase user upsert failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase user upsert failed", error);
+    throw new Error(`Supabase user upsert failed: ${error.message}`);
+  }
   return data;
 }
 
@@ -515,7 +631,10 @@ async function createAssessmentRecord(
     .select("id")
     .single();
 
-  if (error) throw new Error(`Supabase assessment insert failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase assessment insert failed", error);
+    throw new Error(`Supabase assessment insert failed: ${error.message}`);
+  }
   return data;
 }
 
@@ -525,7 +644,10 @@ async function updateAssessmentRecord(
   values: Record<string, unknown>,
 ) {
   const { error } = await supabase.from("assessments").update(values).eq("id", assessmentId);
-  if (error) throw new Error(`Supabase assessment update failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase assessment update failed", error);
+    throw new Error(`Supabase assessment update failed: ${error.message}`);
+  }
 }
 
 async function incrementUsage(
@@ -555,7 +677,66 @@ async function incrementUsage(
     { onConflict: "user_key,period_start,period_end" },
   );
 
-  if (error) throw new Error(`Supabase usage update failed: ${error.message}`);
+  if (error) {
+    console.error("Supabase usage update failed", error);
+    throw new Error(`Supabase usage update failed: ${error.message}`);
+  }
+}
+
+function createAssessmentDebug(): AssessmentDebug {
+  return {
+    pdfUpload: "PENDING",
+    pdfExtraction: "PENDING",
+    openAIRequest: "PENDING",
+    supabaseInsert: "PENDING",
+  };
+}
+
+function assessmentError(
+  stage: string,
+  message: string,
+  status: number,
+  debug: AssessmentDebug,
+  error?: unknown,
+) {
+  const actualError = getErrorMessage(error);
+  const nextDebug: AssessmentDebug = {
+    ...debug,
+    failedStage: stage,
+    actualError,
+  };
+
+  if (stage === "PDF Upload") nextDebug.pdfUpload = "FAILED";
+  if (stage === "PDF Extraction") nextDebug.pdfExtraction = "FAILED";
+  if (stage === "OpenAI Analysis") nextDebug.openAIRequest = "FAILED";
+  if (stage === "Supabase Storage") nextDebug.supabaseInsert = "FAILED";
+
+  console.error("INConnect assessment pipeline error", {
+    stage,
+    message,
+    status,
+    debug: nextDebug,
+    error,
+  });
+
+  return NextResponse.json(
+    {
+      error: message,
+      stage,
+      debug: process.env.NODE_ENV === "development" ? nextDebug : undefined,
+    },
+    { status },
+  );
+}
+
+function getErrorMessage(error: unknown) {
+  if (!error) return "";
+  if (error instanceof Error) return error.stack || error.message;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
 }
 
 function getFormString(formData: FormData, key: string) {

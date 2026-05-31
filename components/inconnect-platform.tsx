@@ -24,6 +24,15 @@ import {
 import { Logo } from "@/components/Logo";
 
 type ShareStatus = "idle" | "sharing" | "success" | "error";
+type AssessmentDebug = {
+  failedStage?: string;
+  pdfUpload: "PENDING" | "SUCCESS" | "FAILED";
+  pdfExtraction: "PENDING" | "SUCCESS" | "FAILED";
+  extractedCharacters?: number;
+  openAIRequest: "PENDING" | "SUCCESS" | "FAILED";
+  supabaseInsert: "PENDING" | "SUCCESS" | "FAILED";
+  actualError?: string;
+};
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
@@ -111,6 +120,17 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   link.remove();
 }
 
+function isAssessmentDebug(value: unknown): value is AssessmentDebug {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "pdfUpload" in value &&
+    "pdfExtraction" in value &&
+    "openAIRequest" in value &&
+    "supabaseInsert" in value
+  );
+}
+
 function ScoreRing({ score }: { score: number }) {
   const degrees = Math.round((score / 100) * 360);
 
@@ -171,10 +191,12 @@ function Header() {
 }
 
 function AssessmentForm({
+  debug,
   error,
   isAnalyzing,
   onSubmit,
 }: {
+  debug: AssessmentDebug | null;
   error: string;
   isAnalyzing: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -257,6 +279,28 @@ function AssessmentForm({
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
           {error || validationError}
         </p>
+      )}
+
+      {debug && (
+        <section className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+          <h2 className="font-semibold text-red-900">Assessment Debug</h2>
+          <div className="mt-3 grid gap-1 font-mono text-xs">
+            <p>Failed Stage: {debug.failedStage || "Unknown"}</p>
+            <p>PDF Upload: {debug.pdfUpload}</p>
+            <p>PDF Extraction: {debug.pdfExtraction}</p>
+            <p>Extracted Characters: {debug.extractedCharacters ?? "N/A"}</p>
+            <p>OpenAI Request: {debug.openAIRequest}</p>
+            <p>Supabase Insert: {debug.supabaseInsert}</p>
+          </div>
+          {debug.actualError && (
+            <>
+              <p className="mt-3 font-semibold text-red-900">Actual Error:</p>
+              <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-red-200 bg-white p-3 font-mono text-xs text-red-800">
+                {debug.actualError}
+              </pre>
+            </>
+          )}
+        </section>
       )}
 
       <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
@@ -1055,6 +1099,7 @@ function Footer() {
 export function INConnectPlatform() {
   const [assessment, setAssessment] =
     useState<ProfileIntelligenceAssessment | null>(null);
+  const [assessmentDebug, setAssessmentDebug] = useState<AssessmentDebug | null>(null);
   const [error, setError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -1073,10 +1118,12 @@ export function INConnectPlatform() {
 
     if (validationError) {
       setError(validationError);
+      setAssessmentDebug(null);
       return;
     }
 
     setError("");
+    setAssessmentDebug(null);
     setAssessment(null);
     setIsAnalyzing(true);
 
@@ -1086,6 +1133,13 @@ export function INConnectPlatform() {
         body: formData,
       });
       const payload = (await response.json().catch(() => null)) as unknown;
+      const debug =
+        payload &&
+        typeof payload === "object" &&
+        "debug" in payload &&
+        isAssessmentDebug(payload.debug)
+          ? payload.debug
+          : null;
       const errorMessage =
         payload &&
         typeof payload === "object" &&
@@ -1095,15 +1149,17 @@ export function INConnectPlatform() {
           : "";
 
       if (!response.ok || !payload || errorMessage) {
-        throw new Error(errorMessage || "Profile assessment failed.");
+        setAssessmentDebug(debug);
+        throw new Error(errorMessage || "Assessment generation failed.");
       }
 
+      setAssessmentDebug(null);
       setAssessment(payload as ProfileIntelligenceAssessment);
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "Profile assessment failed.",
+          : "Assessment generation failed.",
       );
     } finally {
       setIsAnalyzing(false);
@@ -1116,6 +1172,7 @@ export function INConnectPlatform() {
       <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
         <div className="mx-auto grid max-w-7xl gap-6">
           <AssessmentForm
+            debug={assessmentDebug}
             error={error}
             isAnalyzing={isAnalyzing}
             onSubmit={handleAssessmentSubmit}
