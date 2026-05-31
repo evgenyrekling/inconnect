@@ -25,7 +25,24 @@ type AssessmentDebug = {
   openAIRequest: PipelineStatus;
   supabaseInsert: PipelineStatus;
   actualError?: string;
+  storageDiagnostic?: StorageDiagnostic;
 };
+
+type StorageDiagnostic = {
+  stage: string;
+  error: string;
+  details: string;
+};
+
+class StorageDiagnosticError extends Error {
+  diagnostic: StorageDiagnostic;
+
+  constructor(diagnostic: StorageDiagnostic) {
+    super(diagnostic.error);
+    this.name = "StorageDiagnosticError";
+    this.diagnostic = diagnostic;
+  }
+}
 
 const responseSchema = {
   type: "object",
@@ -219,7 +236,7 @@ export async function POST(request: NextRequest) {
     supabase = getSupabaseAdminClient();
   } catch (error) {
     return assessmentError(
-      "Supabase Storage",
+      "Supabase configuration",
       "Assessment could not be stored.",
       500,
       debug,
@@ -274,24 +291,8 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer());
 
     debug.pdfUpload = "PENDING";
-    const uploadResult = await supabase.storage
-      .from("profile-pdfs")
-      .upload(storageObjectPath, pdfBuffer, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-
-    if (uploadResult.error) {
-      console.error("Supabase PDF upload failed", uploadResult.error);
-      debug.pdfUpload = "FAILED";
-      return assessmentError(
-        "PDF Upload",
-        "PDF upload failed.",
-        502,
-        debug,
-        uploadResult.error,
-      );
-    }
+    await ensureStorageBucketReachable(supabase, "profile-pdfs");
+    await uploadProfilePdf(supabase, storageObjectPath, pdfBuffer);
     debug.pdfUpload = "SUCCESS";
 
     await updateAssessmentRecord(supabase, assessmentId, {
@@ -386,6 +387,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(assessment);
   } catch (error) {
     console.error("INConnect assessment storage flow failed", error);
+    if (error instanceof StorageDiagnosticError) {
+      return assessmentError(
+        error.diagnostic.stage,
+        "Assessment could not be stored.",
+        500,
+        debug,
+        error,
+      );
+    }
     if (error instanceof Error && error.message.includes("response format")) {
       return assessmentError(
         "Assessment Generation",
@@ -406,7 +416,7 @@ export async function POST(request: NextRequest) {
     }
     if (debug.supabaseInsert === "PENDING" || (error instanceof Error && error.message.includes("Supabase"))) {
       return assessmentError(
-        "Supabase Storage",
+        "Supabase storage",
         "Assessment could not be stored.",
         500,
         debug,
@@ -558,21 +568,62 @@ async function analyzeProfilePdf({
   );
 }
 
+async function ensureStorageBucketReachable(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  bucketName: string,
+) {
+  try {
+    const { error } = await supabase.storage.getBucket(bucketName);
+    if (error) {
+      throwStorageDiagnostic("storage bucket", error);
+    }
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("storage bucket", error);
+  }
+}
+
+async function uploadProfilePdf(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  storageObjectPath: string,
+  pdfBuffer: Buffer,
+) {
+  try {
+    const { error } = await supabase.storage
+      .from("profile-pdfs")
+      .upload(storageObjectPath, pdfBuffer, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+
+    if (error) {
+      throwStorageDiagnostic("PDF upload", error);
+    }
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("PDF upload", error);
+  }
+}
+
 async function getExistingUserPlan(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   userKey: string,
 ) {
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, plan_type")
-    .eq("user_key", userKey)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, plan_type")
+      .eq("user_key", userKey)
+      .maybeSingle();
 
-  if (error) {
-    console.error("Supabase user lookup failed", error);
-    throw new Error(`Supabase user lookup failed: ${error.message}`);
+    if (error) {
+      throwStorageDiagnostic("users lookup", error);
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("users lookup", error);
   }
-  return data;
 }
 
 async function getUsageCount(
@@ -581,19 +632,23 @@ async function getUsageCount(
   periodStart: string,
   periodEnd: string,
 ) {
-  const { data, error } = await supabase
-    .from("usage_limits")
-    .select("assessment_count")
-    .eq("user_key", userKey)
-    .eq("period_start", periodStart)
-    .eq("period_end", periodEnd)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("usage_limits")
+      .select("assessment_count")
+      .eq("user_key", userKey)
+      .eq("period_start", periodStart)
+      .eq("period_end", periodEnd)
+      .maybeSingle();
 
-  if (error) {
-    console.error("Supabase usage lookup failed", error);
-    throw new Error(`Supabase usage lookup failed: ${error.message}`);
+    if (error) {
+      throwStorageDiagnostic("usage_limits lookup", error);
+    }
+    return Number(data?.assessment_count ?? 0);
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("usage_limits lookup", error);
   }
-  return Number(data?.assessment_count ?? 0);
 }
 
 async function upsertUser(
@@ -608,46 +663,64 @@ async function upsertUser(
     userKey: string;
   },
 ) {
-  const { data, error } = await supabase
-    .from("users")
-    .upsert(
-      {
-        user_key: values.userKey,
-        email: values.email,
-        linkedin_url: values.linkedinUrl,
-        normalized_email: values.normalizedEmail,
-        normalized_linkedin_url: values.normalizedLinkedInUrl,
-        is_admin: values.isAdminUser,
-        plan_type: values.planType,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_key" },
-    )
-    .select("id, plan_type")
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .upsert(
+        {
+          user_key: values.userKey,
+          email: values.email,
+          linkedin_url: values.linkedinUrl,
+          normalized_email: values.normalizedEmail,
+          normalized_linkedin_url: values.normalizedLinkedInUrl,
+          is_admin: values.isAdminUser,
+          plan_type: values.planType,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_key" },
+      )
+      .select("id, plan_type")
+      .single();
 
-  if (error) {
-    console.error("Supabase user upsert failed", error);
-    throw new Error(`Supabase user upsert failed: ${error.message}`);
+    if (error) {
+      throwStorageDiagnostic("users insert", error);
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("users insert", error);
   }
-  return data;
 }
 
 async function getLatestStoredAssessment(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   userKey: string,
 ) {
-  const { data, error } = await supabase
-    .from("assessments")
-    .select("id, ai_response")
-    .eq("user_key", userKey)
-    .not("ai_response", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let data:
+    | {
+        id: unknown;
+        ai_response: unknown;
+      }
+    | null = null;
 
-  if (error) {
-    console.error("Supabase latest assessment lookup failed", error);
+  try {
+    const result = await supabase
+      .from("assessments")
+      .select("id, ai_response")
+      .eq("user_key", userKey)
+      .not("ai_response", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (result.error) {
+      console.error("Supabase latest assessment lookup failed", createStorageDiagnostic("assessments lookup", result.error));
+      return null;
+    }
+
+    data = result.data;
+  } catch (error) {
+    console.error("Supabase latest assessment lookup failed", createStorageDiagnostic("assessments lookup", error));
     return null;
   }
 
@@ -669,22 +742,26 @@ async function createAssessmentRecord(
     fileSize: number;
   },
 ) {
-  const { data, error } = await supabase
-    .from("assessments")
-    .insert({
-      user_id: values.userId,
-      user_key: values.userKey,
-      pdf_file_name: values.fileName,
-      pdf_file_size: values.fileSize,
-    })
-    .select("id")
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("assessments")
+      .insert({
+        user_id: values.userId,
+        user_key: values.userKey,
+        pdf_file_name: values.fileName,
+        pdf_file_size: values.fileSize,
+      })
+      .select("id")
+      .single();
 
-  if (error) {
-    console.error("Supabase assessment insert failed", error);
-    throw new Error(`Supabase assessment insert failed: ${error.message}`);
+    if (error) {
+      throwStorageDiagnostic("assessments insert", error);
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("assessments insert", error);
   }
-  return data;
 }
 
 async function updateAssessmentRecord(
@@ -692,10 +769,14 @@ async function updateAssessmentRecord(
   assessmentId: string,
   values: Record<string, unknown>,
 ) {
-  const { error } = await supabase.from("assessments").update(values).eq("id", assessmentId);
-  if (error) {
-    console.error("Supabase assessment update failed", error);
-    throw new Error(`Supabase assessment update failed: ${error.message}`);
+  try {
+    const { error } = await supabase.from("assessments").update(values).eq("id", assessmentId);
+    if (error) {
+      throwStorageDiagnostic("assessments update", error);
+    }
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("assessments update", error);
   }
 }
 
@@ -714,21 +795,25 @@ async function incrementUsage(
     values.periodStart,
     values.periodEnd,
   );
-  const { error } = await supabase.from("usage_limits").upsert(
-    {
-      user_key: values.userKey,
-      period_start: values.periodStart,
-      period_end: values.periodEnd,
-      assessment_count: existingCount + 1,
-      plan_type: values.planType,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_key,period_start,period_end" },
-  );
+  try {
+    const { error } = await supabase.from("usage_limits").upsert(
+      {
+        user_key: values.userKey,
+        period_start: values.periodStart,
+        period_end: values.periodEnd,
+        assessment_count: existingCount + 1,
+        plan_type: values.planType,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_key,period_start,period_end" },
+    );
 
-  if (error) {
-    console.error("Supabase usage update failed", error);
-    throw new Error(`Supabase usage update failed: ${error.message}`);
+    if (error) {
+      throwStorageDiagnostic("usage_limits insert/update", error);
+    }
+  } catch (error) {
+    if (error instanceof StorageDiagnosticError) throw error;
+    throwStorageDiagnostic("usage_limits insert/update", error);
   }
 }
 
@@ -755,38 +840,103 @@ function assessmentError(
   debug: AssessmentDebug,
   error?: unknown,
 ) {
-  const actualError = getErrorMessage(error);
+  const storageDiagnostic =
+    error instanceof StorageDiagnosticError
+      ? error.diagnostic
+      : isSupabaseDiagnosticStage(stage)
+        ? createStorageDiagnostic(stage, error)
+        : undefined;
+  const responseStage = storageDiagnostic?.stage ?? stage;
+  const diagnosticError = storageDiagnostic?.error ?? getErrorSummary(error);
+  const actualError = storageDiagnostic?.details ?? getErrorMessage(error);
   const nextDebug: AssessmentDebug = {
     ...debug,
-    failedStage: stage,
+    failedStage: responseStage,
     actualError,
+    storageDiagnostic,
   };
 
-  if (stage === "PDF Upload") nextDebug.pdfUpload = "FAILED";
-  if (stage === "PDF Extraction") nextDebug.pdfExtraction = "FAILED";
-  if (stage === "OpenAI Analysis") nextDebug.openAIRequest = "FAILED";
-  if (stage === "Supabase Storage") nextDebug.supabaseInsert = "FAILED";
+  if (responseStage === "PDF upload" || responseStage === "storage bucket") {
+    nextDebug.pdfUpload = "FAILED";
+  }
+  if (responseStage === "PDF Extraction") nextDebug.pdfExtraction = "FAILED";
+  if (responseStage === "OpenAI Analysis") nextDebug.openAIRequest = "FAILED";
+  if (isSupabaseDiagnosticStage(responseStage)) nextDebug.supabaseInsert = "FAILED";
 
   console.error("INConnect assessment pipeline error", {
-    stage,
+    stage: responseStage,
     message,
     status,
     debug: nextDebug,
     error,
   });
 
+  const isDevelopment = process.env.NODE_ENV === "development";
+
   return NextResponse.json(
     {
+      stage: responseStage,
       error: message,
-      stage,
-      debug: process.env.NODE_ENV === "development" ? nextDebug : undefined,
+      userMessage: message,
+      details: isDevelopment ? actualError : "",
+      diagnosticError: isDevelopment ? diagnosticError : undefined,
+      debug: isDevelopment ? nextDebug : undefined,
     },
     { status },
   );
 }
 
+function throwStorageDiagnostic(stage: string, error: unknown): never {
+  const diagnostic = createStorageDiagnostic(stage, error);
+  console.error("INConnect Supabase storage diagnostic", diagnostic);
+  throw new StorageDiagnosticError(diagnostic);
+}
+
+function createStorageDiagnostic(stage: string, error: unknown): StorageDiagnostic {
+  return {
+    stage,
+    error: getErrorSummary(error) || "Unknown Supabase error",
+    details: getErrorDetails(error),
+  };
+}
+
+function isSupabaseDiagnosticStage(stage: string) {
+  return [
+    "users lookup",
+    "users insert",
+    "assessments lookup",
+    "assessments insert",
+    "assessments update",
+    "usage_limits lookup",
+    "usage_limits insert/update",
+    "storage bucket",
+    "PDF upload",
+    "Supabase configuration",
+    "Supabase storage",
+  ].includes(stage);
+}
+
+function getErrorSummary(error: unknown) {
+  if (!error) return "";
+  if (error instanceof StorageDiagnosticError) return error.diagnostic.error;
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" ? message : JSON.stringify(message);
+  }
+  return String(error);
+}
+
 function getErrorMessage(error: unknown) {
   if (!error) return "";
+  if (error instanceof StorageDiagnosticError) return error.diagnostic.details;
+  if (error instanceof Error) return error.stack || error.message;
+  return getErrorDetails(error);
+}
+
+function getErrorDetails(error: unknown) {
+  if (!error) return "";
+  if (error instanceof StorageDiagnosticError) return error.diagnostic.details;
   if (error instanceof Error) return error.stack || error.message;
   try {
     return JSON.stringify(error);

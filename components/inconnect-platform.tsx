@@ -24,6 +24,11 @@ import {
 import { Logo } from "@/components/Logo";
 
 type ShareStatus = "idle" | "sharing" | "success" | "error";
+type AssessmentDiagnostic = {
+  stage: string;
+  error: string;
+  details: string;
+};
 type AssessmentDebug = {
   failedStage?: string;
   pdfUpload: "PENDING" | "SUCCESS" | "FAILED";
@@ -32,6 +37,7 @@ type AssessmentDebug = {
   openAIRequest: "PENDING" | "SUCCESS" | "FAILED";
   supabaseInsert: "PENDING" | "SUCCESS" | "FAILED";
   actualError?: string;
+  storageDiagnostic?: AssessmentDiagnostic;
 };
 type LimitState = {
   latestAssessment: ProfileIntelligenceAssessment | null;
@@ -135,6 +141,19 @@ function isAssessmentDebug(value: unknown): value is AssessmentDebug {
   );
 }
 
+function isAssessmentDiagnostic(value: unknown): value is AssessmentDiagnostic {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "stage" in value &&
+    typeof value.stage === "string" &&
+    "error" in value &&
+    typeof value.error === "string" &&
+    "details" in value &&
+    typeof value.details === "string"
+  );
+}
+
 function ScoreRing({ score }: { score: number }) {
   const degrees = Math.round((score / 100) * 360);
 
@@ -215,6 +234,8 @@ function AssessmentForm({
   const [email, setEmail] = useState("");
   const [profilePdf, setProfilePdf] = useState<File | null>(null);
   const validationError = getAssessmentError({ email, linkedinUrl, profilePdf });
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const storageDiagnostic = debug?.storageDiagnostic;
 
   return (
     <form
@@ -291,9 +312,31 @@ function AssessmentForm({
         </p>
       )}
 
-      {debug && (
+      {isDevelopment && debug && (
         <section className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
-          <h2 className="font-semibold text-red-900">Assessment Debug</h2>
+          <h2 className="font-semibold text-red-900">Assessment Storage Diagnostics</h2>
+          {storageDiagnostic && (
+            <div className="mt-3 grid gap-3">
+              <div>
+                <p className="font-semibold text-red-900">Storage stage:</p>
+                <pre className="mt-1 overflow-auto whitespace-pre-wrap rounded-md border border-red-200 bg-white p-3 font-mono text-xs text-red-800">
+                  {storageDiagnostic.stage}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold text-red-900">Error:</p>
+                <pre className="mt-1 overflow-auto whitespace-pre-wrap rounded-md border border-red-200 bg-white p-3 font-mono text-xs text-red-800">
+                  {storageDiagnostic.error}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold text-red-900">Details:</p>
+                <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-red-200 bg-white p-3 font-mono text-xs text-red-800">
+                  {storageDiagnostic.details || "No additional details returned."}
+                </pre>
+              </div>
+            </div>
+          )}
           <div className="mt-3 grid gap-1 font-mono text-xs">
             <p>Failed Stage: {debug.failedStage || "Unknown"}</p>
             <p>PDF Upload: {debug.pdfUpload}</p>
@@ -1173,13 +1216,24 @@ export function INConnectPlatform() {
         body: formData,
       });
       const payload = (await response.json().catch(() => null)) as unknown;
-      const debug =
+      const diagnostic =
+        payload && typeof payload === "object" && isAssessmentDiagnostic(payload)
+          ? payload
+          : null;
+      const parsedDebug =
         payload &&
         typeof payload === "object" &&
         "debug" in payload &&
         isAssessmentDebug(payload.debug)
           ? payload.debug
           : null;
+      const debug =
+        parsedDebug && diagnostic
+          ? {
+              ...parsedDebug,
+              storageDiagnostic: parsedDebug.storageDiagnostic ?? diagnostic,
+            }
+          : parsedDebug;
       const limitExceeded =
         payload &&
         typeof payload === "object" &&
@@ -1196,10 +1250,15 @@ export function INConnectPlatform() {
       const errorMessage =
         payload &&
         typeof payload === "object" &&
-        "error" in payload &&
-        typeof payload.error === "string"
-          ? payload.error
-          : "";
+        "userMessage" in payload &&
+        typeof payload.userMessage === "string"
+          ? payload.userMessage
+          : payload &&
+              typeof payload === "object" &&
+              "error" in payload &&
+              typeof payload.error === "string"
+            ? payload.error
+            : "";
 
       if (!response.ok || !payload || errorMessage) {
         setAssessmentDebug(debug);
