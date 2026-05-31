@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  hydrateStoredProfileAssessment,
   normalizeProfileAssessment,
   type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
@@ -210,6 +211,9 @@ export async function POST(request: NextRequest) {
   const normalizedEmail = normalizeEmail(email);
   const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
   const userKey = createUserKey(email, linkedinUrl);
+  // Temporary founder/admin testing logic. ADMIN_EMAILS is server-only and must
+  // never be exposed to the frontend.
+  const isAdminUser = getAdminEmails().includes(normalizedEmail);
   let supabase: ReturnType<typeof getSupabaseAdminClient>;
   try {
     supabase = getSupabaseAdminClient();
@@ -227,16 +231,22 @@ export async function POST(request: NextRequest) {
   try {
     debug.supabaseInsert = "PENDING";
     const existingUser = await getExistingUserPlan(supabase, userKey);
-    const planType = existingUser?.plan_type ?? "free";
+    const planType = isAdminUser ? "admin" : existingUser?.plan_type ?? "free";
 
-    if (planType !== "pro") {
+    if (!isAdminUser && planType !== "pro") {
       const usage = await getUsageCount(supabase, userKey, periodStart, periodEnd);
       if (usage >= 1) {
-        return assessmentError(
-          "Assessment Generation",
-          "Usage limit exceeded. Your free plan includes one comprehensive profile assessment per week. Upgrade to Pro for unlimited assessments.",
-          429,
-          debug,
+        const latestAssessment = await getLatestStoredAssessment(supabase, userKey);
+        return NextResponse.json(
+          {
+            error:
+              "You already used your free weekly assessment. You can view your latest result or upgrade to Pro for unlimited assessments.",
+            stage: "Assessment Generation",
+            limitExceeded: true,
+            latestAssessment,
+            debug: process.env.NODE_ENV === "development" ? debug : undefined,
+          },
+          { status: 429 },
         );
       }
     }
@@ -246,6 +256,7 @@ export async function POST(request: NextRequest) {
       linkedinUrl,
       normalizedEmail,
       normalizedLinkedInUrl,
+      isAdminUser,
       planType,
       userKey,
     });
@@ -363,7 +374,7 @@ export async function POST(request: NextRequest) {
       ai_response: assessment,
     });
 
-    if (planType !== "pro") {
+    if (!isAdminUser && planType !== "pro") {
       await incrementUsage(supabase, {
         userKey,
         periodStart,
@@ -589,6 +600,7 @@ async function upsertUser(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   values: {
     email: string;
+    isAdminUser: boolean;
     linkedinUrl: string;
     normalizedEmail: string;
     normalizedLinkedInUrl: string;
@@ -605,6 +617,7 @@ async function upsertUser(
         linkedin_url: values.linkedinUrl,
         normalized_email: values.normalizedEmail,
         normalized_linkedin_url: values.normalizedLinkedInUrl,
+        is_admin: values.isAdminUser,
         plan_type: values.planType,
         updated_at: new Date().toISOString(),
       },
@@ -618,6 +631,33 @@ async function upsertUser(
     throw new Error(`Supabase user upsert failed: ${error.message}`);
   }
   return data;
+}
+
+async function getLatestStoredAssessment(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  userKey: string,
+) {
+  const { data, error } = await supabase
+    .from("assessments")
+    .select("id, ai_response")
+    .eq("user_key", userKey)
+    .not("ai_response", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Supabase latest assessment lookup failed", error);
+    return null;
+  }
+
+  if (!data?.ai_response || typeof data.ai_response !== "object") return null;
+
+  return hydrateStoredProfileAssessment({
+    ...(data.ai_response as ProfileIntelligenceAssessment),
+    assessmentId: data.id as string,
+    userKey,
+  });
 }
 
 async function createAssessmentRecord(
@@ -699,6 +739,13 @@ function createAssessmentDebug(): AssessmentDebug {
     openAIRequest: "PENDING",
     supabaseInsert: "PENDING",
   };
+}
+
+function getAdminEmails() {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
 }
 
 function assessmentError(

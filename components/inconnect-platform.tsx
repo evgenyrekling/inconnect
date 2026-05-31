@@ -33,6 +33,10 @@ type AssessmentDebug = {
   supabaseInsert: "PENDING" | "SUCCESS" | "FAILED";
   actualError?: string;
 };
+type LimitState = {
+  latestAssessment: ProfileIntelligenceAssessment | null;
+  message: string;
+};
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
@@ -194,11 +198,17 @@ function AssessmentForm({
   debug,
   error,
   isAnalyzing,
+  limitState,
+  onUpgrade,
+  onViewLatest,
   onSubmit,
 }: {
   debug: AssessmentDebug | null;
   error: string;
   isAnalyzing: boolean;
+  limitState: LimitState | null;
+  onUpgrade: () => void;
+  onViewLatest: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const [linkedinUrl, setLinkedinUrl] = useState("");
@@ -300,6 +310,30 @@ function AssessmentForm({
               </pre>
             </>
           )}
+        </section>
+      )}
+
+      {limitState && (
+        <section className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
+          <h2 className="font-semibold">Free weekly assessment used</h2>
+          <p className="mt-2 text-[#666666]">{limitState.message}</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0A66C2] px-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+              disabled={!limitState.latestAssessment}
+              onClick={onViewLatest}
+              type="button"
+            >
+              View Latest Assessment
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2]"
+              onClick={onUpgrade}
+              type="button"
+            >
+              Upgrade to Pro
+            </button>
+          </div>
         </section>
       )}
 
@@ -1105,6 +1139,7 @@ export function INConnectPlatform() {
   const [assessmentDebug, setAssessmentDebug] = useState<AssessmentDebug | null>(null);
   const [error, setError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [limitState, setLimitState] = useState<LimitState | null>(null);
 
   async function handleAssessmentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1122,11 +1157,13 @@ export function INConnectPlatform() {
     if (validationError) {
       setError(validationError);
       setAssessmentDebug(null);
+      setLimitState(null);
       return;
     }
 
     setError("");
     setAssessmentDebug(null);
+    setLimitState(null);
     setAssessment(null);
     setIsAnalyzing(true);
 
@@ -1143,6 +1180,19 @@ export function INConnectPlatform() {
         isAssessmentDebug(payload.debug)
           ? payload.debug
           : null;
+      const limitExceeded =
+        payload &&
+        typeof payload === "object" &&
+        "limitExceeded" in payload &&
+        payload.limitExceeded === true;
+      const latestAssessment =
+        payload &&
+        typeof payload === "object" &&
+        "latestAssessment" in payload &&
+        payload.latestAssessment &&
+        typeof payload.latestAssessment === "object"
+          ? (payload.latestAssessment as ProfileIntelligenceAssessment)
+          : null;
       const errorMessage =
         payload &&
         typeof payload === "object" &&
@@ -1153,10 +1203,19 @@ export function INConnectPlatform() {
 
       if (!response.ok || !payload || errorMessage) {
         setAssessmentDebug(debug);
+        if (limitExceeded) {
+          setLimitState({
+            latestAssessment,
+            message:
+              errorMessage ||
+              "You already used your free weekly assessment. You can view your latest result or upgrade to Pro for unlimited assessments.",
+          });
+        }
         throw new Error(errorMessage || "Assessment generation failed.");
       }
 
       setAssessmentDebug(null);
+      setLimitState(null);
       setAssessment(payload as ProfileIntelligenceAssessment);
     } catch (submitError) {
       setError(
@@ -1178,6 +1237,16 @@ export function INConnectPlatform() {
             debug={assessmentDebug}
             error={error}
             isAnalyzing={isAnalyzing}
+            limitState={limitState}
+            onUpgrade={() => {
+              document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            onViewLatest={() => {
+              if (limitState?.latestAssessment) {
+                setAssessment(limitState.latestAssessment);
+                setError("");
+              }
+            }}
             onSubmit={handleAssessmentSubmit}
           />
           {isAnalyzing && <LoadingAssessment />}

@@ -241,6 +241,16 @@ export function normalizeProfileAssessment(
   return normalized;
 }
 
+export function hydrateStoredProfileAssessment(
+  assessment: ProfileIntelligenceAssessment,
+): ProfileIntelligenceAssessment {
+  return normalizeProfileAssessment(assessment, assessment.userKey, {
+    assessmentId: assessment.assessmentId,
+    diagnostics: assessment.diagnostics,
+    extractionStatus: assessment.extractionStatus,
+  });
+}
+
 export function createProfileShareText(assessment: ProfileIntelligenceAssessment) {
   return [
     "I just checked my LinkedIn Authority Score using INConnect.",

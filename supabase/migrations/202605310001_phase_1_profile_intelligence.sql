@@ -7,6 +7,7 @@ create table if not exists public.users (
   linkedin_url text not null,
   normalized_email text,
   normalized_linkedin_url text,
+  is_admin boolean default false,
   plan_type text default 'free',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
