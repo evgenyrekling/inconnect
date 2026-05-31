@@ -1408,16 +1408,15 @@ function LockedPreview({
         </div>
         <div className="absolute inset-0 grid place-items-center bg-white/55">
           <div className="rounded-lg border border-[#0A66C2]/20 bg-white px-5 py-4 text-center shadow-[0_18px_48px_rgba(10,25,47,0.14)]">
-            <LockKeyhole className="mx-auto h-6 w-6 text-[#0A66C2]" />
+            <span aria-hidden="true" className="block text-2xl">
+              🔒
+            </span>
             <p className="mt-3 font-semibold text-[#191919]">
-              Coming soon in Pro.
+              Coming soon in Pro
             </p>
-            <button
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white"
-              type="button"
-            >
-              Unlock with Pro
-            </button>
+            <p className="mt-2 text-sm leading-6 text-[#666666]">
+              Available in a future Pro release.
+            </p>
           </div>
         </div>
       </div>
