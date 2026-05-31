@@ -344,6 +344,12 @@ function AssessmentForm({
   const validationError = getAssessmentError({ email, linkedinUrl, profilePdf });
   const isDevelopment = process.env.NODE_ENV === "development";
   const storageDiagnostic = debug?.storageDiagnostic;
+  const isSubmitDisabled = isAnalyzing || Boolean(validationError);
+  const submitLabel = isAnalyzing
+    ? "Analyzing Profile..."
+    : isSubmitDisabled
+      ? "Upload your LinkedIn Profile PDF to continue"
+      : "Start Assessment";
 
   useEffect(() => {
     if (!initialIdentity) return;
@@ -420,6 +426,19 @@ function AssessmentForm({
           />
         </label>
       </div>
+
+      <button
+        className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center text-sm font-semibold leading-5 text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none sm:text-base"
+        disabled={isSubmitDisabled}
+        type="submit"
+      >
+        {isAnalyzing ? (
+          <LoaderCircle className="h-5 w-5 animate-spin" />
+        ) : (
+          <Sparkles className="h-5 w-5" />
+        )}
+        {submitLabel}
+      </button>
 
       {(error || validationError) && (
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
@@ -520,31 +539,6 @@ function AssessmentForm({
           </div>
         </div>
       </div>
-
-      <PlanLimits />
-
-      <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666]">
-        <p>
-          We store your uploaded PDF and assessment result so you can track your
-          LinkedIn authority over time.
-        </p>
-        <p className="mt-2 font-semibold text-[#191919]">
-          We do not scrape LinkedIn and never post to LinkedIn automatically.
-        </p>
-      </div>
-
-      <button
-        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
-        disabled={isAnalyzing || Boolean(validationError)}
-        type="submit"
-      >
-        {isAnalyzing ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : (
-          <Sparkles className="h-4 w-4" />
-        )}
-        {isAnalyzing ? "Analyzing profile PDF..." : "Start Profile Intelligence Assessment"}
-      </button>
     </form>
   );
 }
@@ -1733,6 +1727,20 @@ export function INConnectPlatform() {
           "LinkedIn Content Roadmap",
         ]}
       />
+      <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <PlanLimits />
+          <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666]">
+            <p>
+              We store your uploaded PDF and assessment result so you can track your
+              LinkedIn authority over time.
+            </p>
+            <p className="mt-2 font-semibold text-[#191919]">
+              We do not scrape LinkedIn and never post to LinkedIn automatically.
+            </p>
+          </div>
+        </div>
+      </section>
       <Footer />
     </main>
   );
