@@ -46,6 +46,8 @@ export type ProfileIntelligenceAssessment = {
   positioningSnapshot: PositioningSnapshotItem[];
   whatMakesYouUnique: string;
   totalScore: number;
+  scoreLevel: string;
+  scoreExplanation: string;
   scoreBreakdown: AuthorityScoreBreakdownItem[];
   positioningGap: {
     currentPosition: string;
@@ -89,10 +91,11 @@ export function normalizeProfileAssessment(
   metadata?: Pick<ProfileIntelligenceAssessment, "diagnostics" | "extractionStatus" | "assessmentId">,
 ): ProfileIntelligenceAssessment {
   const scoreBreakdown = normalizeScoreBreakdown(assessment.scoreBreakdown);
-  const totalScore =
+  const rawTotalScore =
     scoreBreakdown.length > 0
       ? calculateWeightedScore(scoreBreakdown)
       : clampScore(assessment.totalScore);
+  const totalScore = calibrateAuthorityScore(rawTotalScore, assessment);
 
   const normalized: ProfileIntelligenceAssessment = {
     assessmentId: metadata?.assessmentId,
@@ -124,6 +127,11 @@ export function normalizeProfileAssessment(
       "The profile combines professional experience, domain knowledge, and authority-building potential.",
     ),
     totalScore,
+    scoreLevel: getAuthorityScoreLevel(totalScore),
+    scoreExplanation: cleanText(
+      assessment.scoreExplanation,
+      getAuthorityScoreExplanation(totalScore),
+    ),
     scoreBreakdown,
     positioningGap: {
       currentPosition: cleanText(
@@ -256,10 +264,39 @@ export function createProfileShareText(assessment: ProfileIntelligenceAssessment
 }
 
 export function getPositioningLevel(score: number) {
-  if (score >= 88) return "Global Thought Leader Potential";
-  if (score >= 76) return "Strategic Industry Expert";
-  if (score >= 62) return "Industry Specialist";
-  return "Emerging Specialist";
+  return getAuthorityScoreLevel(score);
+}
+
+export function getAuthorityScoreLevel(score: number) {
+  if (score >= 95) return "Exceptional Global Authority";
+  if (score >= 85) return "Established Thought Leader";
+  if (score >= 75) return "Recognized Industry Authority";
+  if (score >= 60) return "Strong Industry Professional";
+  if (score >= 40) return "Experienced Specialist";
+  if (score >= 20) return "Early Career Professional";
+  return "Incomplete Profile";
+}
+
+export function getAuthorityScoreExplanation(score: number) {
+  if (score >= 95) {
+    return "Exceptional global authority signals across specialization, leadership, commercial impact, and international market relevance.";
+  }
+  if (score >= 85) {
+    return "Established thought leadership potential supported by deep expertise, senior responsibility, and strong market authority signals.";
+  }
+  if (score >= 75) {
+    return "Recognized industry authority potential with strong specialization, career proof, and credible leadership or commercial impact.";
+  }
+  if (score >= 60) {
+    return "Strong industry professional profile with clear expertise and meaningful authority-building potential.";
+  }
+  if (score >= 40) {
+    return "Experienced specialist profile with relevant expertise that can be positioned more clearly for authority.";
+  }
+  if (score >= 20) {
+    return "Early career or lightly evidenced professional profile with room to build stronger authority signals.";
+  }
+  return "Incomplete profile data or limited readable evidence available for authority assessment.";
 }
 
 export function clampScore(score: number) {
@@ -300,6 +337,51 @@ function calculateWeightedScore(items: AuthorityScoreBreakdownItem[]) {
     0,
   );
   return clampScore(weightedTotal);
+}
+
+function calibrateAuthorityScore(score: number, assessment: ProfileIntelligenceAssessment) {
+  const evidence = [
+    assessment.profileSnapshot?.estimatedYearsOfExperience,
+    assessment.profileSnapshot?.currentRole,
+    assessment.profileSnapshot?.currentCompany,
+    assessment.marketPosition,
+    assessment.whatMakesYouUnique,
+    assessment.corePositioning,
+    ...(assessment.topCompetencies ?? []),
+    ...(assessment.keyExpertiseDomains ?? []),
+    ...(assessment.authorityGrowthAreas ?? []),
+    ...(assessment.positiveHighlights ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const hasSeniorExperience =
+    /20\+|20\s*\+|2[0-9]\s*(years|yrs)|3[0-9]\s*(years|yrs)|two decades|decades/.test(
+      evidence,
+    );
+  const hasLeadershipScope =
+    /\b(global|international|regional|worldwide|emea|apac|americas|director|head of|lead|leader|leadership|executive|vp|vice president|chief|manager)\b/.test(
+      evidence,
+    );
+  const hasSpecializationDepth =
+    /\b(specialist|expert|authority|specialization|deep domain|industrial|automation|infrastructure|mobility|sensing|lidar|robotics|ai|certified|certification)\b/.test(
+      evidence,
+    );
+  const hasCommercialImpact =
+    /\b(commercial|revenue|sales|business development|market expansion|growth|partnership|strategy|strategic|enterprise|customer|portfolio)\b/.test(
+      evidence,
+    );
+
+  if (hasSeniorExperience && hasLeadershipScope && hasSpecializationDepth && hasCommercialImpact) {
+    return Math.max(score, 75);
+  }
+  if (hasSeniorExperience && hasSpecializationDepth && (hasLeadershipScope || hasCommercialImpact)) {
+    return Math.max(score, 68);
+  }
+  if (hasSeniorExperience && hasSpecializationDepth) {
+    return Math.max(score, 60);
+  }
+  return score;
 }
 
 function normalizePositioningSnapshot(value: unknown) {
