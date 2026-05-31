@@ -27,6 +27,7 @@ type ShareStatus = "idle" | "sharing" | "success" | "error";
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
+const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
@@ -70,6 +71,7 @@ function getAssessmentError({
   if (!isPdfUpload) {
     return "Please upload a PDF file.";
   }
+  if (profilePdf.size > MAX_PDF_SIZE_BYTES) return "PDF file size must be 5 MB or less.";
   return "";
 }
 
@@ -285,6 +287,16 @@ function AssessmentForm({
 
       <PlanLimits />
 
+      <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666]">
+        <p>
+          We store your uploaded PDF and assessment result so you can track your
+          LinkedIn authority over time.
+        </p>
+        <p className="mt-2 font-semibold text-[#191919]">
+          We do not scrape LinkedIn and never post to LinkedIn automatically.
+        </p>
+      </div>
+
       <button
         className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
         disabled={isAnalyzing || Boolean(validationError)}
@@ -439,6 +451,21 @@ function AssessmentResults({
 
       <ProfileSnapshotSection assessment={assessment} />
 
+      <InfoSection eyebrow="Market position" title="How The Market Sees You">
+        <p className="text-xl font-semibold leading-8 text-[#191919]">
+          {assessment.marketPosition}
+        </p>
+      </InfoSection>
+
+      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <PositioningSnapshotSection assessment={assessment} />
+        <InfoSection eyebrow="Differentiation" title="What Makes You Unique">
+          <p className="text-base leading-7 text-[#666666]">
+            {assessment.whatMakesYouUnique}
+          </p>
+        </InfoSection>
+      </div>
+
       <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
         <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
           <ScoreRing score={assessment.totalScore} />
@@ -467,26 +494,9 @@ function AssessmentResults({
         </div>
       </section>
 
-      <ShareableResults assessment={assessment} />
+      <AuthorityBreakdownSection assessment={assessment} />
 
-      <InfoSection
-        eyebrow="Profile clarity"
-        title="How Your Profile Is Currently Positioned"
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[
-            ["External reader view", assessment.profileClarity.externalReaderView],
-            ["Professional image", assessment.profileClarity.professionalImage],
-            ["Positioning clarity", assessment.profileClarity.positioningClarity],
-            ["Positioning focus", assessment.profileClarity.positioningFocus],
-          ].map(([label, text]) => (
-            <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={label}>
-              <h3 className="font-semibold text-[#191919]">{label}</h3>
-              <p className="mt-2 text-sm leading-6 text-[#666666]">{text}</p>
-            </article>
-          ))}
-        </div>
-      </InfoSection>
+      <PositioningGapSection assessment={assessment} />
 
       <InfoSection eyebrow="Competencies" title="Top Competencies">
         <TagGrid items={assessment.topCompetencies} />
@@ -515,6 +525,8 @@ function AssessmentResults({
           ))}
         </div>
       </InfoSection>
+
+      <ShareableResults assessment={assessment} />
     </div>
   );
 }
@@ -628,6 +640,92 @@ function ProfileSnapshotSection({
   );
 }
 
+function PositioningSnapshotSection({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  return (
+    <InfoSection eyebrow="Positioning snapshot" title="Current Association Signals">
+      <div className="grid gap-4">
+        {assessment.positioningSnapshot.map((item) => (
+          <div key={item.label}>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-semibold text-[#191919]">{item.label}</span>
+              <span className="font-semibold text-[#0A66C2]">{item.percentage}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#D9DDE3]">
+              <div
+                className="h-full rounded-full bg-[#0A66C2]"
+                style={{ width: `${item.percentage}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </InfoSection>
+  );
+}
+
+function AuthorityBreakdownSection({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  return (
+    <InfoSection eyebrow="Authority score framework" title="Authority Score Breakdown">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {assessment.scoreBreakdown.map((item) => (
+          <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={item.category}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-[#191919]">{item.category}</h3>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
+                  Weight {item.weight}%
+                </p>
+              </div>
+              <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-2 text-sm font-semibold text-[#0A66C2]">
+                {item.score}/100
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-[#666666]">{item.explanation}</p>
+            <p className="mt-3 rounded-lg border border-[#0A66C2]/20 bg-white p-3 text-sm leading-6 text-[#191919]">
+              {item.improvementHint}
+            </p>
+          </article>
+        ))}
+      </div>
+    </InfoSection>
+  );
+}
+
+function PositioningGapSection({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  const gap = assessment.positioningGap;
+
+  return (
+    <InfoSection eyebrow="Positioning opportunity" title="Positioning Gap">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+          <h3 className="font-semibold text-[#191919]">Current Position</h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">{gap.currentPosition}</p>
+        </article>
+        <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+          <h3 className="font-semibold text-[#191919]">Potential Position</h3>
+          <p className="mt-2 text-sm leading-6 text-[#191919]">{gap.potentialPosition}</p>
+        </article>
+        <article className="rounded-lg border border-[#D9DDE3] bg-white p-4">
+          <h3 className="font-semibold text-[#191919]">Gap Explanation</h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">{gap.gapExplanation}</p>
+        </article>
+      </div>
+    </InfoSection>
+  );
+}
+
 function InfoSection({
   children,
   eyebrow,
@@ -670,32 +768,25 @@ function ImprovementSection({
 }) {
   const rec = assessment.profileImprovementRecommendations;
   const groups = [
-    ["Headline Improvements", rec.headlineImprovements],
-    ["About Section Improvements", rec.aboutSectionImprovements],
-    ["Positioning Improvements", rec.positioningImprovements],
-    ["Missing Authority Signals", rec.missingAuthoritySignals],
-    ["Missing Keywords", rec.missingKeywords],
-    ["Missing Industry Themes", rec.missingIndustryThemes],
+    ["Keywords to Add", rec.keywordsToAdd],
+    ["Authority Signals to Strengthen", rec.authoritySignalsToStrengthen],
+    ["Missing Professional Themes", rec.missingProfessionalThemes],
   ] as const;
 
   return (
     <InfoSection eyebrow="Profile recommendations" title="How To Improve Your Profile">
       <div className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-          <h3 className="font-semibold">Current Headline</h3>
-          <p className="mt-2 text-sm leading-6 text-[#666666]">{rec.currentHeadline}</p>
+          <h3 className="font-semibold">Headline Improvement</h3>
+          <p className="mt-2 text-sm leading-6 text-[#666666]">{rec.headlineImprovement}</p>
         </article>
         <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-          <h3 className="font-semibold">Suggested Headline</h3>
-          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.suggestedHeadline}</p>
+          <h3 className="font-semibold">About Section Improvement</h3>
+          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.aboutSectionImprovement}</p>
         </article>
-        <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-          <h3 className="font-semibold">Current Positioning</h3>
-          <p className="mt-2 text-sm leading-6 text-[#666666]">{rec.currentPositioning}</p>
-        </article>
-        <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-          <h3 className="font-semibold">Recommended Positioning</h3>
-          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.recommendedPositioning}</p>
+        <article className="rounded-lg border border-[#0A66C2]/20 bg-white p-4 lg:col-span-2">
+          <h3 className="font-semibold">Suggested Positioning Angle</h3>
+          <p className="mt-2 text-sm leading-6 text-[#191919]">{rec.suggestedPositioningAngle}</p>
         </article>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -834,14 +925,23 @@ function ShareableResults({
           </div>
           <div className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
-              Core Positioning
+              Market Position
             </p>
             <p className="mt-2 text-lg font-semibold">
-              {compactLabel(assessment.corePositioning, 68)}
+              {compactLabel(assessment.marketPosition, 110)}
             </p>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+              Core Positioning
+            </p>
+            <p className="mt-2 font-semibold text-[#191919]">
+              {compactLabel(assessment.corePositioning, 72)}
+            </p>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             <ShareList title="Key Expertise Areas" items={assessment.keyExpertiseDomains.slice(0, 3)} />
+            <ShareList title="Top Authority Areas" items={assessment.authorityGrowthAreas.slice(0, 3)} />
             <ShareList title="Positive Highlights" items={assessment.positiveHighlights.slice(0, 3)} />
           </div>
         </div>
@@ -883,10 +983,12 @@ function ShareList({ items, title }: { items: string[]; title: string }) {
 function LockedPreview({
   id,
   items,
+  subtitle,
   title,
 }: {
   id: string;
   items: string[];
+  subtitle: string;
   title: string;
 }) {
   return (
@@ -900,6 +1002,9 @@ function LockedPreview({
             Pro intelligence
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-[#191919]">{title}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666666]">
+            {subtitle}
+          </p>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             {items.map((item) => (
               <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={item}>
@@ -913,8 +1018,14 @@ function LockedPreview({
           <div className="rounded-lg border border-[#0A66C2]/20 bg-white px-5 py-4 text-center shadow-[0_18px_48px_rgba(10,25,47,0.14)]">
             <LockKeyhole className="mx-auto h-6 w-6 text-[#0A66C2]" />
             <p className="mt-3 font-semibold text-[#191919]">
-              Unlock {title} with Pro
+              Coming soon in Pro.
             </p>
+            <button
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white"
+              type="button"
+            >
+              Unlock with Pro
+            </button>
           </div>
         </div>
       </div>
@@ -970,61 +1081,24 @@ export function INConnectPlatform() {
     setIsAnalyzing(true);
 
     try {
-      const extractionResponse = await fetch("/api/extract-pdf", {
+      const response = await fetch("/api/analyze-profile", {
         method: "POST",
         body: formData,
       });
-
-      const extractionPayload = (await extractionResponse.json().catch(() => null)) as unknown;
-      const extractionErrorMessage =
-        extractionPayload &&
-        typeof extractionPayload === "object" &&
-        "error" in extractionPayload &&
-        typeof extractionPayload.error === "string"
-          ? extractionPayload.error
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const errorMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
           : "";
 
-      if (!extractionResponse.ok || !extractionPayload || extractionErrorMessage) {
-        throw new Error(extractionErrorMessage || "PDF extraction failed.");
+      if (!response.ok || !payload || errorMessage) {
+        throw new Error(errorMessage || "Profile assessment failed.");
       }
 
-      const extraction = extractionPayload as {
-        pageCount: number;
-        characterCount: number;
-        first1000Characters: string;
-        fullText: string;
-      };
-
-      const analysisData = new FormData();
-      analysisData.set("linkedinUrl", linkedinUrl);
-      analysisData.set("email", email);
-      analysisData.set("fullText", extraction.fullText);
-      analysisData.set("pageCount", String(extraction.pageCount));
-      analysisData.set("characterCount", String(extraction.characterCount));
-      analysisData.set("first1000Characters", extraction.first1000Characters);
-      if (profilePdf instanceof File) {
-        analysisData.set("fileName", profilePdf.name);
-        analysisData.set("fileSize", String(profilePdf.size));
-      }
-
-      const analysisResponse = await fetch("/api/analyze-profile", {
-        method: "POST",
-        body: analysisData,
-      });
-      const analysisPayload = (await analysisResponse.json().catch(() => null)) as unknown;
-      const analysisErrorMessage =
-        analysisPayload &&
-        typeof analysisPayload === "object" &&
-        "error" in analysisPayload &&
-        typeof analysisPayload.error === "string"
-          ? analysisPayload.error
-          : "";
-
-      if (!analysisResponse.ok || !analysisPayload || analysisErrorMessage) {
-        throw new Error(analysisErrorMessage || "Profile assessment failed.");
-      }
-
-      setAssessment(analysisPayload as ProfileIntelligenceAssessment);
+      setAssessment(payload as ProfileIntelligenceAssessment);
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -1053,6 +1127,7 @@ export function INConnectPlatform() {
       <LockedPreview
         id="trend-radar"
         title="Trend Radar"
+        subtitle="Discover relevant industry trends matched to your positioning."
         items={[
           "Emerging Industry Trends",
           "Authority Opportunities",
@@ -1063,6 +1138,7 @@ export function INConnectPlatform() {
       <LockedPreview
         id="content-intelligence"
         title="Content Intelligence"
+        subtitle="Generate personalized LinkedIn content opportunities based on your profile and market position."
         items={[
           "Personalized Post Ideas",
           "Content Pillars",

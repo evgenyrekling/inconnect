@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 
 const PDF_EXTRACTION_ERROR =
   "We could not extract readable text from this PDF. Please make sure it is the LinkedIn Profile PDF export, not a screenshot or scanned file.";
+const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData().catch(() => null);
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
   if (!isPdfUpload) {
     return NextResponse.json(
       { error: "Please upload your LinkedIn Profile PDF." },
+      { status: 400 },
+    );
+  }
+
+  if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
+    return NextResponse.json(
+      { error: "PDF file size must be 5 MB or less." },
       { status: 400 },
     );
   }
