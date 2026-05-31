@@ -16,7 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toPng } from "html-to-image";
-import { FormEvent, type ReactNode, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   getPositioningLevel,
   type ProfileIntelligenceAssessment,
@@ -43,10 +43,44 @@ type LimitState = {
   latestAssessment: ProfileIntelligenceAssessment | null;
   message: string;
 };
+type StoredReturningIdentity = {
+  userKey: string;
+  email: string;
+  linkedinUrl: string;
+  latestAssessmentId?: string;
+};
+type AssessmentHistoryEntry = {
+  id: string;
+  createdAt: string;
+  totalScore: number | null;
+};
+type ReturningUserProfile = {
+  hasPreviousAssessment: true;
+  user: {
+    userKey: string;
+    email: string;
+    linkedinUrl: string;
+    planType: "admin" | "free" | "pro" | string;
+    isAdmin: boolean;
+  };
+  latestAssessment: ProfileIntelligenceAssessment;
+  selectedAssessment?: ProfileIntelligenceAssessment;
+  latestAssessmentId: string;
+  latestAssessmentDate: string;
+  history: AssessmentHistoryEntry[];
+  authorityTrend: {
+    scores: number[];
+    delta: number;
+    message: string;
+  };
+  canRunNewAssessment: boolean;
+  nextFreeAssessmentDate: string;
+};
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
+const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
@@ -60,6 +94,38 @@ function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function readStoredReturningIdentity(): StoredReturningIdentity | null {
+  try {
+    const raw = window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return isStoredReturningIdentity(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeReturningIdentity(identity: StoredReturningIdentity) {
+  try {
+    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(identity));
+  } catch {
+    // localStorage can be unavailable in private browsing or embedded contexts.
+  }
+}
+
+function isStoredReturningIdentity(value: unknown): value is StoredReturningIdentity {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "userKey" in value &&
+    typeof value.userKey === "string" &&
+    "email" in value &&
+    typeof value.email === "string" &&
+    "linkedinUrl" in value &&
+    typeof value.linkedinUrl === "string"
+  );
+}
+
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
@@ -67,6 +133,24 @@ function isValidEmail(email: string) {
 function compactLabel(value: string, max = 48) {
   const clean = value.replace(/\s+/g, " ").trim().replace(/\.$/, "");
   return clean.length > max ? `${clean.slice(0, max - 3).trim()}...` : clean;
+}
+
+function formatDisplayDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function getFirstName(assessment: ProfileIntelligenceAssessment) {
+  const name = assessment.profileSnapshot?.name?.trim();
+  if (!name || /^not clearly/i.test(name)) return "";
+  return name.split(/\s+/)[0] ?? "";
 }
 
 function getAssessmentError({
@@ -154,6 +238,28 @@ function isAssessmentDiagnostic(value: unknown): value is AssessmentDiagnostic {
   );
 }
 
+function isReturningUserProfile(value: unknown): value is ReturningUserProfile {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "hasPreviousAssessment" in value &&
+    value.hasPreviousAssessment === true &&
+    "user" in value &&
+    typeof value.user === "object" &&
+    value.user !== null &&
+    "latestAssessment" in value &&
+    typeof value.latestAssessment === "object" &&
+    value.latestAssessment !== null &&
+    "latestAssessmentId" in value &&
+    typeof value.latestAssessmentId === "string" &&
+    "history" in value &&
+    Array.isArray(value.history) &&
+    "authorityTrend" in value &&
+    typeof value.authorityTrend === "object" &&
+    value.authorityTrend !== null
+  );
+}
+
 function ScoreRing({ score }: { score: number }) {
   const degrees = Math.round((score / 100) * 360);
 
@@ -216,6 +322,7 @@ function Header() {
 function AssessmentForm({
   debug,
   error,
+  initialIdentity,
   isAnalyzing,
   limitState,
   onUpgrade,
@@ -224,6 +331,7 @@ function AssessmentForm({
 }: {
   debug: AssessmentDebug | null;
   error: string;
+  initialIdentity: StoredReturningIdentity | null;
   isAnalyzing: boolean;
   limitState: LimitState | null;
   onUpgrade: () => void;
@@ -237,9 +345,16 @@ function AssessmentForm({
   const isDevelopment = process.env.NODE_ENV === "development";
   const storageDiagnostic = debug?.storageDiagnostic;
 
+  useEffect(() => {
+    if (!initialIdentity) return;
+    setEmail((current) => current || initialIdentity.email);
+    setLinkedinUrl((current) => current || initialIdentity.linkedinUrl);
+  }, [initialIdentity]);
+
   return (
     <form
       className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
+      id="assessment-form"
       onSubmit={onSubmit}
     >
       <input name="linkedinUrl" type="hidden" value={linkedinUrl} />
@@ -531,6 +646,152 @@ function LoadingAssessment() {
   );
 }
 
+function WelcomeBackSection({
+  activeAssessmentId,
+  isLoading,
+  limitMessage,
+  onOpenAssessment,
+  onRunNew,
+  onUpgrade,
+  onViewLatest,
+  profile,
+}: {
+  activeAssessmentId?: string;
+  isLoading: boolean;
+  limitMessage: string;
+  onOpenAssessment: (assessmentId: string) => void;
+  onRunNew: () => void;
+  onUpgrade: () => void;
+  onViewLatest: () => void;
+  profile: ReturningUserProfile;
+}) {
+  const latest = profile.latestAssessment;
+  const firstName = getFirstName(latest);
+  const trend = profile.authorityTrend.scores.join(" → ");
+
+  return (
+    <section className="grid gap-4">
+      <article className="rounded-lg border border-[#0A66C2]/20 bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              Returning profile
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold">
+              Welcome back{firstName ? `, ${firstName}` : ""}.
+            </h2>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                  Latest assessment
+                </p>
+                <p className="mt-2 font-semibold">
+                  {formatDisplayDate(profile.latestAssessmentDate)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                  LinkedIn Authority Score
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-[#0A66C2]">
+                  {latest.totalScore}/100
+                </p>
+              </div>
+              <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                  Plan
+                </p>
+                <p className="mt-2 font-semibold capitalize">{profile.user.planType}</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white transition hover:bg-[#004182]"
+              disabled={isLoading}
+              onClick={onViewLatest}
+              type="button"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Latest Assessment
+            </button>
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
+              disabled={isLoading}
+              onClick={onRunNew}
+              type="button"
+            >
+              <Sparkles className="h-4 w-4" />
+              Run New Assessment
+            </button>
+          </div>
+        </div>
+
+        {limitMessage && (
+          <div className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6">
+            <p className="font-semibold text-[#191919]">{limitMessage}</p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white"
+                onClick={onViewLatest}
+                type="button"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View Latest Assessment
+              </button>
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2]"
+                onClick={onUpgrade}
+                type="button"
+              >
+                <LockKeyhole className="h-4 w-4" />
+                Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        )}
+      </article>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
+          <h2 className="font-semibold text-[#191919]">Recent Assessments</h2>
+          <div className="mt-4 grid gap-2">
+            {profile.history.map((entry) => (
+              <button
+                className={classNames(
+                  "grid grid-cols-[1fr_auto] items-center gap-4 rounded-lg border p-3 text-left text-sm transition",
+                  activeAssessmentId === entry.id
+                    ? "border-[#0A66C2] bg-[#E8F1FB] text-[#191919]"
+                    : "border-[#D9DDE3] bg-[#F8F8F6] text-[#666666] hover:border-[#0A66C2]",
+                )}
+                disabled={isLoading}
+                key={entry.id}
+                onClick={() => onOpenAssessment(entry.id)}
+                type="button"
+              >
+                <span className="font-semibold">{formatDisplayDate(entry.createdAt)}</span>
+                <span className="font-semibold text-[#0A66C2]">
+                  {typeof entry.totalScore === "number" ? `${entry.totalScore}/100` : "N/A"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
+          <h2 className="font-semibold text-[#191919]">Authority Trend</h2>
+          <p className="mt-4 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-lg font-semibold text-[#0A66C2]">
+            {trend || `${latest.totalScore}`}
+          </p>
+          <p className="mt-4 text-sm leading-6 text-[#666666]">
+            {profile.authorityTrend.message}
+          </p>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function AssessmentResults({
   assessment,
 }: {
@@ -538,6 +799,13 @@ function AssessmentResults({
 }) {
   return (
     <div className="grid gap-6">
+      {assessment.assessmentDate && (
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+          <span className="font-semibold text-[#191919]">Assessment date:</span>{" "}
+          {formatDisplayDate(assessment.assessmentDate)}
+        </section>
+      )}
+
       {assessment.extractionStatus && (
         <section className="rounded-lg border border-[#057642]/20 bg-[#EEF7F2] p-4 text-sm leading-6 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
           <div className="flex gap-3">
@@ -1183,6 +1451,102 @@ export function INConnectPlatform() {
   const [error, setError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [limitState, setLimitState] = useState<LimitState | null>(null);
+  const [returningIdentity, setReturningIdentity] =
+    useState<StoredReturningIdentity | null>(null);
+  const [returningUser, setReturningUser] = useState<ReturningUserProfile | null>(null);
+  const [returningUserLimitMessage, setReturningUserLimitMessage] = useState("");
+  const [isLoadingReturningUser, setIsLoadingReturningUser] = useState(false);
+
+  useEffect(() => {
+    const storedIdentity = readStoredReturningIdentity();
+    if (!storedIdentity?.userKey) return;
+    setReturningIdentity(storedIdentity);
+    void loadReturningUser(storedIdentity);
+  }, []);
+
+  async function loadReturningUser(
+    identity: StoredReturningIdentity,
+    options?: { assessmentId?: string; showSelectedAssessment?: boolean },
+  ) {
+    setIsLoadingReturningUser(true);
+    try {
+      const params = new URLSearchParams({ userKey: identity.userKey });
+      if (options?.assessmentId) params.set("assessmentId", options.assessmentId);
+      const response = await fetch(`/api/returning-user?${params.toString()}`);
+      const payload = (await response.json().catch(() => null)) as unknown;
+
+      if (!response.ok || !isReturningUserProfile(payload)) {
+        setReturningUser(null);
+        return null;
+      }
+
+      setReturningUser(payload);
+      const nextIdentity = {
+        userKey: payload.user.userKey,
+        email: payload.user.email || identity.email,
+        linkedinUrl: payload.user.linkedinUrl || identity.linkedinUrl,
+        latestAssessmentId: payload.latestAssessmentId,
+      };
+      setReturningIdentity(nextIdentity);
+      storeReturningIdentity(nextIdentity);
+
+      if (options?.showSelectedAssessment) {
+        setAssessment(payload.selectedAssessment ?? payload.latestAssessment);
+        setAssessmentDebug(null);
+        setError("");
+        setLimitState(null);
+      }
+
+      return payload;
+    } catch (loadError) {
+      console.error("Returning user lookup failed", loadError);
+      setReturningUser(null);
+      return null;
+    } finally {
+      setIsLoadingReturningUser(false);
+    }
+  }
+
+  function handleViewLatestAssessment() {
+    if (!returningUser?.latestAssessment) return;
+    setAssessment(returningUser.latestAssessment);
+    setAssessmentDebug(null);
+    setError("");
+    setLimitState(null);
+    setReturningUserLimitMessage("");
+  }
+
+  async function handleOpenAssessment(assessmentId: string) {
+    if (!returningIdentity) return;
+    await loadReturningUser(returningIdentity, {
+      assessmentId,
+      showSelectedAssessment: true,
+    });
+    setReturningUserLimitMessage("");
+  }
+
+  function handleRunNewAssessment() {
+    if (!returningUser) return;
+    if (!returningUser.canRunNewAssessment) {
+      setReturningUserLimitMessage(
+        `You already used your free weekly assessment. Your next free assessment will be available on ${formatDisplayDate(
+          returningUser.nextFreeAssessmentDate,
+        )}.`,
+      );
+      return;
+    }
+
+    setReturningUserLimitMessage("");
+    setAssessment(null);
+    setAssessmentDebug(null);
+    setError("");
+    setLimitState(null);
+    document.getElementById("assessment-form")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function handleUpgrade() {
+    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  }
 
   async function handleAssessmentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1201,6 +1565,7 @@ export function INConnectPlatform() {
       setError(validationError);
       setAssessmentDebug(null);
       setLimitState(null);
+      setReturningUserLimitMessage("");
       return;
     }
 
@@ -1208,6 +1573,7 @@ export function INConnectPlatform() {
     setAssessmentDebug(null);
     setLimitState(null);
     setAssessment(null);
+    setReturningUserLimitMessage("");
     setIsAnalyzing(true);
 
     try {
@@ -1247,6 +1613,13 @@ export function INConnectPlatform() {
         typeof payload.latestAssessment === "object"
           ? (payload.latestAssessment as ProfileIntelligenceAssessment)
           : null;
+      const nextFreeAssessmentDate =
+        payload &&
+        typeof payload === "object" &&
+        "nextFreeAssessmentDate" in payload &&
+        typeof payload.nextFreeAssessmentDate === "string"
+          ? payload.nextFreeAssessmentDate
+          : "";
       const errorMessage =
         payload &&
         typeof payload === "object" &&
@@ -1267,7 +1640,9 @@ export function INConnectPlatform() {
             latestAssessment,
             message:
               errorMessage ||
-              "You already used your free weekly assessment. You can view your latest result or upgrade to Pro for unlimited assessments.",
+              `You already used your free weekly assessment. Your next free assessment will be available on ${formatDisplayDate(
+                nextFreeAssessmentDate,
+              )}.`,
           });
         }
         throw new Error(errorMessage || "Assessment generation failed.");
@@ -1275,7 +1650,19 @@ export function INConnectPlatform() {
 
       setAssessmentDebug(null);
       setLimitState(null);
-      setAssessment(payload as ProfileIntelligenceAssessment);
+      const nextAssessment = payload as ProfileIntelligenceAssessment;
+      setAssessment(nextAssessment);
+      if (nextAssessment.userKey) {
+        const nextIdentity = {
+          userKey: nextAssessment.userKey,
+          email,
+          linkedinUrl,
+          latestAssessmentId: nextAssessment.assessmentId,
+        };
+        setReturningIdentity(nextIdentity);
+        storeReturningIdentity(nextIdentity);
+        void loadReturningUser(nextIdentity);
+      }
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -1292,17 +1679,29 @@ export function INConnectPlatform() {
       <Header />
       <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
         <div className="mx-auto grid max-w-7xl gap-6">
+          {returningUser && (
+            <WelcomeBackSection
+              activeAssessmentId={assessment?.assessmentId}
+              isLoading={isLoadingReturningUser}
+              limitMessage={returningUserLimitMessage}
+              onOpenAssessment={handleOpenAssessment}
+              onRunNew={handleRunNewAssessment}
+              onUpgrade={handleUpgrade}
+              onViewLatest={handleViewLatestAssessment}
+              profile={returningUser}
+            />
+          )}
           <AssessmentForm
             debug={assessmentDebug}
             error={error}
+            initialIdentity={returningIdentity}
             isAnalyzing={isAnalyzing}
             limitState={limitState}
-            onUpgrade={() => {
-              document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
-            }}
+            onUpgrade={handleUpgrade}
             onViewLatest={() => {
-              if (limitState?.latestAssessment) {
-                setAssessment(limitState.latestAssessment);
+              const latestAssessment = limitState?.latestAssessment ?? returningUser?.latestAssessment;
+              if (latestAssessment) {
+                setAssessment(latestAssessment);
                 setError("");
               }
             }}

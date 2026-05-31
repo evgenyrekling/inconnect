@@ -21,6 +21,7 @@ export type PositioningSnapshotItem = {
 
 export type ProfileIntelligenceAssessment = {
   assessmentId?: string;
+  assessmentDate?: string;
   userKey: string;
   extractionStatus?: {
     message: string;
@@ -88,7 +89,10 @@ const SCORE_FRAMEWORK: Array<{
 export function normalizeProfileAssessment(
   assessment: ProfileIntelligenceAssessment,
   userKey: string,
-  metadata?: Pick<ProfileIntelligenceAssessment, "diagnostics" | "extractionStatus" | "assessmentId">,
+  metadata?: Pick<
+    ProfileIntelligenceAssessment,
+    "assessmentDate" | "diagnostics" | "extractionStatus" | "assessmentId"
+  >,
 ): ProfileIntelligenceAssessment {
   const scoreBreakdown = normalizeScoreBreakdown(assessment.scoreBreakdown);
   const rawTotalScore =
@@ -99,6 +103,7 @@ export function normalizeProfileAssessment(
 
   const normalized: ProfileIntelligenceAssessment = {
     assessmentId: metadata?.assessmentId,
+    assessmentDate: metadata?.assessmentDate,
     userKey,
     extractionStatus: metadata?.extractionStatus,
     diagnostics: metadata?.diagnostics,
@@ -246,6 +251,7 @@ export function hydrateStoredProfileAssessment(
 ): ProfileIntelligenceAssessment {
   return normalizeProfileAssessment(assessment, assessment.userKey, {
     assessmentId: assessment.assessmentId,
+    assessmentDate: assessment.assessmentDate,
     diagnostics: assessment.diagnostics,
     extractionStatus: assessment.extractionStatus,
   });

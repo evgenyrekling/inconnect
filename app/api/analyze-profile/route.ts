@@ -254,13 +254,15 @@ export async function POST(request: NextRequest) {
       const usage = await getUsageCount(supabase, userKey, periodStart, periodEnd);
       if (usage >= 1) {
         const latestAssessment = await getLatestStoredAssessment(supabase, userKey);
+        const nextFreeAssessmentDate = getNextFreeAssessmentDate(periodEnd);
         return NextResponse.json(
           {
             error:
-              "You already used your free weekly assessment. You can view your latest result or upgrade to Pro for unlimited assessments.",
+              `You already used your free weekly assessment. Your next free assessment will be available on ${formatReadableDate(nextFreeAssessmentDate)}.`,
             stage: "Assessment Generation",
             limitExceeded: true,
             latestAssessment,
+            nextFreeAssessmentDate,
             debug: process.env.NODE_ENV === "development" ? debug : undefined,
           },
           { status: 429 },
@@ -356,23 +358,27 @@ export async function POST(request: NextRequest) {
       throw error;
     });
     debug.openAIRequest = "SUCCESS";
+    const storedAssessment = {
+      ...assessment,
+      assessmentDate: new Date().toISOString(),
+    };
 
     await updateAssessmentRecord(supabase, assessmentId, {
-      authority_score: assessment.totalScore,
-      assessment_confidence: assessment.assessmentConfidence,
-      market_position: assessment.marketPosition,
-      core_positioning: assessment.corePositioning,
-      positioning_snapshot: assessment.positioningSnapshot,
-      what_makes_unique: assessment.whatMakesYouUnique,
-      score_breakdown: assessment.scoreBreakdown,
-      positioning_gap: assessment.positioningGap,
-      top_competencies: assessment.topCompetencies,
-      expertise_domains: assessment.keyExpertiseDomains,
-      authority_growth_areas: assessment.authorityGrowthAreas,
-      profile_improvements: assessment.profileImprovementRecommendations,
-      visibility_gaps: assessment.visibilityGaps,
-      share_text: assessment.shareText,
-      ai_response: assessment,
+      authority_score: storedAssessment.totalScore,
+      assessment_confidence: storedAssessment.assessmentConfidence,
+      market_position: storedAssessment.marketPosition,
+      core_positioning: storedAssessment.corePositioning,
+      positioning_snapshot: storedAssessment.positioningSnapshot,
+      what_makes_unique: storedAssessment.whatMakesYouUnique,
+      score_breakdown: storedAssessment.scoreBreakdown,
+      positioning_gap: storedAssessment.positioningGap,
+      top_competencies: storedAssessment.topCompetencies,
+      expertise_domains: storedAssessment.keyExpertiseDomains,
+      authority_growth_areas: storedAssessment.authorityGrowthAreas,
+      profile_improvements: storedAssessment.profileImprovementRecommendations,
+      visibility_gaps: storedAssessment.visibilityGaps,
+      share_text: storedAssessment.shareText,
+      ai_response: storedAssessment,
     });
 
     if (!isAdminUser && planType !== "pro") {
@@ -384,7 +390,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(assessment);
+    return NextResponse.json(storedAssessment);
   } catch (error) {
     console.error("INConnect assessment storage flow failed", error);
     if (error instanceof StorageDiagnosticError) {
@@ -943,6 +949,21 @@ function getErrorDetails(error: unknown) {
   } catch {
     return String(error);
   }
+}
+
+function getNextFreeAssessmentDate(periodEnd: string) {
+  const nextDate = new Date(`${periodEnd}T00:00:00.000Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  return nextDate.toISOString().slice(0, 10);
+}
+
+function formatReadableDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
 function getFormString(formData: FormData, key: string) {
