@@ -16,14 +16,21 @@ import {
   Zap,
 } from "lucide-react";
 import { toPng } from "html-to-image";
-import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  FormEvent,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   getPositioningLevel,
   type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
 import { Logo } from "@/components/Logo";
 
-type ShareStatus = "idle" | "sharing" | "success" | "error";
+type ShareStatus = "idle" | "saving" | "sharing" | "success" | "error";
 type AssessmentDiagnostic = {
   stage: string;
   error: string;
@@ -78,7 +85,7 @@ type ReturningUserProfile = {
 };
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
-const SCORE_IMAGE_FILENAME = "inconnect-linkedin-authority-score.png";
+const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 
@@ -207,6 +214,14 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+function waitForRenderFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
 }
 
 function isAssessmentDebug(value: unknown): value is AssessmentDebug {
@@ -786,6 +801,75 @@ function AssessmentResults({
 }: {
   assessment: ProfileIntelligenceAssessment;
 }) {
+  const cardRef = useRef<HTMLElement>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
+  const [shareMessage, setShareMessage] = useState("");
+  const [forceExpandedExport, setForceExpandedExport] = useState(false);
+
+  function showToast(status: Exclude<ShareStatus, "idle" | "saving" | "sharing">, message: string) {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    setShareStatus(status);
+    setShareMessage(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setShareStatus("idle");
+      setShareMessage("");
+    }, 4800);
+  }
+
+  async function handleSaveCard() {
+    const card = cardRef.current;
+    if (!card) {
+      showToast("error", "Could not save assessment card. Please try again.");
+      return;
+    }
+
+    setShareStatus("saving");
+    setForceExpandedExport(true);
+    await waitForRenderFrame();
+
+    try {
+      const imageUrl = await toPng(card, {
+        backgroundColor: "#0A192F",
+        cacheBust: true,
+        height: card.scrollHeight,
+        pixelRatio: 3,
+        style: {
+          margin: "0",
+          maxHeight: "none",
+          overflow: "visible",
+        },
+        width: card.scrollWidth,
+      });
+      downloadDataUrl(imageUrl, ASSESSMENT_IMAGE_FILENAME);
+      showToast("success", "Assessment card saved.");
+    } catch (error) {
+      console.error(error);
+      showToast("error", "Could not save assessment card. Please try again.");
+    } finally {
+      setForceExpandedExport(false);
+    }
+  }
+
+  async function handleLinkedInShare() {
+    setShareStatus("sharing");
+    const copied = await copyTextToClipboard(assessment.shareText);
+    if (!copied) {
+      showToast("error", "Could not copy LinkedIn text automatically. Please copy it manually.");
+      return;
+    }
+
+    const linkedInTab = window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
+    showToast(
+      linkedInTab ? "success" : "error",
+      linkedInTab
+        ? "LinkedIn share text copied. Open LinkedIn and paste it into your post."
+        : "Share text copied, but LinkedIn could not open automatically.",
+    );
+  }
+
+  const isCardActionRunning = shareStatus === "saving" || shareStatus === "sharing";
+
   return (
     <div className="grid gap-6">
       {assessment.assessmentDate && (
@@ -827,7 +911,40 @@ function AssessmentResults({
         </section>
       )}
 
-      <AssessmentSummaryCard assessment={assessment} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:opacity-70 sm:w-auto"
+          disabled={isCardActionRunning}
+          onClick={handleSaveCard}
+          type="button"
+        >
+          {shareStatus === "saving" ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Save Card
+        </button>
+        <button
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:opacity-70 sm:w-auto"
+          disabled={isCardActionRunning}
+          onClick={handleLinkedInShare}
+          type="button"
+        >
+          {shareStatus === "sharing" ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : (
+            <ExternalLink className="h-4 w-4" />
+          )}
+          Share on LinkedIn
+        </button>
+      </div>
+
+      <AssessmentSummaryCard
+        assessment={assessment}
+        cardRef={cardRef}
+        forceExpanded={forceExpandedExport}
+      />
 
       <ProfileSnapshotSection assessment={assessment} />
 
@@ -864,18 +981,43 @@ function AssessmentResults({
         </div>
       </InfoSection>
 
-      <ShareableResults assessment={assessment} />
+      {shareStatus !== "idle" && shareStatus !== "saving" && shareStatus !== "sharing" && (
+        <div
+          className={classNames(
+            "fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border bg-white px-4 py-3 text-sm font-semibold shadow-[0_18px_48px_rgba(10,25,47,0.18)]",
+            shareStatus === "success"
+              ? "border-[#057642]/25 text-[#057642]"
+              : "border-red-300 text-red-600",
+          )}
+          role="status"
+        >
+          {shareMessage}
+        </div>
+      )}
     </div>
   );
 }
 
 function AssessmentSummaryCard({
   assessment,
+  cardRef,
+  forceExpanded,
 }: {
   assessment: ProfileIntelligenceAssessment;
+  cardRef: RefObject<HTMLElement | null>;
+  forceExpanded: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] text-white shadow-[0_24px_70px_rgba(10,25,47,0.22)]">
+    <section
+      className="overflow-hidden rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] text-white shadow-[0_24px_70px_rgba(10,25,47,0.22)]"
+      ref={cardRef}
+    >
+      <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+        <Logo markSize={42} showSubtitle={false} />
+        <span className="inline-flex w-fit rounded-lg border border-[#78B7F4]/25 bg-white/[0.08] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
+          in-connect.app
+        </span>
+      </div>
       <div className="grid gap-0 lg:grid-cols-[0.82fr_1.18fr]">
         <div className="border-b border-white/10 p-5 sm:p-7 lg:border-b-0 lg:border-r">
           <ScoreRing score={assessment.totalScore} />
@@ -904,6 +1046,7 @@ function AssessmentSummaryCard({
           <SummaryTextBlock title="Market Position">
             <ExpandableText
               className="text-base font-semibold leading-7 text-white/88"
+              forceExpanded={forceExpanded}
               text={assessment.marketPosition}
             />
           </SummaryTextBlock>
@@ -911,6 +1054,7 @@ function AssessmentSummaryCard({
           <SummaryTextBlock title="Core Positioning">
             <ExpandableText
               className="text-base leading-7 text-white/78"
+              forceExpanded={forceExpanded}
               text={assessment.corePositioning}
             />
           </SummaryTextBlock>
@@ -989,10 +1133,19 @@ function SummaryList({ items, title }: { items: string[]; title: string }) {
   );
 }
 
-function ExpandableText({ className, text }: { className: string; text: string }) {
+function ExpandableText({
+  className,
+  forceExpanded,
+  text,
+}: {
+  className: string;
+  forceExpanded: boolean;
+  text: string;
+}) {
   const textRef = useRef<HTMLParagraphElement>(null);
   const [canCollapse, setCanCollapse] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const isCollapsed = canCollapse && !expanded && !forceExpanded;
 
   useEffect(() => {
     const element = textRef.current;
@@ -1010,13 +1163,13 @@ function ExpandableText({ className, text }: { className: string; text: string }
         className={className}
         ref={textRef}
         style={{
-          maxHeight: canCollapse && !expanded ? "8.75rem" : undefined,
-          overflow: canCollapse && !expanded ? "hidden" : undefined,
+          maxHeight: isCollapsed ? "8.75rem" : undefined,
+          overflow: isCollapsed ? "hidden" : undefined,
         }}
       >
         {text}
       </p>
-      {canCollapse && (
+      {canCollapse && !forceExpanded && (
         <button
           className="mt-3 text-sm font-semibold text-[#78B7F4] hover:text-white"
           onClick={() => setExpanded((current) => !current)}
@@ -1335,180 +1488,6 @@ function ImprovementSection({
         ))}
       </div>
     </InfoSection>
-  );
-}
-
-function ShareableResults({
-  assessment,
-}: {
-  assessment: ProfileIntelligenceAssessment;
-}) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const toastTimerRef = useRef<number | null>(null);
-  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
-  const [shareMessage, setShareMessage] = useState("");
-
-  function showToast(status: Exclude<ShareStatus, "idle" | "sharing">, message: string) {
-    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    setShareStatus(status);
-    setShareMessage(message);
-    toastTimerRef.current = window.setTimeout(() => {
-      setShareStatus("idle");
-      setShareMessage("");
-    }, 4800);
-  }
-
-  async function handleShare() {
-    const card = cardRef.current;
-    if (!card) {
-      showToast("error", "Could not download score card. Please try again.");
-      return;
-    }
-
-    setShareStatus("sharing");
-    const copied = await copyTextToClipboard(assessment.shareText);
-    if (!copied) {
-      showToast("error", "Could not copy text automatically. Please copy it manually.");
-      return;
-    }
-
-    try {
-      const imageUrl = await toPng(card, {
-        backgroundColor: "#FFFFFF",
-        cacheBust: true,
-        pixelRatio: 2,
-        style: { margin: "0" },
-      });
-      downloadDataUrl(imageUrl, SCORE_IMAGE_FILENAME);
-    } catch (error) {
-      console.error(error);
-      showToast("error", "Could not download score card. Please try again.");
-      return;
-    }
-
-    const linkedInTab = window.open(LINKEDIN_FEED_URL, "_blank", "noopener,noreferrer");
-    showToast(
-      linkedInTab ? "success" : "error",
-      linkedInTab
-        ? "Post text copied. Score card downloaded. Open LinkedIn and attach the image to your post."
-        : "LinkedIn could not open automatically. Please open LinkedIn manually.",
-    );
-  }
-
-  return (
-    <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
-      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Shareable results
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold">
-            Share your authority score
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-[#666666]">
-            Your post text will be copied automatically. Your score card image
-            will be downloaded, please attach it manually to your LinkedIn post.
-          </p>
-          <button
-            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:opacity-70 sm:w-auto"
-            disabled={shareStatus === "sharing"}
-            onClick={handleShare}
-            type="button"
-          >
-            {shareStatus === "sharing" ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Copy Text, Download Card & Open LinkedIn
-          </button>
-        </div>
-
-        <div
-          className="share-card rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_12px_34px_rgba(10,25,47,0.1)]"
-          ref={cardRef}
-        >
-          <div className="flex items-center justify-between gap-4 border-b border-[#D9DDE3] pb-4">
-            <Logo markSize={40} showSubtitle={false} />
-            <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-              in-connect.app
-            </span>
-          </div>
-          <div className="mt-5 grid gap-5 md:grid-cols-[auto_1fr] md:items-center">
-            <ScoreRing score={assessment.totalScore} />
-            <div>
-              <p className="text-sm uppercase tracking-[0.18em] text-[#666666]">
-                LinkedIn Authority Score
-              </p>
-              <p className="mt-3 text-4xl font-semibold">
-                {assessment.totalScore} / 100
-              </p>
-            </div>
-          </div>
-          <div className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-            <div className="flex items-start gap-3">
-              <ArchetypeIcon animal={assessment.professionalArchetype.animal} />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
-                  Professional Archetype
-                </p>
-                <p className="mt-2 text-xl font-semibold text-[#191919]">
-                  {assessment.professionalArchetype.animal}
-                </p>
-                <p className="mt-1 font-semibold text-[#0A66C2]">
-                  {assessment.professionalArchetype.label}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[#666666]">
-                  {assessment.professionalArchetype.explanation}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
-              Core Positioning
-            </p>
-            <p className="mt-2 whitespace-normal text-base font-semibold leading-6 text-[#191919]">
-              {assessment.corePositioning}
-            </p>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <ShareList title="Key Expertise Areas" items={assessment.keyExpertiseDomains.slice(0, 3)} />
-            <ShareList title="Positive Highlights" items={assessment.positiveHighlights.slice(0, 3)} />
-          </div>
-        </div>
-      </div>
-
-      {shareStatus !== "idle" && shareStatus !== "sharing" && (
-        <div
-          className={classNames(
-            "fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border bg-white px-4 py-3 text-sm font-semibold shadow-[0_18px_48px_rgba(10,25,47,0.18)]",
-            shareStatus === "success"
-              ? "border-[#057642]/25 text-[#057642]"
-              : "border-red-300 text-red-600",
-          )}
-          role="status"
-        >
-          {shareMessage}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ShareList({ items, title }: { items: string[]; title: string }) {
-  return (
-    <div>
-      <p className="text-sm font-semibold text-[#191919]">{title}</p>
-      <ul className="mt-3 grid gap-2 text-sm text-[#666666]">
-        {items.map((item) => (
-          <li className="flex items-center gap-2" key={item}>
-            <BadgeCheck className="h-4 w-4 shrink-0 text-[#057642]" />
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 
