@@ -20,6 +20,7 @@ import {
   FormEvent,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -86,6 +87,8 @@ type ReturningUserProfile = {
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png";
+const ADSENSE_PUBLISHER_ID = "ca-pub-6306589054094473";
+const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 
@@ -1569,6 +1572,71 @@ function LockedPreview({
   );
 }
 
+function SponsoredContent() {
+  const [isHidden, setIsHidden] = useState(false);
+  const handleEmpty = useCallback(() => setIsHidden(true), []);
+
+  if (!ADS_ENABLED || isHidden) return null;
+
+  return (
+    <section className="bg-[#F3F2EF] px-5 py-8 sm:px-8 lg:px-10" aria-label="Sponsored Content">
+      <div className="mx-auto max-w-7xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Sponsored Content
+        </p>
+        <AdSenseSlot onEmpty={handleEmpty} />
+      </div>
+    </section>
+  );
+}
+
+function AdSenseSlot({ onEmpty }: { onEmpty: () => void }) {
+  const adRef = useRef<HTMLModElement>(null);
+
+  useEffect(() => {
+    const adElement = adRef.current;
+    if (!adElement || adElement.dataset.adRequested === "true") return;
+
+    let emptyCheckTimer: number | undefined;
+
+    try {
+      const adsWindow = window as Window & {
+        adsbygoogle?: Array<Record<string, unknown>>;
+      };
+      adsWindow.adsbygoogle = adsWindow.adsbygoogle || [];
+      adElement.dataset.adRequested = "true";
+      adsWindow.adsbygoogle.push({});
+
+      emptyCheckTimer = window.setTimeout(() => {
+        const status = adElement.getAttribute("data-ad-status");
+        const hasRenderedAd = Boolean(adElement.querySelector("iframe"));
+        if (status === "unfilled" || (!hasRenderedAd && adElement.children.length === 0)) {
+          onEmpty();
+        }
+      }, 5000);
+    } catch {
+      onEmpty();
+    }
+
+    return () => {
+      if (emptyCheckTimer) window.clearTimeout(emptyCheckTimer);
+    };
+  }, [onEmpty]);
+
+  return (
+    <div className="mt-4 min-h-[112px] overflow-hidden rounded-lg border border-[#D9DDE3] bg-white p-3 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:min-h-[132px]">
+      <ins
+        className="adsbygoogle block min-h-[88px] w-full overflow-hidden sm:min-h-[108px]"
+        data-ad-client={ADSENSE_PUBLISHER_ID}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+        ref={adRef}
+        style={{ display: "block" }}
+      />
+    </div>
+  );
+}
+
 function Footer() {
   const footerLinks = [
     { label: "About", href: "/about" },
@@ -1906,6 +1974,7 @@ export function INConnectPlatform() {
           </div>
         </div>
       </section>
+      <SponsoredContent />
       <Footer />
     </main>
   );

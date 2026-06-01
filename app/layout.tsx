@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+
+const ADSENSE_PUBLISHER_ID = "ca-pub-6306589054094473";
+const ADSENSE_SCRIPT_SRC = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_PUBLISHER_ID}`;
+const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://inconnect.app"),
@@ -41,7 +46,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {ADS_ENABLED && (
+          <Script
+            async
+            crossOrigin="anonymous"
+            id="google-adsense"
+            src={ADSENSE_SCRIPT_SRC}
+            strategy="afterInteractive"
+          />
+        )}
+        {children}
+      </body>
     </html>
   );
 }
