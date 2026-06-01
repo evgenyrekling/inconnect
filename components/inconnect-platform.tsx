@@ -87,7 +87,7 @@ const navItems = [
   { label: "Trend Radar", href: "#trend-radar" },
   { label: "Content Intelligence", href: "#content-intelligence" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Contact", href: "#contact" },
+  { label: "Contact", href: "/contact" },
 ];
 
 function classNames(...classes: Array<string | false | null | undefined>) {
