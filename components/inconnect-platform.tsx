@@ -1013,7 +1013,7 @@ function AssessmentSummaryCard({
       ref={cardRef}
     >
       <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-        <Logo markSize={42} showSubtitle={false} />
+        <AssessmentCardLogo />
         <span className="inline-flex w-fit rounded-lg border border-[#78B7F4]/25 bg-white/[0.08] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
           in-connect.app
         </span>
@@ -1067,6 +1067,32 @@ function AssessmentSummaryCard({
         </div>
       </div>
     </section>
+  );
+}
+
+function AssessmentCardLogo() {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  return (
+    <div className="flex min-h-12 items-center">
+      {!logoFailed ? (
+        <img
+          alt="INConnect"
+          className="h-11 w-auto object-contain"
+          crossOrigin="anonymous"
+          decoding="async"
+          onError={() => setLogoFailed(true)}
+          src="/logo-dark.svg"
+        />
+      ) : (
+        <div className="leading-tight">
+          <p className="text-xl font-semibold text-white">INConnect</p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#78B7F4]">
+            Profile Intelligence Platform
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
