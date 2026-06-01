@@ -19,6 +19,13 @@ export type PositioningSnapshotItem = {
   percentage: number;
 };
 
+export type ProfessionalArchetype = {
+  animal: string;
+  label: string;
+  explanation: string;
+  reasoning: string;
+};
+
 export type ProfileIntelligenceAssessment = {
   assessmentId?: string;
   assessmentDate?: string;
@@ -58,6 +65,7 @@ export type ProfileIntelligenceAssessment = {
   assessmentConfidence: "HIGH" | "MEDIUM";
   confidenceReason: string;
   corePositioning: string;
+  professionalArchetype: ProfessionalArchetype;
   topCompetencies: string[];
   keyExpertiseDomains: string[];
   authorityGrowthAreas: string[];
@@ -85,6 +93,73 @@ const SCORE_FRAMEWORK: Array<{
   { category: "Commercial Impact", weight: 15 },
   { category: "Authority Potential", weight: 15 },
 ];
+
+const ARCHETYPE_DEFINITIONS = {
+  Falcon: {
+    animal: "Falcon",
+    label: "Strategic Market Visionary",
+    explanation:
+      "You identify trends early, connect expertise with market opportunity, and position yourself around future-facing professional themes.",
+    reasoning:
+      "Selected for strategic positioning, trend awareness, innovation signals, and market foresight.",
+  },
+  Bear: {
+    animal: "Bear",
+    label: "Trusted Industry Anchor",
+    explanation:
+      "You project stability, operational strength, and hard-earned credibility built through sustained professional experience.",
+    reasoning:
+      "Selected for long experience, reliability, operational depth, and trusted industry authority.",
+  },
+  Wolf: {
+    animal: "Wolf",
+    label: "Ecosystem Builder",
+    explanation:
+      "You create momentum through relationships, partnerships, and the ability to connect people, markets, and commercial opportunities.",
+    reasoning:
+      "Selected for networking, partnership, ecosystem-building, and sales leadership signals.",
+  },
+  Lion: {
+    animal: "Lion",
+    label: "Executive Authority Leader",
+    explanation:
+      "You communicate leadership presence, influence, and the confidence to represent ideas, teams, or markets in public view.",
+    reasoning:
+      "Selected for executive leadership, public authority, seniority, and influence signals.",
+  },
+  Owl: {
+    animal: "Owl",
+    label: "Deep Expertise Specialist",
+    explanation:
+      "You stand out through analytical depth, specialist knowledge, and the ability to turn complex expertise into professional authority.",
+    reasoning:
+      "Selected for technical expertise, analytical thinking, and specialist knowledge signals.",
+  },
+  Dolphin: {
+    animal: "Dolphin",
+    label: "Relationship-Centered Communicator",
+    explanation:
+      "You build trust through communication, customer orientation, and an ability to translate expertise into human connection.",
+    reasoning:
+      "Selected for communication, relationship-building, customer orientation, and people-centered signals.",
+  },
+  Bull: {
+    animal: "Bull",
+    label: "Commercial Growth Driver",
+    explanation:
+      "You bring direct business momentum through sales drive, market execution, and a clear orientation toward commercial outcomes.",
+    reasoning:
+      "Selected for commercial growth, sales drive, business development, and revenue signals.",
+  },
+  Dragon: {
+    animal: "Dragon",
+    label: "Rare Authority Compounder",
+    explanation:
+      "You combine seniority, innovation, influence, and authority in a way that can create unusually strong professional market gravity.",
+    reasoning:
+      "Selected for a rare combination of seniority, innovation, influence, and authority signals.",
+  },
+} satisfies Record<string, ProfessionalArchetype>;
 
 export function normalizeProfileAssessment(
   assessment: ProfileIntelligenceAssessment,
@@ -158,6 +233,7 @@ export function normalizeProfileAssessment(
       "Based on comprehensive LinkedIn Profile PDF analysis.",
     ),
     corePositioning: cleanText(assessment.corePositioning, "Professional authority profile"),
+    professionalArchetype: normalizeProfessionalArchetype(assessment),
     topCompetencies: normalizeList(assessment.topCompetencies).slice(0, 5),
     keyExpertiseDomains: normalizeList(assessment.keyExpertiseDomains).slice(0, 5),
     authorityGrowthAreas: uniqueWithoutOverlap(
@@ -262,6 +338,7 @@ export function createProfileShareText(assessment: ProfileIntelligenceAssessment
     "I just checked my LinkedIn Authority Score using INConnect.",
     "",
     `My score: ${assessment.totalScore}/100`,
+    `Professional archetype: ${assessment.professionalArchetype.animal} - ${assessment.professionalArchetype.label}`,
     "",
     "Market position:",
     assessment.marketPosition,
@@ -416,6 +493,114 @@ function normalizePositioningSnapshot(value: unknown) {
     }))
     .filter((item) => item.label && item.percentage > 0)
     .slice(0, 5);
+}
+
+function normalizeProfessionalArchetype(
+  assessment: ProfileIntelligenceAssessment,
+): ProfessionalArchetype {
+  const source =
+    assessment.professionalArchetype &&
+    typeof assessment.professionalArchetype === "object"
+      ? assessment.professionalArchetype
+      : null;
+  const fallback = inferProfessionalArchetype(assessment);
+  const animal = cleanText(source?.animal, fallback.animal);
+  const normalizedAnimal = getArchetypeDefinition(animal)?.animal ?? fallback.animal;
+  const definition = getArchetypeDefinition(normalizedAnimal) ?? fallback;
+
+  return {
+    animal: definition.animal,
+    label: cleanText(source?.label, definition.label),
+    explanation: cleanText(source?.explanation, definition.explanation),
+    reasoning: cleanText(source?.reasoning, definition.reasoning),
+  };
+}
+
+function inferProfessionalArchetype(
+  assessment: ProfileIntelligenceAssessment,
+): ProfessionalArchetype {
+  const evidence = [
+    assessment.profileSnapshot?.estimatedYearsOfExperience,
+    assessment.profileSnapshot?.currentRole,
+    assessment.profileSnapshot?.currentCompany,
+    assessment.marketPosition,
+    assessment.whatMakesYouUnique,
+    assessment.corePositioning,
+    assessment.scoreExplanation,
+    ...(assessment.topCompetencies ?? []),
+    ...(assessment.keyExpertiseDomains ?? []),
+    ...(assessment.authorityGrowthAreas ?? []),
+    ...(assessment.positiveHighlights ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const seniority = countMatches(
+    evidence,
+    /\b(20\+|20\s*\+|2[0-9]\s*(years|yrs)|3[0-9]\s*(years|yrs)|decades|senior|executive|director|vp|chief|head of|global|international)\b/g,
+  );
+  const innovation = countMatches(
+    evidence,
+    /\b(strategy|strategic|trend|foresight|future|innovation|innovative|market opportunity|transformation|emerging|vision)\b/g,
+  );
+  const influence = countMatches(
+    evidence,
+    /\b(authority|thought leader|influence|public|speaker|keynote|executive presence|leadership|community)\b/g,
+  );
+
+  if (seniority >= 3 && innovation >= 2 && influence >= 2) {
+    return ARCHETYPE_DEFINITIONS.Dragon;
+  }
+  if (innovation >= 3) return ARCHETYPE_DEFINITIONS.Falcon;
+  if (
+    /\b(stability|operations|operational|trusted|governance|delivery|reliability|enterprise|infrastructure|manufacturing|industrial)\b/.test(
+      evidence,
+    ) ||
+    seniority >= 4
+  ) {
+    return ARCHETYPE_DEFINITIONS.Bear;
+  }
+  if (
+    /\b(network|networking|partnership|partner|ecosystem|alliance|sales leadership|channel|stakeholder)\b/.test(
+      evidence,
+    )
+  ) {
+    return ARCHETYPE_DEFINITIONS.Wolf;
+  }
+  if (influence >= 3 || /\b(ceo|founder|president|board|public authority)\b/.test(evidence)) {
+    return ARCHETYPE_DEFINITIONS.Lion;
+  }
+  if (
+    /\b(technical|engineering|analytical|specialist|specialized|expert|architecture|data|ai|software|research|science|certified)\b/.test(
+      evidence,
+    )
+  ) {
+    return ARCHETYPE_DEFINITIONS.Owl;
+  }
+  if (
+    /\b(communication|customer|client|relationship|success|service|consultative|community|people)\b/.test(
+      evidence,
+    )
+  ) {
+    return ARCHETYPE_DEFINITIONS.Dolphin;
+  }
+  if (/\b(commercial|revenue|sales|growth|business development|pipeline|go-to-market)\b/.test(evidence)) {
+    return ARCHETYPE_DEFINITIONS.Bull;
+  }
+
+  return ARCHETYPE_DEFINITIONS.Falcon;
+}
+
+function getArchetypeDefinition(value: string) {
+  const key = Object.keys(ARCHETYPE_DEFINITIONS).find(
+    (animal) => animal.toLowerCase() === value.toLowerCase(),
+  ) as keyof typeof ARCHETYPE_DEFINITIONS | undefined;
+
+  return key ? ARCHETYPE_DEFINITIONS[key] : undefined;
+}
+
+function countMatches(value: string, pattern: RegExp) {
+  return value.match(pattern)?.length ?? 0;
 }
 
 function normalizeList(value: unknown) {

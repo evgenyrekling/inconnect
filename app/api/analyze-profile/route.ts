@@ -61,6 +61,7 @@ const responseSchema = {
     "assessmentConfidence",
     "confidenceReason",
     "corePositioning",
+    "professionalArchetype",
     "topCompetencies",
     "keyExpertiseDomains",
     "authorityGrowthAreas",
@@ -148,6 +149,20 @@ const responseSchema = {
     assessmentConfidence: { type: "string", enum: ["HIGH", "MEDIUM"] },
     confidenceReason: { type: "string" },
     corePositioning: { type: "string" },
+    professionalArchetype: {
+      type: "object",
+      additionalProperties: false,
+      required: ["animal", "label", "explanation", "reasoning"],
+      properties: {
+        animal: {
+          type: "string",
+          enum: ["Falcon", "Bear", "Wolf", "Lion", "Owl", "Dolphin", "Bull", "Dragon"],
+        },
+        label: { type: "string" },
+        explanation: { type: "string" },
+        reasoning: { type: "string" },
+      },
+    },
     topCompetencies: { type: "array", items: { type: "string" } },
     keyExpertiseDomains: { type: "array", items: { type: "string" } },
     authorityGrowthAreas: { type: "array", items: { type: "string" } },
@@ -368,6 +383,7 @@ export async function POST(request: NextRequest) {
       assessment_confidence: storedAssessment.assessmentConfidence,
       market_position: storedAssessment.marketPosition,
       core_positioning: storedAssessment.corePositioning,
+      professional_archetype: storedAssessment.professionalArchetype,
       positioning_snapshot: storedAssessment.positioningSnapshot,
       what_makes_unique: storedAssessment.whatMakesYouUnique,
       score_breakdown: storedAssessment.scoreBreakdown,
@@ -471,7 +487,7 @@ async function analyzeProfilePdf({
     response = await openai.responses.parse({
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
       temperature: 0.7,
-      max_output_tokens: 1200,
+      max_output_tokens: 1600,
       input: [
         {
           role: "system",
@@ -519,6 +535,8 @@ async function analyzeProfilePdf({
             "- Senior professionals with 20+ years of experience, global responsibility, deep specialization, leadership experience, and commercial impact should normally score at least 75 unless the PDF lacks evidence.",
             "- Do not penalize primarily for follower count, engagement, or posting frequency.",
             "- Include scoreLevel and scoreExplanation so the user understands why they received the score.",
+            "- Professional Archetype: choose exactly one animal from Falcon, Bear, Wolf, Lion, Owl, Dolphin, Bull, Dragon. Include animal, short label, 1-2 sentence explanation, and concise reasoning.",
+            "- Archetype logic: Falcon means strategic positioning, trend awareness, innovation, market foresight. Bear means long experience, stability, trusted industry authority, operational strength. Wolf means networking, partnerships, ecosystem building, sales leadership. Lion means executive leadership, public authority, strong influence. Owl means deep technical expertise, analytical thinking, specialist knowledge. Dolphin means communication, relationship building, customer orientation. Bull means commercial growth, sales drive, business development. Dragon means rare combination of seniority, innovation, influence, and authority.",
             "- Authority Score Breakdown using exactly these weighted categories: Positioning Clarity 20, Career Progression 15, Industry Specialization 20, Leadership Signals 15, Commercial Impact 15, Authority Potential 15. Each category needs score, explanation, improvementHint.",
             "- Positioning Gap with currentPosition, potentialPosition, gapExplanation.",
             "- Profile Improvement Recommendations: headlineImprovement, aboutSectionImprovement, keywordsToAdd, authoritySignalsToStrengthen, missingProfessionalThemes, suggestedPositioningAngle.",

@@ -26,6 +26,7 @@ create table if not exists public.assessments (
   assessment_confidence text,
   market_position text,
   core_positioning text,
+  professional_archetype jsonb,
   positioning_snapshot jsonb,
   what_makes_unique text,
   score_breakdown jsonb,

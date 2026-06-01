@@ -130,11 +130,6 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-function compactLabel(value: string, max = 48) {
-  const clean = value.replace(/\s+/g, " ").trim().replace(/\.$/, "");
-  return clean.length > max ? `${clean.slice(0, max - 3).trim()}...` : clean;
-}
-
 function formatDisplayDate(value?: string) {
   if (!value) return "";
   const date = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value);
@@ -832,13 +827,9 @@ function AssessmentResults({
         </section>
       )}
 
-      <ProfileSnapshotSection assessment={assessment} />
+      <AssessmentSummaryCard assessment={assessment} />
 
-      <InfoSection eyebrow="Market position" title="How The Market Sees You">
-        <p className="text-xl font-semibold leading-8 text-[#191919]">
-          {assessment.marketPosition}
-        </p>
-      </InfoSection>
+      <ProfileSnapshotSection assessment={assessment} />
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <PositioningSnapshotSection assessment={assessment} />
@@ -849,51 +840,12 @@ function AssessmentResults({
         </InfoSection>
       </div>
 
-      <section className="rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] p-5 text-white shadow-[0_24px_70px_rgba(10,25,47,0.2)] sm:p-7">
-        <div className="grid gap-7 lg:grid-cols-[auto_1fr] lg:items-center">
-          <ScoreRing score={assessment.totalScore} />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-              LinkedIn Authority Score
-            </p>
-            <h2 className="mt-3 text-4xl font-semibold sm:text-5xl">
-              {assessment.totalScore} / 100
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-[#78B7F4]">
-                {assessment.assessmentConfidence} confidence
-              </span>
-              <span className="rounded-lg border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-white/80">
-                {assessment.scoreLevel}
-              </span>
-            </div>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-white/75">
-              {assessment.confidenceReason}
-            </p>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-white/75">
-              {assessment.scoreExplanation}
-            </p>
-            <p className="mt-4 text-xl font-semibold">
-              {assessment.corePositioning}
-            </p>
-          </div>
-        </div>
-      </section>
-
       <AuthorityBreakdownSection assessment={assessment} />
 
       <PositioningGapSection assessment={assessment} />
 
       <InfoSection eyebrow="Competencies" title="Top Competencies">
         <TagGrid items={assessment.topCompetencies} />
-      </InfoSection>
-
-      <InfoSection eyebrow="Expertise" title="Key Expertise Domains">
-        <TagGrid items={assessment.keyExpertiseDomains} />
-      </InfoSection>
-
-      <InfoSection eyebrow="Authority growth" title="Authority Growth Areas">
-        <TagGrid items={assessment.authorityGrowthAreas} />
       </InfoSection>
 
       <ImprovementSection assessment={assessment} />
@@ -914,6 +866,198 @@ function AssessmentResults({
 
       <ShareableResults assessment={assessment} />
     </div>
+  );
+}
+
+function AssessmentSummaryCard({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-[#0A66C2]/20 bg-[#0A192F] text-white shadow-[0_24px_70px_rgba(10,25,47,0.22)]">
+      <div className="grid gap-0 lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="border-b border-white/10 p-5 sm:p-7 lg:border-b-0 lg:border-r">
+          <ScoreRing score={assessment.totalScore} />
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
+            Authority Score
+          </p>
+          <h2 className="mt-3 text-4xl font-semibold sm:text-5xl">
+            {assessment.totalScore} / 100
+          </h2>
+          <div className="mt-5 rounded-lg border border-white/12 bg-white/[0.07] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#78B7F4]">
+              Assessment Confidence
+            </p>
+            <p className="mt-2 text-lg font-semibold">
+              {assessment.assessmentConfidence} confidence
+            </p>
+            <p className="mt-2 text-sm leading-6 text-white/72">
+              {assessment.confidenceReason}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-5 sm:p-7">
+          <ProfessionalArchetypePanel assessment={assessment} />
+
+          <SummaryTextBlock title="Market Position">
+            <ExpandableText
+              className="text-base font-semibold leading-7 text-white/88"
+              text={assessment.marketPosition}
+            />
+          </SummaryTextBlock>
+
+          <SummaryTextBlock title="Core Positioning">
+            <ExpandableText
+              className="text-base leading-7 text-white/78"
+              text={assessment.corePositioning}
+            />
+          </SummaryTextBlock>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryList title="Key Expertise Areas" items={assessment.keyExpertiseDomains} />
+            <SummaryList title="Top Authority Areas" items={assessment.authorityGrowthAreas} />
+            <SummaryList title="Positive Highlights" items={assessment.positiveHighlights} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProfessionalArchetypePanel({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  const archetype = assessment.professionalArchetype;
+
+  return (
+    <article className="rounded-lg border border-[#78B7F4]/25 bg-white/[0.08] p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <ArchetypeIcon animal={archetype.animal} />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#78B7F4]">
+            Professional Archetype
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold">{archetype.animal}</h3>
+          <p className="mt-1 text-lg font-semibold text-white/88">
+            {archetype.label}
+          </p>
+          <p className="mt-3 text-sm leading-6 text-white/72">
+            {archetype.explanation}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SummaryTextBlock({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <article className="rounded-lg border border-white/10 bg-white/[0.05] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#78B7F4]">
+        {title}
+      </p>
+      <div className="mt-3">{children}</div>
+    </article>
+  );
+}
+
+function SummaryList({ items, title }: { items: string[]; title: string }) {
+  return (
+    <article className="rounded-lg border border-white/10 bg-white/[0.05] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#78B7F4]">
+        {title}
+      </p>
+      <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/76">
+        {items.slice(0, 4).map((item) => (
+          <li className="flex gap-2" key={item}>
+            <BadgeCheck className="mt-1 h-4 w-4 shrink-0 text-[#78B7F4]" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function ExpandableText({ className, text }: { className: string; text: string }) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [canCollapse, setCanCollapse] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element) return;
+
+    const styles = window.getComputedStyle(element);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
+    setCanCollapse(element.scrollHeight > lineHeight * 5 + 1);
+    setExpanded(true);
+  }, [text]);
+
+  return (
+    <>
+      <p
+        className={className}
+        ref={textRef}
+        style={{
+          maxHeight: canCollapse && !expanded ? "8.75rem" : undefined,
+          overflow: canCollapse && !expanded ? "hidden" : undefined,
+        }}
+      >
+        {text}
+      </p>
+      {canCollapse && (
+        <button
+          className="mt-3 text-sm font-semibold text-[#78B7F4] hover:text-white"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </>
+  );
+}
+
+function ArchetypeIcon({ animal }: { animal: string }) {
+  const stroke = "#0A66C2";
+  const accent = "#78B7F4";
+  const shapes: Record<string, ReactNode> = {
+    Falcon: <path d="M14 34 L32 16 L50 34 L36 31 L32 48 L28 31 Z" />,
+    Bear: <path d="M18 28 Q18 18 32 18 Q46 18 46 28 L42 46 H22 Z M22 20 L16 14 M42 20 L48 14" />,
+    Wolf: <path d="M14 42 L22 18 L32 30 L42 18 L50 42 L38 36 L32 48 L26 36 Z" />,
+    Lion: <path d="M16 32 L24 16 H40 L48 32 L40 48 H24 Z M25 32 H39" />,
+    Owl: <path d="M18 18 H46 L40 48 H24 Z M24 28 H30 M34 28 H40 M32 34 V44" />,
+    Dolphin: <path d="M12 36 Q28 16 50 27 Q38 28 32 42 Q24 34 12 36 Z M42 28 L52 20" />,
+    Bull: <path d="M16 20 Q20 32 32 32 Q44 32 48 20 M22 30 L22 46 H42 L42 30 M26 38 H38" />,
+    Dragon: <path d="M14 42 L24 18 L32 30 L42 18 L50 42 L38 38 L32 50 L26 38 Z M24 18 L18 14 M42 18 L48 14" />,
+  };
+
+  return (
+    <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border border-[#78B7F4]/30 bg-white">
+      <svg
+        aria-hidden="true"
+        className="h-11 w-11"
+        fill="none"
+        stroke={stroke}
+        strokeLinejoin="round"
+        strokeWidth="3"
+        viewBox="0 0 64 64"
+      >
+        <circle cx="32" cy="32" fill="#E8F1FB" r="27" stroke={accent} strokeWidth="2" />
+        {shapes[animal] ?? shapes.Falcon}
+      </svg>
+    </span>
   );
 }
 
@@ -1299,35 +1443,37 @@ function ShareableResults({
               <p className="mt-3 text-4xl font-semibold">
                 {assessment.totalScore} / 100
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-                  {assessment.assessmentConfidence} confidence
-                </span>
-                <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-1 text-xs font-semibold text-[#666666]">
-                  {assessment.scoreLevel}
-                </span>
-              </div>
             </div>
           </div>
           <div className="mt-5 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
-              Market Position
-            </p>
-            <p className="mt-2 text-lg font-semibold">
-              {compactLabel(assessment.marketPosition, 110)}
-            </p>
+            <div className="flex items-start gap-3">
+              <ArchetypeIcon animal={assessment.professionalArchetype.animal} />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Professional Archetype
+                </p>
+                <p className="mt-2 text-xl font-semibold text-[#191919]">
+                  {assessment.professionalArchetype.animal}
+                </p>
+                <p className="mt-1 font-semibold text-[#0A66C2]">
+                  {assessment.professionalArchetype.label}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#666666]">
+                  {assessment.professionalArchetype.explanation}
+                </p>
+              </div>
+            </div>
           </div>
           <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
               Core Positioning
             </p>
-            <p className="mt-2 font-semibold text-[#191919]">
-              {compactLabel(assessment.corePositioning, 72)}
+            <p className="mt-2 whitespace-normal text-base font-semibold leading-6 text-[#191919]">
+              {assessment.corePositioning}
             </p>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
             <ShareList title="Key Expertise Areas" items={assessment.keyExpertiseDomains.slice(0, 3)} />
-            <ShareList title="Top Authority Areas" items={assessment.authorityGrowthAreas.slice(0, 3)} />
             <ShareList title="Positive Highlights" items={assessment.positiveHighlights.slice(0, 3)} />
           </div>
         </div>
@@ -1358,7 +1504,7 @@ function ShareList({ items, title }: { items: string[]; title: string }) {
         {items.map((item) => (
           <li className="flex items-center gap-2" key={item}>
             <BadgeCheck className="h-4 w-4 shrink-0 text-[#057642]" />
-            {compactLabel(item, 38)}
+            <span>{item}</span>
           </li>
         ))}
       </ul>
