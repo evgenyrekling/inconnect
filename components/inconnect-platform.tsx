@@ -1419,6 +1419,13 @@ function LockedPreview({
 }
 
 function Footer() {
+  const footerLinks = [
+    { label: "About", href: "/about" },
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
+    { label: "Contact", href: "/contact" },
+  ];
+
   return (
     <footer
       className="border-t border-[#D9DDE3] bg-white px-5 py-8 text-[#666666] sm:px-8 lg:px-10"
@@ -1426,11 +1433,18 @@ function Footer() {
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <Logo markSize={38} />
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span>Copyright 2026 INConnect</span>
-          <a href="#contact">Privacy</a>
-          <a href="#contact">Terms</a>
-          <a href="mailto:hello@in-connect.app">Contact</a>
+        <div className="flex flex-col gap-3 sm:items-end">
+          <div>
+            <p className="font-semibold text-[#191919]">© INConnect</p>
+            <p className="mt-1 text-sm">Profile Intelligence Platform</p>
+          </div>
+          <nav className="flex flex-wrap gap-4 text-sm font-semibold">
+            {footerLinks.map((link) => (
+              <a className="hover:text-[#0A66C2]" href={link.href} key={link.href}>
+                {link.label}
+              </a>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>
