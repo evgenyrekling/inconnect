@@ -8,16 +8,16 @@ const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://inconnect.app"),
-  title: "INConnect | Your AI LinkedIn Growth Assistant",
+  title: "INConnect | Your AI LinkedIn Intelligence Platform",
   description:
-    "Analyze LinkedIn positioning, discover relevant trends, and generate personalized content ideas designed to grow professional and company authority.",
+    "Improve LinkedIn positioning, visibility, authority, and growth opportunities with AI-powered profile intelligence and headline generation.",
   icons: {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "INConnect | Your AI LinkedIn Growth Assistant",
+    title: "INConnect | Your AI LinkedIn Intelligence Platform",
     description:
-      "Analyze LinkedIn positioning, discover trends, and grow professional authority.",
+      "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
     url: "https://inconnect.app",
     siteName: "INConnect",
     images: [
@@ -25,16 +25,16 @@ export const metadata: Metadata = {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "INConnect LinkedIn growth assistant preview",
+        alt: "INConnect LinkedIn intelligence platform preview",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "INConnect | Your AI LinkedIn Growth Assistant",
+    title: "INConnect | Your AI LinkedIn Intelligence Platform",
     description:
-      "Analyze LinkedIn positioning, discover trends, and grow professional authority.",
+      "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
     images: ["/og-image.svg"],
   },
 };

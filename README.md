@@ -1,7 +1,7 @@
 # INConnect Freemium SaaS Prototype
 
-INConnect is an AI LinkedIn Growth Assistant for professionals and companies
-that want clearer LinkedIn authority, trend relevance, and content direction.
+INConnect is an AI LinkedIn Intelligence Platform for professionals who want
+clearer positioning, visibility, authority, and LinkedIn growth opportunities.
 
 ## Included
 

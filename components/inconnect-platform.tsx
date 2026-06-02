@@ -3,12 +3,14 @@
 import {
   BadgeCheck,
   Check,
+  Copy,
   Download,
   ExternalLink,
   FileText,
   LoaderCircle,
   LockKeyhole,
   Radar,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Target,
@@ -84,6 +86,16 @@ type ReturningUserProfile = {
   canRunNewAssessment: boolean;
   nextFreeAssessmentDate: string;
 };
+type HeadlineOption = {
+  style: string;
+  headline: string;
+  rationale: string;
+};
+type HeadlineGeneratorResponse = {
+  positioningSummary: string;
+  recommendedIndex: number;
+  headlines: HeadlineOption[];
+};
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png";
@@ -94,10 +106,55 @@ const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
+  { label: "Headline Generator", href: "#headline-generator" },
   { label: "Trend Radar", href: "#trend-radar" },
   { label: "Content Intelligence", href: "#content-intelligence" },
   { label: "Pricing", href: "#pricing" },
   { label: "Contact", href: "/contact" },
+];
+
+const expertiseOptions = [
+  "AI Strategy",
+  "Sales Leadership",
+  "Product Management",
+  "B2B Marketing",
+  "Operations",
+  "Data Analytics",
+  "Cybersecurity",
+  "Customer Success",
+  "Consulting",
+  "Finance",
+];
+
+const businessValueOptions = [
+  "Revenue Growth",
+  "Digital Transformation",
+  "Market Expansion",
+  "Operational Efficiency",
+  "Team Leadership",
+  "Product Innovation",
+  "Customer Acquisition",
+  "Strategic Partnerships",
+];
+
+const perceptionOptions = [
+  "Trusted Expert",
+  "Strategic Leader",
+  "Innovator",
+  "Commercial Operator",
+  "Technical Specialist",
+  "Industry Authority",
+  "Growth Partner",
+  "Executive Advisor",
+];
+
+const headlineStyleOptions = [
+  "Executive",
+  "Founder",
+  "Consultant",
+  "Technical Expert",
+  "Sales Leader",
+  "Creator",
 ];
 
 function classNames(...classes: Array<string | false | null | undefined>) {
@@ -273,6 +330,47 @@ function isReturningUserProfile(value: unknown): value is ReturningUserProfile {
   );
 }
 
+function isHeadlineGeneratorResponse(value: unknown): value is HeadlineGeneratorResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "positioningSummary" in value &&
+    typeof value.positioningSummary === "string" &&
+    "recommendedIndex" in value &&
+    typeof value.recommendedIndex === "number" &&
+    "headlines" in value &&
+    Array.isArray(value.headlines) &&
+    value.headlines.every(
+      (headline) =>
+        typeof headline === "object" &&
+        headline !== null &&
+        "style" in headline &&
+        typeof headline.style === "string" &&
+        "headline" in headline &&
+        typeof headline.headline === "string" &&
+        "rationale" in headline &&
+        typeof headline.rationale === "string",
+    )
+  );
+}
+
+function toggleSelection(value: string, selected: string[]) {
+  return selected.includes(value)
+    ? selected.filter((item) => item !== value)
+    : [...selected, value];
+}
+
+function parseCustomList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueItems(items: string[]) {
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+}
+
 function ScoreRing({ score }: { score: number }) {
   const degrees = Math.round((score / 100) * 360);
 
@@ -332,6 +430,221 @@ function Header() {
   );
 }
 
+function HeroSection() {
+  return (
+    <section className="bg-[#0A192F] px-5 py-12 text-white sm:px-8 sm:py-16 lg:px-10">
+      <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
+            INConnect
+          </p>
+          <p className="mt-3 text-lg font-semibold text-white/82">
+            Your AI LinkedIn Intelligence Platform
+          </p>
+          <h1 className="mt-5 max-w-4xl text-4xl font-semibold leading-tight sm:text-6xl">
+            Most professionals are invisible on LinkedIn. INConnect helps change that.
+          </h1>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
+            Discover how the market sees you and build a stronger professional
+            presence across positioning, visibility, authority, and growth
+            opportunities.
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <a
+              className="inline-flex h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 font-semibold text-white transition hover:bg-[#004182]"
+              href="#assessment"
+            >
+              Start Assessment
+            </a>
+            <a
+              className="inline-flex h-12 items-center justify-center rounded-lg border border-[#78B7F4]/45 bg-white/[0.06] px-5 font-semibold text-white transition hover:bg-white/[0.12]"
+              href="#headline-generator"
+            >
+              Generate Headlines
+            </a>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {[
+            ["Positioning", "Understand how your profile communicates market value."],
+            ["Visibility", "Identify signals that make your expertise easier to recognize."],
+            ["Authority", "Track professional credibility and authority growth over time."],
+            ["Growth", "Turn profile intelligence into clearer LinkedIn opportunities."],
+          ].map(([label, description]) => (
+            <article
+              className="rounded-lg border border-white/10 bg-white/[0.06] p-4"
+              key={label}
+            >
+              <p className="text-sm font-semibold text-[#78B7F4]">{label}</p>
+              <p className="mt-2 text-sm leading-6 text-white/72">{description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ModuleGrid() {
+  const modules = [
+    {
+      title: "Profile Intelligence Assessment",
+      status: "Active",
+      description: "Upload your LinkedIn Profile PDF and discover how the market sees you.",
+      features: [
+        "Authority Score",
+        "Professional Archetype",
+        "Market Position",
+        "Assessment History",
+      ],
+      href: "#assessment",
+    },
+    {
+      title: "Headline Generator",
+      status: "Active",
+      description:
+        "Create strategic LinkedIn headlines based on your expertise, value, and desired market perception.",
+      features: [
+        "5-step questionnaire",
+        "AI-generated headlines",
+        "Recommended headline",
+        "Copy and regenerate",
+      ],
+      href: "#headline-generator",
+    },
+    {
+      title: "Trend Radar",
+      status: "Coming Soon in Pro",
+      description: "Discover emerging industry trends aligned with your expertise and positioning.",
+      features: [
+        "Industry trend detection",
+        "Growth opportunities",
+        "Technology trends",
+        "Authority themes",
+      ],
+      href: "#trend-radar",
+    },
+    {
+      title: "Content Intelligence",
+      status: "Coming Soon in Pro",
+      description:
+        "Generate personalized LinkedIn content opportunities based on your expertise and positioning.",
+      features: [
+        "Content pillars",
+        "Post ideas",
+        "Newsletter ideas",
+        "Weekly roadmap",
+      ],
+      href: "#content-intelligence",
+    },
+    {
+      title: "Profile Optimization Suite",
+      status: "Coming Soon",
+      description:
+        "Future tools for rewriting, strengthening, and optimizing every major LinkedIn profile section.",
+      features: [
+        "About Section Generator",
+        "Experience Rewriter",
+        "Skills Optimizer",
+        "Keyword Optimizer",
+      ],
+      href: "#profile-optimization-suite",
+    },
+    {
+      title: "Personal Brand Intelligence",
+      status: "Future",
+      description:
+        "Future assessments for leadership style, communication style, and personal brand positioning.",
+      features: [
+        "Archetype Assessment",
+        "Leadership Style",
+        "Communication Style",
+        "Brand Positioning",
+      ],
+      href: "#personal-brand-intelligence",
+    },
+  ];
+
+  return (
+    <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10" id="modules">
+      <div className="mx-auto max-w-7xl">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            LinkedIn Intelligence Platform
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold text-[#191919]">
+            One platform for positioning, visibility, authority, and growth.
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-[#666666]">
+            Assessment is the entry point. Headline Generator is the second free
+            tool. Future Pro modules expand trend, content, profile, and personal
+            brand intelligence.
+          </p>
+        </div>
+        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {modules.map((module) => {
+            const isActive = module.status === "Active";
+            return (
+              <article
+                className={classNames(
+                  "flex min-h-full flex-col rounded-lg border p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
+                  isActive
+                    ? "border-[#0A66C2]/25 bg-white"
+                    : "border-[#D9DDE3] bg-[#F8F8F6]",
+                )}
+                key={module.title}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-[#191919]">{module.title}</h3>
+                  <span
+                    className={classNames(
+                      "shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold",
+                      isActive
+                        ? "border-[#057642]/20 bg-[#EEF7F2] text-[#057642]"
+                        : "border-[#D9DDE3] bg-white text-[#666666]",
+                    )}
+                  >
+                    {module.status}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[#666666]">
+                  {module.description}
+                </p>
+                <ul className="mt-4 grid gap-2 text-sm leading-6 text-[#666666]">
+                  {module.features.map((feature) => (
+                    <li className="flex gap-2" key={feature}>
+                      {isActive ? (
+                        <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
+                      ) : (
+                        <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#0A66C2]" />
+                      )}
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                {isActive ? (
+                  <a
+                    className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white transition hover:bg-[#004182]"
+                    href={module.href}
+                  >
+                    {module.title === "Headline Generator"
+                      ? "Generate Headlines"
+                      : "Start Assessment"}
+                  </a>
+                ) : (
+                  <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666]">
+                    Coming Soon
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AssessmentForm({
   debug,
   error,
@@ -383,11 +696,12 @@ function AssessmentForm({
           Profile Intelligence Assessment
         </p>
         <h1 className="mt-3 text-3xl font-semibold leading-tight text-[#191919] sm:text-5xl">
-          Your AI LinkedIn Profile Intelligence Platform
+          Discover how the market sees you.
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
-          Upload your LinkedIn Profile PDF and receive a comprehensive authority,
-          positioning, visibility, and profile-improvement assessment.
+          Upload your LinkedIn Profile PDF and receive a comprehensive assessment
+          of authority, archetype, market position, positioning gaps, and profile
+          improvement opportunities.
         </p>
       </div>
 
@@ -556,13 +870,415 @@ function AssessmentForm({
   );
 }
 
+function HeadlineGenerator() {
+  const [currentRole, setCurrentRole] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
+  const [customExpertise, setCustomExpertise] = useState("");
+  const [selectedValue, setSelectedValue] = useState<string[]>([]);
+  const [customValue, setCustomValue] = useState("");
+  const [selectedPerception, setSelectedPerception] = useState<string[]>([]);
+  const [customPerception, setCustomPerception] = useState("");
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(["Executive"]);
+  const [proofPoints, setProofPoints] = useState("");
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [results, setResults] = useState<HeadlineGeneratorResponse | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const expertiseAreas = uniqueItems([
+    ...selectedExpertise,
+    ...parseCustomList(customExpertise),
+  ]);
+  const businessValue = uniqueItems([...selectedValue, ...parseCustomList(customValue)]);
+  const desiredPerception = uniqueItems([
+    ...selectedPerception,
+    ...parseCustomList(customPerception),
+  ]);
+  const canGenerate =
+    currentRole.trim().length > 1 &&
+    targetAudience.trim().length > 1 &&
+    expertiseAreas.length > 0 &&
+    businessValue.length > 0;
+
+  async function generateHeadlines() {
+    if (!canGenerate || isGenerating) return;
+
+    setIsGenerating(true);
+    setError("");
+    setCopiedIndex(null);
+
+    try {
+      const response = await fetch("/api/generate-headlines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentRole,
+          targetAudience,
+          expertiseAreas,
+          businessValue,
+          desiredPerception,
+          stylePreferences: selectedStyles,
+          proofPoints,
+          customInstructions,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const errorMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
+          : "";
+
+      if (!response.ok || !isHeadlineGeneratorResponse(payload)) {
+        throw new Error(errorMessage || "Headline generation failed.");
+      }
+
+      setResults(payload);
+    } catch (generateError) {
+      setError(
+        generateError instanceof Error
+          ? generateError.message
+          : "Headline generation failed.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await generateHeadlines();
+  }
+
+  async function handleCopy(headline: string, index: number) {
+    const copied = await copyTextToClipboard(headline);
+    if (copied) {
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex(null), 2200);
+    }
+  }
+
+  return (
+    <section
+      className="bg-white px-5 py-10 sm:px-8 lg:px-10"
+      id="headline-generator"
+    >
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+        <form
+          className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
+          onSubmit={handleSubmit}
+        >
+          <div className="border-b border-[#D9DDE3] pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              LinkedIn Headline Generator
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold text-[#191919]">
+              Create strategic LinkedIn headlines.
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[#666666]">
+              Create strategic LinkedIn headlines based on your role, expertise,
+              business value, and desired market perception.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-5">
+            <fieldset className="grid gap-3">
+              <legend className="font-semibold text-[#191919]">
+                1. Role and audience
+              </legend>
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Current role
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setCurrentRole(event.target.value)}
+                  placeholder="Founder, Sales Director, AI Consultant..."
+                  value={currentRole}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Target audience
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setTargetAudience(event.target.value)}
+                  placeholder="B2B SaaS founders, enterprise buyers, HR leaders..."
+                  value={targetAudience}
+                />
+              </label>
+            </fieldset>
+
+            <HeadlineChipStep
+              customLabel="Custom expertise"
+              customPlaceholder="Add niche skills or industries"
+              customValue={customExpertise}
+              label="2. Expertise areas"
+              onCustomChange={setCustomExpertise}
+              onToggle={(item) =>
+                setSelectedExpertise((current) => toggleSelection(item, current))
+              }
+              options={expertiseOptions}
+              selected={selectedExpertise}
+            />
+
+            <HeadlineChipStep
+              customLabel="Custom business value"
+              customPlaceholder="Add specific outcomes or value"
+              customValue={customValue}
+              label="3. Business value"
+              onCustomChange={setCustomValue}
+              onToggle={(item) =>
+                setSelectedValue((current) => toggleSelection(item, current))
+              }
+              options={businessValueOptions}
+              selected={selectedValue}
+            />
+
+            <HeadlineChipStep
+              customLabel="Custom perception"
+              customPlaceholder="Add how you want the market to see you"
+              customValue={customPerception}
+              label="4. Desired market perception"
+              onCustomChange={setCustomPerception}
+              onToggle={(item) =>
+                setSelectedPerception((current) => toggleSelection(item, current))
+              }
+              options={perceptionOptions}
+              selected={selectedPerception}
+            />
+
+            <fieldset className="grid gap-3">
+              <legend className="font-semibold text-[#191919]">
+                5. Style and proof
+              </legend>
+              <ChipGroup
+                onToggle={(item) =>
+                  setSelectedStyles((current) => toggleSelection(item, current))
+                }
+                options={headlineStyleOptions}
+                selected={selectedStyles}
+              />
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Proof points
+                <textarea
+                  className="min-h-24 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setProofPoints(event.target.value)}
+                  placeholder="Examples: 20 years in enterprise sales, scaled teams, led AI transformation, built partner ecosystem..."
+                  value={proofPoints}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Custom direction
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setCustomInstructions(event.target.value)}
+                  placeholder="More concise, more executive, avoid buzzwords..."
+                  value={customInstructions}
+                />
+              </label>
+            </fieldset>
+          </div>
+
+          <button
+            className="mt-6 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
+            disabled={!canGenerate || isGenerating}
+            type="submit"
+          >
+            {isGenerating ? (
+              <LoaderCircle className="h-5 w-5 animate-spin" />
+            ) : (
+              <Sparkles className="h-5 w-5" />
+            )}
+            {isGenerating ? "Generating Headlines..." : "Generate Headlines"}
+          </button>
+
+          {!canGenerate && (
+            <p className="mt-3 text-sm leading-6 text-[#666666]">
+              Add your role, target audience, at least one expertise area, and
+              at least one business value to generate headlines.
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+              {error}
+            </p>
+          )}
+        </form>
+
+        <section className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7">
+          <div className="flex flex-col gap-3 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+                Headline Output
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+                Strategic options for your profile.
+              </h2>
+            </div>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#666666]"
+              disabled={!results || isGenerating}
+              onClick={generateHeadlines}
+              type="button"
+            >
+              <RefreshCw className={classNames("h-4 w-4", isGenerating && "animate-spin")} />
+              Regenerate
+            </button>
+          </div>
+
+          {!results ? (
+            <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
+              <p className="font-semibold text-[#191919]">
+                Your headline recommendations will appear here.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                INConnect will generate 3-5 headline styles and mark the option
+                most aligned with your positioning.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                  Positioning Summary
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#191919]">
+                  {results.positioningSummary}
+                </p>
+              </article>
+              {results.headlines.map((option, index) => {
+                const isRecommended = index === results.recommendedIndex;
+                return (
+                  <article
+                    className={classNames(
+                      "rounded-lg border bg-white p-4",
+                      isRecommended ? "border-[#0A66C2]/45" : "border-[#D9DDE3]",
+                    )}
+                    key={`${option.style}-${option.headline}`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                            {option.style}
+                          </p>
+                          {isRecommended && (
+                            <span className="rounded-lg border border-[#057642]/20 bg-[#EEF7F2] px-2 py-1 text-xs font-semibold text-[#057642]">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-3 text-lg font-semibold leading-7 text-[#191919]">
+                          {option.headline}
+                        </p>
+                      </div>
+                      <button
+                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-3 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
+                        onClick={() => handleCopy(option.headline, index)}
+                        type="button"
+                      >
+                        {copiedIndex === index ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                        {copiedIndex === index ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-[#666666]">
+                      {option.rationale}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function HeadlineChipStep({
+  customLabel,
+  customPlaceholder,
+  customValue,
+  label,
+  onCustomChange,
+  onToggle,
+  options,
+  selected,
+}: {
+  customLabel: string;
+  customPlaceholder: string;
+  customValue: string;
+  label: string;
+  onCustomChange: (value: string) => void;
+  onToggle: (value: string) => void;
+  options: string[];
+  selected: string[];
+}) {
+  return (
+    <fieldset className="grid gap-3">
+      <legend className="font-semibold text-[#191919]">{label}</legend>
+      <ChipGroup onToggle={onToggle} options={options} selected={selected} />
+      <label className="grid gap-2 text-sm font-medium text-[#191919]">
+        {customLabel}
+        <input
+          className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+          onChange={(event) => onCustomChange(event.target.value)}
+          placeholder={customPlaceholder}
+          value={customValue}
+        />
+      </label>
+    </fieldset>
+  );
+}
+
+function ChipGroup({
+  onToggle,
+  options,
+  selected,
+}: {
+  onToggle: (value: string) => void;
+  options: string[];
+  selected: string[];
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const isSelected = selected.includes(option);
+        return (
+          <button
+            aria-pressed={isSelected}
+            className={classNames(
+              "rounded-lg border px-3 py-2 text-sm font-semibold transition",
+              isSelected
+                ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
+                : "border-[#D9DDE3] bg-white text-[#666666] hover:border-[#0A66C2] hover:text-[#0A66C2]",
+            )}
+            key={option}
+            onClick={() => onToggle(option)}
+            type="button"
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function PlanLimits() {
   return (
     <section className="mt-6" id="pricing">
       <p className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
         Your free plan includes one comprehensive LinkedIn profile assessment
-        per week. Upgrade to Pro for unlimited assessments, Trend Radar, and
-        Content Intelligence.
+        per week and access to the LinkedIn Headline Generator. Future Pro tools
+        expand trend, content, profile, and brand intelligence.
       </p>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <PlanCard
@@ -573,6 +1289,7 @@ function PlanLimits() {
             "Authority score",
             "Positioning analysis",
             "Profile improvement recommendations",
+            "LinkedIn headline generator",
             "Shareable authority score card",
           ]}
         />
@@ -583,9 +1300,9 @@ function PlanLimits() {
             "Unlimited profile assessments",
             "Trend Radar",
             "Content Intelligence",
+            "Profile Optimization Suite",
+            "Personal Brand Intelligence",
             "Authority growth tracking",
-            "Advanced positioning insights",
-            "Weekly content roadmap",
           ]}
         />
       </div>
@@ -1556,9 +2273,7 @@ function LockedPreview({
         </div>
         <div className="absolute inset-0 grid place-items-center bg-white/55">
           <div className="rounded-lg border border-[#0A66C2]/20 bg-white px-5 py-4 text-center shadow-[0_18px_48px_rgba(10,25,47,0.14)]">
-            <span aria-hidden="true" className="block text-2xl">
-              🔒
-            </span>
+            <LockKeyhole className="mx-auto h-6 w-6 text-[#0A66C2]" />
             <p className="mt-3 font-semibold text-[#191919]">
               Coming soon in Pro
             </p>
@@ -1566,6 +2281,72 @@ function LockedPreview({
               Available in a future Pro release.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FuturePlatformModules() {
+  const futureModules = [
+    {
+      id: "profile-optimization-suite",
+      title: "Profile Optimization Suite",
+      status: "Coming Soon",
+      tools: [
+        "About Section Generator",
+        "Experience Rewriter",
+        "Skills Optimizer",
+        "LinkedIn Profile Strength Check",
+        "Positioning Analyzer",
+        "Keyword Optimizer",
+      ],
+    },
+    {
+      id: "personal-brand-intelligence",
+      title: "Personal Brand Intelligence",
+      status: "Future",
+      tools: [
+        "Professional Archetype Assessment",
+        "Leadership Style Assessment",
+        "Communication Style Assessment",
+        "Personal Brand Positioning Analysis",
+      ],
+    },
+  ];
+
+  return (
+    <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Platform Roadmap
+        </p>
+        <h2 className="mt-3 text-3xl font-semibold text-[#191919]">
+          Future LinkedIn intelligence modules.
+        </h2>
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {futureModules.map((module) => (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7"
+              id={module.id}
+              key={module.id}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <h3 className="text-xl font-semibold text-[#191919]">{module.title}</h3>
+                <span className="w-fit rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 py-1 text-xs font-semibold text-[#666666]">
+                  {module.status}
+                </span>
+              </div>
+              <ul className="mt-5 grid gap-2 text-sm leading-6 text-[#666666] sm:grid-cols-2">
+                {module.tools.map((tool) => (
+                  <li className="flex gap-2" key={tool}>
+                    <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#0A66C2]" />
+                    {tool}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -1903,6 +2684,8 @@ export function INConnectPlatform() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
       <Header />
+      <HeroSection />
+      <ModuleGrid />
       <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
         <div className="mx-auto grid max-w-7xl gap-6">
           {returningUser && (
@@ -1937,15 +2720,17 @@ export function INConnectPlatform() {
           {assessment && <AssessmentResults assessment={assessment} />}
         </div>
       </section>
+      <HeadlineGenerator />
       <LockedPreview
         id="trend-radar"
         title="Trend Radar"
         subtitle="Discover relevant industry trends matched to your positioning."
         items={[
-          "Emerging Industry Trends",
-          "Authority Opportunities",
-          "Fast-Growing Topics",
-          "Industry Momentum Signals",
+          "Industry Trend Detection",
+          "Growth Opportunities",
+          "Technology Trends",
+          "Positioning Opportunities",
+          "Authority-Building Themes",
         ]}
       />
       <LockedPreview
@@ -1953,13 +2738,14 @@ export function INConnectPlatform() {
         title="Content Intelligence"
         subtitle="Generate personalized LinkedIn content opportunities based on your profile and market position."
         items={[
-          "Personalized Post Ideas",
           "Content Pillars",
-          "Weekly Topic Suggestions",
-          "Authority Building Opportunities",
-          "LinkedIn Content Roadmap",
+          "Post Ideas",
+          "Newsletter Ideas",
+          "Authority-Building Topics",
+          "Weekly Content Roadmap",
         ]}
       />
+      <FuturePlatformModules />
       <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <PlanLimits />
