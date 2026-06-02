@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import {
+  type DragEvent,
   FormEvent,
   type ReactNode,
   type RefObject,
@@ -89,12 +90,28 @@ type ReturningUserProfile = {
 type HeadlineOption = {
   style: string;
   headline: string;
-  rationale: string;
+  score: number;
+  reason: string;
+  bestFor: string;
 };
 type HeadlineGeneratorResponse = {
-  positioningSummary: string;
   recommendedIndex: number;
   headlines: HeadlineOption[];
+};
+type HeadlineInputs = {
+  roles: string[];
+  industries: string[];
+  expertise: string[];
+  values: string[];
+  perceptions: string[];
+};
+type HeadlineGenerationRecord = {
+  name: string;
+  email: string;
+  inputs: HeadlineInputs;
+  outputs: HeadlineGeneratorResponse;
+  createdAt: string;
+  futureSupabaseTable: "headline_generations";
 };
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
@@ -103,6 +120,7 @@ const ADSENSE_PUBLISHER_ID = "ca-pub-6306589054094473";
 const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
+const HEADLINE_GENERATIONS_STORAGE_KEY = "inconnect:headline-generations";
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
@@ -113,48 +131,127 @@ const navItems = [
   { label: "Contact", href: "/contact" },
 ];
 
-const expertiseOptions = [
-  "AI Strategy",
-  "Sales Leadership",
-  "Product Management",
-  "B2B Marketing",
-  "Operations",
-  "Data Analytics",
-  "Cybersecurity",
-  "Customer Success",
-  "Consulting",
+const roleOptions = [
+  "Specialist",
+  "Manager",
+  "Director",
+  "Executive",
+  "Founder",
+  "Entrepreneur",
+  "Consultant",
+  "Freelancer",
+  "Student",
+  "Creator",
+  "Sales Professional",
+  "Marketing Professional",
+  "Engineer",
+  "Product Manager",
+  "Project Manager",
+  "Business Developer",
+  "Recruiter",
+  "HR Professional",
+  "Other",
+];
+
+const industryOptions = [
+  "Technology",
+  "AI",
+  "SaaS",
+  "Industrial Automation",
+  "Manufacturing",
+  "Logistics",
+  "Airports",
+  "Smart Mobility",
+  "Transportation",
+  "Healthcare",
   "Finance",
+  "Real Estate",
+  "Construction",
+  "Energy",
+  "Education",
+  "Consulting",
+  "Marketing",
+  "Sales",
+  "HR & Recruiting",
+  "Hospitality",
+  "Tourism",
+  "Retail",
+  "E-commerce",
+  "Cybersecurity",
+  "Data & Analytics",
+  "Robotics",
+  "Sustainability",
+  "Other",
+];
+
+const expertiseOptions = [
+  "Business Development",
+  "Sales Leadership",
+  "Market Development",
+  "Strategic Partnerships",
+  "Solution Selling",
+  "Innovation",
+  "Product Management",
+  "Project Management",
+  "Operations",
+  "Team Leadership",
+  "Digital Transformation",
+  "Automation",
+  "AI Strategy",
+  "Data Analytics",
+  "Customer Experience",
+  "Revenue Growth",
+  "Go-to-Market Strategy",
+  "Brand Building",
+  "Content Strategy",
+  "Recruiting",
+  "Engineering",
+  "Software Development",
+  "Process Improvement",
+  "Change Management",
+  "Other",
 ];
 
 const businessValueOptions = [
-  "Revenue Growth",
-  "Digital Transformation",
-  "Market Expansion",
-  "Operational Efficiency",
-  "Team Leadership",
-  "Product Innovation",
-  "Customer Acquisition",
-  "Strategic Partnerships",
+  "Drive business growth",
+  "Increase revenue",
+  "Open new markets",
+  "Enable automation",
+  "Improve efficiency",
+  "Reduce costs",
+  "Improve safety",
+  "Improve customer experience",
+  "Build strategic partnerships",
+  "Scale global business",
+  "Accelerate digital transformation",
+  "Launch new products",
+  "Improve operations",
+  "Build high-performing teams",
+  "Strengthen brand authority",
+  "Generate leads",
+  "Improve decision-making",
+  "Create innovation",
+  "Other",
 ];
 
 const perceptionOptions = [
   "Trusted Expert",
-  "Strategic Leader",
-  "Innovator",
-  "Commercial Operator",
-  "Technical Specialist",
   "Industry Authority",
-  "Growth Partner",
-  "Executive Advisor",
-];
-
-const headlineStyleOptions = [
-  "Executive",
-  "Founder",
-  "Consultant",
-  "Technical Expert",
-  "Sales Leader",
-  "Creator",
+  "Innovator",
+  "Strategic Thinker",
+  "Business Builder",
+  "Market Leader",
+  "Connector of People and Ideas",
+  "Technology Evangelist",
+  "Thought Leader",
+  "Visionary",
+  "Problem Solver",
+  "Growth Driver",
+  "Customer Advocate",
+  "Transformation Leader",
+  "Technical Specialist",
+  "Executive Leader",
+  "Other",
 ];
 
 function classNames(...classes: Array<string | false | null | undefined>) {
@@ -334,8 +431,6 @@ function isHeadlineGeneratorResponse(value: unknown): value is HeadlineGenerator
   return (
     typeof value === "object" &&
     value !== null &&
-    "positioningSummary" in value &&
-    typeof value.positioningSummary === "string" &&
     "recommendedIndex" in value &&
     typeof value.recommendedIndex === "number" &&
     "headlines" in value &&
@@ -348,27 +443,55 @@ function isHeadlineGeneratorResponse(value: unknown): value is HeadlineGenerator
         typeof headline.style === "string" &&
         "headline" in headline &&
         typeof headline.headline === "string" &&
-        "rationale" in headline &&
-        typeof headline.rationale === "string",
+        "score" in headline &&
+        typeof headline.score === "number" &&
+        "reason" in headline &&
+        typeof headline.reason === "string" &&
+        "bestFor" in headline &&
+        typeof headline.bestFor === "string",
     )
   );
 }
 
-function toggleSelection(value: string, selected: string[]) {
-  return selected.includes(value)
-    ? selected.filter((item) => item !== value)
-    : [...selected, value];
+function storeHeadlineGeneration(record: HeadlineGenerationRecord) {
+  try {
+    const raw = window.localStorage.getItem(HEADLINE_GENERATIONS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    const existing = Array.isArray(parsed) ? parsed : [];
+    window.localStorage.setItem(
+      HEADLINE_GENERATIONS_STORAGE_KEY,
+      JSON.stringify([record, ...existing].slice(0, 20)),
+    );
+  } catch {
+    // Local storage is best-effort until Supabase headline storage is added.
+  }
 }
 
-function parseCustomList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+function toggleSelection(value: string, selected: string[], maxSelections = 99) {
+  if (selected.includes(value)) return selected.filter((item) => item !== value);
+  if (selected.length >= maxSelections) return selected;
+  return [...selected, value];
 }
 
 function uniqueItems(items: string[]) {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+}
+
+function moveItem(items: string[], fromIndex: number, toIndex: number) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length
+  ) {
+    return items;
+  }
+
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -871,36 +994,158 @@ function AssessmentForm({
 }
 
 function HeadlineGenerator() {
-  const [currentRole, setCurrentRole] = useState("");
-  const [targetAudience, setTargetAudience] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [hasStarted, setHasStarted] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [customRole, setCustomRole] = useState("");
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [customIndustry, setCustomIndustry] = useState("");
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
   const [customExpertise, setCustomExpertise] = useState("");
   const [selectedValue, setSelectedValue] = useState<string[]>([]);
   const [customValue, setCustomValue] = useState("");
   const [selectedPerception, setSelectedPerception] = useState<string[]>([]);
   const [customPerception, setCustomPerception] = useState("");
-  const [selectedStyles, setSelectedStyles] = useState<string[]>(["Executive"]);
-  const [proofPoints, setProofPoints] = useState("");
-  const [customInstructions, setCustomInstructions] = useState("");
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<HeadlineGeneratorResponse | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  const expertiseAreas = uniqueItems([
-    ...selectedExpertise,
-    ...parseCustomList(customExpertise),
-  ]);
-  const businessValue = uniqueItems([...selectedValue, ...parseCustomList(customValue)]);
-  const desiredPerception = uniqueItems([
-    ...selectedPerception,
-    ...parseCustomList(customPerception),
-  ]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(HEADLINE_GENERATIONS_STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      if (!Array.isArray(parsed)) return;
+      const latest = parsed.find(
+        (item): item is HeadlineGenerationRecord =>
+          typeof item === "object" &&
+          item !== null &&
+          "name" in item &&
+          typeof item.name === "string" &&
+          "email" in item &&
+          typeof item.email === "string",
+      );
+      if (latest) {
+        setName((current) => current || latest.name);
+        setEmail((current) => current || latest.email);
+      }
+    } catch {
+      // Stored headline identity is best-effort.
+    }
+  }, []);
+
+  const inputs: HeadlineInputs = {
+    roles: uniqueItems(selectedRoles),
+    industries: uniqueItems(selectedIndustries),
+    expertise: uniqueItems(selectedExpertise),
+    values: uniqueItems(selectedValue),
+    perceptions: uniqueItems(selectedPerception),
+  };
+  const identityIsValid = name.trim().length > 1 && isValidEmail(email);
+  const steps = [
+    {
+      question: "What is your current professional role?",
+      helper: "Select your top 1-3 roles.",
+      options: roleOptions,
+      selected: inputs.roles,
+      setSelected: setSelectedRoles,
+      customLabel: "Add your own role",
+      customPlaceholder: "Example: Airport Automation Leader",
+      customValue: customRole,
+      setCustomValue: setCustomRole,
+      minSelections: 1,
+      maxSelections: 3,
+    },
+    {
+      question: "Which industries do you want people to associate you with?",
+      helper: "Select your top 3-5 industries.",
+      options: industryOptions,
+      selected: inputs.industries,
+      setSelected: setSelectedIndustries,
+      customLabel: "Add your own industry",
+      customPlaceholder: "Example: Baggage Handling Systems",
+      customValue: customIndustry,
+      setCustomValue: setCustomIndustry,
+      minSelections: 3,
+      maxSelections: 5,
+    },
+    {
+      question: "What are your strongest professional skills or expertise areas?",
+      helper: "Select your top 3-5 expertise areas.",
+      options: expertiseOptions,
+      selected: inputs.expertise,
+      setSelected: setSelectedExpertise,
+      customLabel: "Add your own expertise",
+      customPlaceholder: "Example: Partner Ecosystem Strategy",
+      customValue: customExpertise,
+      setCustomValue: setCustomExpertise,
+      minSelections: 3,
+      maxSelections: 5,
+    },
+    {
+      question: "What business value or outcome do you help create?",
+      helper: "Select your top 3-5 outcomes.",
+      options: businessValueOptions,
+      selected: inputs.values,
+      setSelected: setSelectedValue,
+      customLabel: "Add your own value",
+      customPlaceholder: "Example: Improve airport throughput",
+      customValue: customValue,
+      setCustomValue: setCustomValue,
+      minSelections: 3,
+      maxSelections: 5,
+    },
+    {
+      question:
+        "If someone remembers only one thing about you after visiting your profile, what should it be?",
+      helper: "Select your top 1-3 desired perceptions.",
+      options: perceptionOptions,
+      selected: inputs.perceptions,
+      setSelected: setSelectedPerception,
+      customLabel: "Add your own perception",
+      customPlaceholder: "Example: Trusted international growth partner",
+      customValue: customPerception,
+      setCustomValue: setCustomPerception,
+      minSelections: 1,
+      maxSelections: 3,
+    },
+  ];
+  const activeStep = steps[stepIndex];
+  const currentStepIsComplete =
+    activeStep.selected.length >= activeStep.minSelections &&
+    activeStep.selected.length <= activeStep.maxSelections;
   const canGenerate =
-    currentRole.trim().length > 1 &&
-    targetAudience.trim().length > 1 &&
-    expertiseAreas.length > 0 &&
-    businessValue.length > 0;
+    identityIsValid &&
+    steps.every((step) => step.selected.length >= step.minSelections) &&
+    steps.every((step) => step.selected.length <= step.maxSelections);
+  const progressPercent = ((stepIndex + 1) / steps.length) * 100;
+  const isFinalStep = stepIndex === steps.length - 1;
+
+  function startGenerator() {
+    if (!identityIsValid) {
+      setError("Add your name and a valid email address to continue.");
+      return;
+    }
+
+    setError("");
+    setHasStarted(true);
+  }
+
+  function addCustomSelection() {
+    const value = activeStep.customValue.trim();
+    if (!value) return;
+
+    activeStep.setSelected((current) => {
+      const existing = uniqueItems(current);
+      if (existing.includes(value)) return existing;
+      if (existing.length >= activeStep.maxSelections) return existing;
+      return [...existing, value];
+    });
+    activeStep.setCustomValue("");
+  }
 
   async function generateHeadlines() {
     if (!canGenerate || isGenerating) return;
@@ -914,14 +1159,13 @@ function HeadlineGenerator() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentRole,
-          targetAudience,
-          expertiseAreas,
-          businessValue,
-          desiredPerception,
-          stylePreferences: selectedStyles,
-          proofPoints,
-          customInstructions,
+          name: name.trim(),
+          email: email.trim(),
+          roles: inputs.roles,
+          industries: inputs.industries,
+          expertise: inputs.expertise,
+          values: inputs.values,
+          perceptions: inputs.perceptions,
         }),
       });
       const payload = (await response.json().catch(() => null)) as unknown;
@@ -938,6 +1182,14 @@ function HeadlineGenerator() {
       }
 
       setResults(payload);
+      storeHeadlineGeneration({
+        name: name.trim(),
+        email: email.trim(),
+        inputs,
+        outputs: payload,
+        createdAt: new Date().toISOString(),
+        futureSupabaseTable: "headline_generations",
+      });
     } catch (generateError) {
       setError(
         generateError instanceof Error
@@ -951,7 +1203,13 @@ function HeadlineGenerator() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await generateHeadlines();
+    if (!hasStarted) {
+      startGenerator();
+      return;
+    }
+    if (isFinalStep) {
+      await generateHeadlines();
+    }
   }
 
   async function handleCopy(headline: string, index: number) {
@@ -967,7 +1225,7 @@ function HeadlineGenerator() {
       className="bg-white px-5 py-10 sm:px-8 lg:px-10"
       id="headline-generator"
     >
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.94fr_1.06fr]">
         <form
           className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
           onSubmit={handleSubmit}
@@ -985,120 +1243,167 @@ function HeadlineGenerator() {
             </p>
           </div>
 
-          <div className="mt-6 grid gap-5">
-            <fieldset className="grid gap-3">
-              <legend className="font-semibold text-[#191919]">
-                1. Role and audience
-              </legend>
+          {!hasStarted ? (
+            <div className="mt-6 grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-[#191919]">
-                Current role
+                Name
                 <input
                   className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                  onChange={(event) => setCurrentRole(event.target.value)}
-                  placeholder="Founder, Sales Director, AI Consultant..."
-                  value={currentRole}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  value={name}
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-[#191919]">
-                Target audience
+                Email
                 <input
                   className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                  onChange={(event) => setTargetAudience(event.target.value)}
-                  placeholder="B2B SaaS founders, enterprise buyers, HR leaders..."
-                  value={targetAudience}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
                 />
               </label>
-            </fieldset>
+              <button
+                className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
+                disabled={!identityIsValid}
+                type="submit"
+              >
+                <Sparkles className="h-5 w-5" />
+                Start Headline Generator
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                    Step {stepIndex + 1} of {steps.length}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[#191919]">
+                    {activeStep.selected.length}/{activeStep.maxSelections} selected
+                  </p>
+                </div>
+                <p className="text-sm leading-6 text-[#666666]">
+                  {activeStep.helper}
+                </p>
+              </div>
 
-            <HeadlineChipStep
-              customLabel="Custom expertise"
-              customPlaceholder="Add niche skills or industries"
-              customValue={customExpertise}
-              label="2. Expertise areas"
-              onCustomChange={setCustomExpertise}
-              onToggle={(item) =>
-                setSelectedExpertise((current) => toggleSelection(item, current))
-              }
-              options={expertiseOptions}
-              selected={selectedExpertise}
-            />
-
-            <HeadlineChipStep
-              customLabel="Custom business value"
-              customPlaceholder="Add specific outcomes or value"
-              customValue={customValue}
-              label="3. Business value"
-              onCustomChange={setCustomValue}
-              onToggle={(item) =>
-                setSelectedValue((current) => toggleSelection(item, current))
-              }
-              options={businessValueOptions}
-              selected={selectedValue}
-            />
-
-            <HeadlineChipStep
-              customLabel="Custom perception"
-              customPlaceholder="Add how you want the market to see you"
-              customValue={customPerception}
-              label="4. Desired market perception"
-              onCustomChange={setCustomPerception}
-              onToggle={(item) =>
-                setSelectedPerception((current) => toggleSelection(item, current))
-              }
-              options={perceptionOptions}
-              selected={selectedPerception}
-            />
-
-            <fieldset className="grid gap-3">
-              <legend className="font-semibold text-[#191919]">
-                5. Style and proof
-              </legend>
-              <ChipGroup
-                onToggle={(item) =>
-                  setSelectedStyles((current) => toggleSelection(item, current))
-                }
-                options={headlineStyleOptions}
-                selected={selectedStyles}
-              />
-              <label className="grid gap-2 text-sm font-medium text-[#191919]">
-                Proof points
-                <textarea
-                  className="min-h-24 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                  onChange={(event) => setProofPoints(event.target.value)}
-                  placeholder="Examples: 20 years in enterprise sales, scaled teams, led AI transformation, built partner ecosystem..."
-                  value={proofPoints}
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E8F1FB]">
+                <div
+                  className="h-full rounded-full bg-[#0A66C2] transition-all"
+                  style={{ width: `${progressPercent}%` }}
                 />
-              </label>
-              <label className="grid gap-2 text-sm font-medium text-[#191919]">
-                Custom direction
-                <input
-                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                  onChange={(event) => setCustomInstructions(event.target.value)}
-                  placeholder="More concise, more executive, avoid buzzwords..."
-                  value={customInstructions}
+              </div>
+
+              <fieldset className="mt-6 grid gap-4">
+                <legend className="text-xl font-semibold leading-8 text-[#191919]">
+                  {activeStep.question}
+                </legend>
+                <ChipGroup
+                  maxSelections={activeStep.maxSelections}
+                  onToggle={(item) =>
+                    activeStep.setSelected((current) =>
+                      toggleSelection(item, current, activeStep.maxSelections),
+                    )
+                  }
+                  options={activeStep.options}
+                  selected={activeStep.selected}
                 />
-              </label>
-            </fieldset>
-          </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                    {activeStep.customLabel}
+                    <input
+                      className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                      onChange={(event) => activeStep.setCustomValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addCustomSelection();
+                        }
+                      }}
+                      placeholder={activeStep.customPlaceholder}
+                      value={activeStep.customValue}
+                    />
+                  </label>
+                  <button
+                    className="inline-flex h-12 items-center justify-center rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#666666]"
+                    disabled={
+                      !activeStep.customValue.trim() ||
+                      activeStep.selected.length >= activeStep.maxSelections
+                    }
+                    onClick={addCustomSelection}
+                    type="button"
+                  >
+                    Add
+                  </button>
+                </div>
+                <SelectedOrderList
+                  draggedIndex={draggedIndex}
+                  items={activeStep.selected}
+                  onDragStart={setDraggedIndex}
+                  onDrop={(fromIndex, toIndex) => {
+                    activeStep.setSelected((current) =>
+                      moveItem(current, fromIndex, toIndex),
+                    );
+                    setDraggedIndex(null);
+                  }}
+                  onMove={(fromIndex, toIndex) =>
+                    activeStep.setSelected((current) =>
+                      moveItem(current, fromIndex, toIndex),
+                    )
+                  }
+                  onRemove={(item) =>
+                    activeStep.setSelected((current) =>
+                      current.filter((selectedItem) => selectedItem !== item),
+                    )
+                  }
+                />
+                {!currentStepIsComplete && (
+                  <p className="text-sm leading-6 text-[#666666]">
+                    Select at least {activeStep.minSelections} to continue.
+                  </p>
+                )}
+              </fieldset>
 
-          <button
-            className="mt-6 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
-            disabled={!canGenerate || isGenerating}
-            type="submit"
-          >
-            {isGenerating ? (
-              <LoaderCircle className="h-5 w-5 animate-spin" />
-            ) : (
-              <Sparkles className="h-5 w-5" />
-            )}
-            {isGenerating ? "Generating Headlines..." : "Generate Headlines"}
-          </button>
-
-          {!canGenerate && (
-            <p className="mt-3 text-sm leading-6 text-[#666666]">
-              Add your role, target audience, at least one expertise area, and
-              at least one business value to generate headlines.
-            </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
+                <button
+                  className="inline-flex h-12 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:text-[#666666]"
+                  disabled={stepIndex === 0 || isGenerating}
+                  onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+                  type="button"
+                >
+                  Back
+                </button>
+                {isFinalStep ? (
+                  <button
+                    className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-6 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
+                    disabled={!canGenerate || isGenerating}
+                    type="submit"
+                  >
+                    {isGenerating ? (
+                      <LoaderCircle className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    {isGenerating ? "Generating Headlines..." : "Generate Headlines"}
+                  </button>
+                ) : (
+                  <button
+                    className="inline-flex h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 text-sm font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+                    disabled={!currentStepIsComplete || isGenerating}
+                    onClick={() =>
+                      setStepIndex((current) =>
+                        Math.min(current + 1, steps.length - 1),
+                      )
+                    }
+                    type="button"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
           {error && (
@@ -1115,12 +1420,16 @@ function HeadlineGenerator() {
                 Headline Output
               </p>
               <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
-                Strategic options for your profile.
+                Your LinkedIn Headline Options
               </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[#666666]">
+                Generated based on your role, expertise, target industries,
+                business value, and desired perception.
+              </p>
             </div>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#666666]"
-              disabled={!results || isGenerating}
+              disabled={!results || !canGenerate || isGenerating}
               onClick={generateHeadlines}
               type="button"
             >
@@ -1129,7 +1438,17 @@ function HeadlineGenerator() {
             </button>
           </div>
 
-          {!results ? (
+          {!hasStarted ? (
+            <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
+              <p className="font-semibold text-[#191919]">
+                Add your name and email to begin.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                Your generated inputs and headline outputs will be stored locally
+                for now and are ready for a future headline_generations table.
+              </p>
+            </div>
+          ) : !results ? (
             <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
               <p className="font-semibold text-[#191919]">
                 Your headline recommendations will appear here.
@@ -1141,14 +1460,6 @@ function HeadlineGenerator() {
             </div>
           ) : (
             <div className="mt-5 grid gap-4">
-              <article className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                  Positioning Summary
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[#191919]">
-                  {results.positioningSummary}
-                </p>
-              </article>
               {results.headlines.map((option, index) => {
                 const isRecommended = index === results.recommendedIndex;
                 return (
@@ -1165,6 +1476,9 @@ function HeadlineGenerator() {
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
                             {option.style}
                           </p>
+                          <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-2 py-1 text-xs font-semibold text-[#191919]">
+                            {option.score.toFixed(1)}/10
+                          </span>
                           {isRecommended && (
                             <span className="rounded-lg border border-[#057642]/20 bg-[#EEF7F2] px-2 py-1 text-xs font-semibold text-[#057642]">
                               Recommended
@@ -1185,15 +1499,26 @@ function HeadlineGenerator() {
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}
-                        {copiedIndex === index ? "Copied" : "Copy"}
+                        {copiedIndex === index ? "Copied" : "Copy Headline"}
                       </button>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-[#666666]">
-                      {option.rationale}
+                      {option.reason}
+                    </p>
+                    <p className="mt-3 rounded-lg bg-[#F8F8F6] p-3 text-sm leading-6 text-[#191919]">
+                      <span className="font-semibold">Best use case: </span>
+                      {option.bestFor}
                     </p>
                   </article>
                 );
               })}
+
+              <a
+                className="inline-flex min-h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#004182]"
+                href="#assessment"
+              >
+                Start Profile Assessment
+              </a>
             </div>
           )}
         </section>
@@ -1202,47 +1527,82 @@ function HeadlineGenerator() {
   );
 }
 
-function HeadlineChipStep({
-  customLabel,
-  customPlaceholder,
-  customValue,
-  label,
-  onCustomChange,
-  onToggle,
-  options,
-  selected,
+function SelectedOrderList({
+  draggedIndex,
+  items,
+  onDragStart,
+  onDrop,
+  onMove,
+  onRemove,
 }: {
-  customLabel: string;
-  customPlaceholder: string;
-  customValue: string;
-  label: string;
-  onCustomChange: (value: string) => void;
-  onToggle: (value: string) => void;
-  options: string[];
-  selected: string[];
+  draggedIndex: number | null;
+  items: string[];
+  onDragStart: (index: number | null) => void;
+  onDrop: (fromIndex: number, toIndex: number) => void;
+  onMove: (fromIndex: number, toIndex: number) => void;
+  onRemove: (item: string) => void;
 }) {
+  if (items.length === 0) return null;
+
   return (
-    <fieldset className="grid gap-3">
-      <legend className="font-semibold text-[#191919]">{label}</legend>
-      <ChipGroup onToggle={onToggle} options={options} selected={selected} />
-      <label className="grid gap-2 text-sm font-medium text-[#191919]">
-        {customLabel}
-        <input
-          className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-          onChange={(event) => onCustomChange(event.target.value)}
-          placeholder={customPlaceholder}
-          value={customValue}
-        />
-      </label>
-    </fieldset>
+    <div className="grid gap-2 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+        Selected order
+      </p>
+      <div className="grid gap-2">
+        {items.map((item, index) => (
+          <div
+            className={classNames(
+              "flex flex-col gap-2 rounded-lg border bg-white p-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+              draggedIndex === index ? "border-[#0A66C2]" : "border-[#D9DDE3]",
+            )}
+            draggable
+            key={item}
+            onDragEnd={() => onDragStart(null)}
+            onDragOver={(event: DragEvent<HTMLDivElement>) => event.preventDefault()}
+            onDragStart={() => onDragStart(index)}
+            onDrop={() => draggedIndex !== null && onDrop(draggedIndex, index)}
+          >
+            <span className="font-semibold text-[#191919]">{item}</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border border-[#D9DDE3] px-2 py-1 text-xs font-semibold text-[#666666] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={index === 0}
+                onClick={() => onMove(index, index - 1)}
+                type="button"
+              >
+                Up
+              </button>
+              <button
+                className="rounded-lg border border-[#D9DDE3] px-2 py-1 text-xs font-semibold text-[#666666] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={index === items.length - 1}
+                onClick={() => onMove(index, index + 1)}
+                type="button"
+              >
+                Down
+              </button>
+              <button
+                className="rounded-lg border border-[#D9DDE3] px-2 py-1 text-xs font-semibold text-[#666666] transition hover:border-red-300 hover:text-red-700"
+                onClick={() => onRemove(item)}
+                type="button"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 function ChipGroup({
+  maxSelections,
   onToggle,
   options,
   selected,
 }: {
+  maxSelections: number;
   onToggle: (value: string) => void;
   options: string[];
   selected: string[];
@@ -1251,6 +1611,7 @@ function ChipGroup({
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
         const isSelected = selected.includes(option);
+        const isDisabled = !isSelected && selected.length >= maxSelections;
         return (
           <button
             aria-pressed={isSelected}
@@ -1259,7 +1620,9 @@ function ChipGroup({
               isSelected
                 ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
                 : "border-[#D9DDE3] bg-white text-[#666666] hover:border-[#0A66C2] hover:text-[#0A66C2]",
+              isDisabled && "cursor-not-allowed opacity-45 hover:border-[#D9DDE3] hover:text-[#666666]",
             )}
+            disabled={isDisabled}
             key={option}
             onClick={() => onToggle(option)}
             type="button"

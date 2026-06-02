@@ -4,32 +4,41 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 type HeadlineGeneratorRequest = {
-  currentRole: string;
-  targetAudience: string;
-  expertiseAreas: string[];
-  businessValue: string[];
-  desiredPerception: string[];
-  stylePreferences: string[];
-  proofPoints: string;
-  customInstructions: string;
+  name: string;
+  email: string;
+  roles: string[];
+  industries: string[];
+  expertise: string[];
+  values: string[];
+  perceptions: string[];
+};
+
+type HeadlineOption = {
+  style: string;
+  headline: string;
+  score: number;
+  reason: string;
+  bestFor: string;
 };
 
 type HeadlineGeneratorResponse = {
-  positioningSummary: string;
   recommendedIndex: number;
-  headlines: Array<{
-    style: string;
-    headline: string;
-    rationale: string;
-  }>;
+  headlines: HeadlineOption[];
 };
+
+const HEADLINE_STYLES = [
+  "Authority Style",
+  "Executive Style",
+  "Commercial Style",
+  "Thought Leadership Style",
+  "Clear Professional Style",
+] as const;
 
 const headlineSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["positioningSummary", "recommendedIndex", "headlines"],
+  required: ["recommendedIndex", "headlines"],
   properties: {
-    positioningSummary: { type: "string" },
     recommendedIndex: { type: "number" },
     headlines: {
       type: "array",
@@ -38,23 +47,16 @@ const headlineSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["style", "headline", "rationale"],
+        required: ["style", "headline", "score", "reason", "bestFor"],
         properties: {
           style: {
             type: "string",
-            enum: [
-              "Executive",
-              "Founder",
-              "Consultant",
-              "Technical Expert",
-              "Sales Leader",
-              "Creator",
-              "Strategic",
-              "Commercial",
-            ],
+            enum: HEADLINE_STYLES,
           },
           headline: { type: "string" },
-          rationale: { type: "string" },
+          score: { type: "number" },
+          reason: { type: "string" },
+          bestFor: { type: "string" },
         },
       },
     },
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Role, target audience, expertise areas, and business value are required.",
+          "Name, email, and all five positioning question answers are required.",
       },
       { status: 400 },
     );
@@ -85,40 +87,43 @@ export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.responses.parse({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      temperature: 0.8,
-      max_output_tokens: 1200,
+      model: "gpt-4o-mini",
+      temperature: 0.75,
+      max_output_tokens: 1300,
       input: [
         {
           role: "system",
           content: [
             "You are INConnect, an AI LinkedIn Intelligence Platform.",
-            "Create premium LinkedIn headlines that communicate positioning, authority, and business value.",
-            "Do not invent credentials, employers, degrees, awards, revenue numbers, client names, or years of experience unless provided.",
-            "Headlines must be professional, specific, and suitable for LinkedIn.",
-            "Keep each headline under 220 characters.",
-            "Avoid hype, emojis, hashtags, and generic buzzwords.",
+            "Generate premium LinkedIn headline options from positioning signals.",
+            "Do not invent credentials, employers, degrees, awards, years of experience, client names, revenue numbers, or unverifiable claims.",
+            "Keep every headline under 220 characters.",
+            "Avoid hype, emojis, hashtags, and vague buzzwords.",
+            "Use concise, professional wording suitable for LinkedIn.",
           ].join(" "),
         },
         {
           role: "user",
           content: [
-            "Generate 3-5 LinkedIn headline options and choose one recommended headline.",
+            "Generate 3-5 LinkedIn headline options for this professional.",
+            "Use the five requested styles when possible:",
+            HEADLINE_STYLES.join(", "),
             "",
-            `Current role: ${input.currentRole}`,
-            `Target audience: ${input.targetAudience}`,
-            `Expertise areas: ${input.expertiseAreas.join(", ")}`,
-            `Business value: ${input.businessValue.join(", ")}`,
-            `Desired market perception: ${input.desiredPerception.join(", ") || "Not specified"}`,
-            `Preferred styles: ${input.stylePreferences.join(", ") || "Executive, Strategic"}`,
-            `Proof points: ${input.proofPoints || "Not specified"}`,
-            `Custom direction: ${input.customInstructions || "Not specified"}`,
+            `Name: ${input.name}`,
+            `Roles: ${input.roles.join(", ")}`,
+            `Target industries: ${input.industries.join(", ")}`,
+            `Expertise areas: ${input.expertise.join(", ")}`,
+            `Business value or outcomes: ${input.values.join(", ")}`,
+            `Desired perception: ${input.perceptions.join(", ")}`,
             "",
             "Required response:",
-            "- positioningSummary: one concise sentence describing the user's strongest positioning angle.",
-            "- headlines: 3 to 5 options across different styles.",
+            "- headlines: 3 to 5 options.",
+            "- style: one of the exact requested style labels.",
+            "- headline: a LinkedIn-ready headline under 220 characters.",
+            "- score: numeric quality score out of 10.",
+            "- reason: one short explanation for why the headline works.",
+            "- bestFor: one short description of the best use case.",
             "- recommendedIndex: zero-based index of the strongest headline.",
-            "- rationale: one short explanation for why each headline works.",
           ].join("\n"),
         },
       ],
@@ -153,32 +158,36 @@ export async function POST(request: NextRequest) {
 
 function normalizeHeadlineRequest(value: unknown): HeadlineGeneratorRequest | null {
   if (typeof value !== "object" || value === null) return null;
+
   const record = value as Record<string, unknown>;
-  const currentRole = getString(record.currentRole);
-  const targetAudience = getString(record.targetAudience);
-  const expertiseAreas = getStringArray(record.expertiseAreas).slice(0, 12);
-  const businessValue = getStringArray(record.businessValue).slice(0, 12);
-  const desiredPerception = getStringArray(record.desiredPerception).slice(0, 12);
-  const stylePreferences = getStringArray(record.stylePreferences).slice(0, 6);
+  const name = getString(record.name);
+  const email = getString(record.email);
+  const roles = getStringArray(record.roles).slice(0, 3);
+  const industries = getStringArray(record.industries).slice(0, 5);
+  const expertise = getStringArray(record.expertise).slice(0, 5);
+  const values = getStringArray(record.values).slice(0, 5);
+  const perceptions = getStringArray(record.perceptions).slice(0, 3);
 
   if (
-    !currentRole ||
-    !targetAudience ||
-    expertiseAreas.length === 0 ||
-    businessValue.length === 0
+    name.length < 2 ||
+    !isValidEmail(email) ||
+    roles.length === 0 ||
+    industries.length === 0 ||
+    expertise.length === 0 ||
+    values.length === 0 ||
+    perceptions.length === 0
   ) {
     return null;
   }
 
   return {
-    currentRole,
-    targetAudience,
-    expertiseAreas,
-    businessValue,
-    desiredPerception,
-    stylePreferences,
-    proofPoints: getString(record.proofPoints),
-    customInstructions: getString(record.customInstructions),
+    name,
+    email,
+    roles,
+    industries,
+    expertise,
+    values,
+    perceptions,
   };
 }
 
@@ -187,11 +196,17 @@ function normalizeHeadlineResponse(
 ): HeadlineGeneratorResponse {
   const headlines = response.headlines
     .map((headline) => ({
-      style: headline.style.trim() || "Strategic",
+      style: HEADLINE_STYLES.includes(
+        headline.style as (typeof HEADLINE_STYLES)[number],
+      )
+        ? headline.style
+        : "Clear Professional Style",
       headline: headline.headline.trim().slice(0, 220),
-      rationale: headline.rationale.trim(),
+      score: Math.min(10, Math.max(0, Number(headline.score) || 0)),
+      reason: headline.reason.trim(),
+      bestFor: headline.bestFor.trim(),
     }))
-    .filter((headline) => headline.headline && headline.rationale)
+    .filter((headline) => headline.headline && headline.reason && headline.bestFor)
     .slice(0, 5);
 
   if (headlines.length === 0) {
@@ -199,7 +214,6 @@ function normalizeHeadlineResponse(
   }
 
   return {
-    positioningSummary: response.positioningSummary.trim(),
     recommendedIndex: Math.min(
       Math.max(Math.round(response.recommendedIndex), 0),
       headlines.length - 1,
@@ -218,8 +232,12 @@ function getStringArray(value: unknown) {
     new Set(
       value
         .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
+        .map((item) => item.trim().slice(0, 120))
         .filter(Boolean),
     ),
   );
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
