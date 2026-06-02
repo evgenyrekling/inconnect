@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "INConnect | Your AI LinkedIn Intelligence Platform",
   description:
     "Improve LinkedIn positioning, visibility, authority, and growth opportunities with AI-powered profile intelligence and headline generation.",
+  other: {
+    "google-adsense-account": ADSENSE_PUBLISHER_ID,
+  },
   icons: {
     icon: "/favicon.svg",
   },
