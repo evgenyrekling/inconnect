@@ -2463,9 +2463,14 @@ function ProfileSnapshotSection({
 }: {
   assessment: ProfileIntelligenceAssessment;
 }) {
-  const [accuracyFeedback, setAccuracyFeedback] = useState<"yes" | "needs-improvement" | null>(
+  const [feedbackChoice, setFeedbackChoice] = useState<"positive" | "negative" | null>(
     null,
   );
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState<
+    "idle" | "submitting" | "submitted" | "error"
+  >("idle");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
   const snapshot = assessment.profileSnapshot;
   const details = [
     ["Name", snapshot.name],
@@ -2474,6 +2479,101 @@ function ProfileSnapshotSection({
     ["Location", snapshot.location],
     ["Estimated experience", snapshot.estimatedYearsOfExperience],
   ];
+  const hasSubmittedFeedback = feedbackStatus === "submitted";
+
+  useEffect(() => {
+    setFeedbackChoice(null);
+    setFeedbackText("");
+
+    if (!assessment.assessmentId) {
+      setFeedbackStatus("idle");
+      setFeedbackMessage("");
+      return;
+    }
+
+    try {
+      const storageKey = getAssessmentFeedbackStorageKey(assessment.assessmentId);
+      if (window.localStorage.getItem(storageKey) === "submitted") {
+        setFeedbackStatus("submitted");
+        setFeedbackMessage("Thank you for your feedback.");
+        return;
+      }
+    } catch {
+      // Local duplicate guard is best-effort; Supabase remains the source of truth.
+    }
+
+    setFeedbackStatus("idle");
+    setFeedbackMessage("");
+  }, [assessment.assessmentId]);
+
+  async function submitFeedback(feedbackType: "positive" | "negative") {
+    if (feedbackStatus === "submitted" || feedbackStatus === "submitting") return;
+    if (!assessment.assessmentId || !assessment.userKey) {
+      setFeedbackStatus("error");
+      setFeedbackMessage("Feedback can be submitted after this assessment is stored.");
+      return;
+    }
+    if (feedbackType === "negative" && !feedbackText.trim()) {
+      setFeedbackStatus("error");
+      setFeedbackMessage("Tell us what was inaccurate or missing.");
+      return;
+    }
+
+    setFeedbackChoice(feedbackType);
+    setFeedbackStatus("submitting");
+    setFeedbackMessage("");
+
+    try {
+      const response = await fetch("/api/assessment-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assessmentId: assessment.assessmentId,
+          userKey: assessment.userKey,
+          feedbackType,
+          feedbackText: feedbackType === "negative" ? feedbackText : "",
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const message =
+        payload &&
+        typeof payload === "object" &&
+        "message" in payload &&
+        typeof payload.message === "string"
+          ? payload.message
+          : "";
+      const error =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
+          : "";
+
+      if (!response.ok) {
+        throw new Error(error || "Feedback could not be saved.");
+      }
+
+      try {
+        window.localStorage.setItem(
+          getAssessmentFeedbackStorageKey(assessment.assessmentId),
+          "submitted",
+        );
+      } catch {
+        // Feedback was saved server-side; local duplicate guard is best-effort.
+      }
+
+      setFeedbackStatus("submitted");
+      setFeedbackMessage(message || "Thank you for your feedback.");
+    } catch (feedbackError) {
+      setFeedbackStatus("error");
+      setFeedbackMessage(
+        feedbackError instanceof Error
+          ? feedbackError.message
+          : "Feedback could not be saved.",
+      );
+    }
+  }
 
   return (
     <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 text-[#191919] shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
@@ -2534,37 +2634,91 @@ function ProfileSnapshotSection({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-semibold text-[#191919]">Is this accurate?</p>
-        <div className="flex gap-2">
-          <button
-            className={classNames(
-              "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
-              accuracyFeedback === "yes"
-                ? "border-[#057642] bg-[#EEF7F2] text-[#057642]"
-                : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#057642]",
-            )}
-            onClick={() => setAccuracyFeedback("yes")}
-            type="button"
-          >
-            Yes
-          </button>
-          <button
-            className={classNames(
-              "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
-              accuracyFeedback === "needs-improvement"
-                ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
-                : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#0A66C2]",
-            )}
-            onClick={() => setAccuracyFeedback("needs-improvement")}
-            type="button"
-          >
-            Needs Improvement
-          </button>
+      <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-semibold text-[#191919]">
+            Was this assessment accurate?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={classNames(
+                "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+                feedbackChoice === "positive"
+                  ? "border-[#057642] bg-[#EEF7F2] text-[#057642]"
+                  : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#057642]",
+              )}
+              disabled={hasSubmittedFeedback || feedbackStatus === "submitting"}
+              onClick={() => void submitFeedback("positive")}
+              type="button"
+            >
+              Yes
+            </button>
+            <button
+              className={classNames(
+                "inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+                feedbackChoice === "negative"
+                  ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
+                  : "border-[#D9DDE3] bg-white text-[#191919] hover:border-[#0A66C2]",
+              )}
+              disabled={hasSubmittedFeedback || feedbackStatus === "submitting"}
+              onClick={() => {
+                setFeedbackChoice("negative");
+                setFeedbackStatus("idle");
+                setFeedbackMessage("");
+              }}
+              type="button"
+            >
+              Needs Improvement
+            </button>
+          </div>
         </div>
+
+        {feedbackChoice === "negative" && !hasSubmittedFeedback && (
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+              What should be improved?
+              <textarea
+                className="min-h-28 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-sm font-normal leading-6 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setFeedbackText(event.target.value)}
+                placeholder="Tell us what was inaccurate or missing."
+                value={feedbackText}
+              />
+            </label>
+            <button
+              className={classNames(
+                "inline-flex h-11 w-fit items-center justify-center rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              disabled={feedbackStatus === "submitting" || !feedbackText.trim()}
+              onClick={() => void submitFeedback("negative")}
+              type="button"
+            >
+              {feedbackStatus === "submitting" ? "Saving Feedback..." : "Submit Feedback"}
+            </button>
+          </div>
+        )}
+
+        {feedbackMessage && (
+          <p
+            className={classNames(
+              "mt-4 rounded-lg border p-3 text-sm font-semibold",
+              feedbackStatus === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-[#057642]/20 bg-[#EEF7F2] text-[#057642]",
+            )}
+          >
+            {feedbackStatus === "submitted"
+              ? "Thank you for your feedback."
+              : feedbackMessage}
+          </p>
+        )}
       </div>
     </section>
   );
+}
+
+function getAssessmentFeedbackStorageKey(assessmentId: string) {
+  return `inconnect:assessment-feedback:${assessmentId}`;
 }
 
 function PositioningSnapshotSection({

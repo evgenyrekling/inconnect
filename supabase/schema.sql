@@ -53,11 +53,26 @@ create table if not exists public.usage_limits (
   unique (user_key, period_start, period_end)
 );
 
+create table if not exists public.assessment_feedback (
+  id uuid primary key default gen_random_uuid(),
+  assessment_id uuid not null references public.assessments(id) on delete cascade,
+  user_key text not null,
+  feedback_type text not null check (feedback_type in ('positive', 'negative')),
+  feedback_text text,
+  created_at timestamp with time zone not null default now(),
+  constraint assessment_feedback_negative_text_check
+    check (feedback_type <> 'negative' or nullif(trim(feedback_text), '') is not null)
+);
+
 create index if not exists users_user_key_idx on public.users (user_key);
 create index if not exists assessments_user_key_created_at_idx
   on public.assessments (user_key, created_at desc);
 create index if not exists usage_limits_user_key_period_idx
   on public.usage_limits (user_key, period_start, period_end);
+create unique index if not exists assessment_feedback_assessment_id_idx
+  on public.assessment_feedback (assessment_id);
+create index if not exists assessment_feedback_user_key_created_at_idx
+  on public.assessment_feedback (user_key, created_at desc);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
