@@ -131,10 +131,7 @@ const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 const navItems = [
   { label: "Assessment", href: "#assessment" },
   { label: "Headline Generator", href: "#headline-generator" },
-  { label: "Trend Radar", href: "#trend-radar" },
-  { label: "Content Intelligence", href: "#content-intelligence" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Contact", href: "/contact" },
 ];
 
 const roleOptions = [
