@@ -20,6 +20,9 @@ const footerLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
+const primaryCtaClass =
+  "rounded-lg bg-[#4A6FD0] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition-colors duration-200 ease-[ease] hover:bg-[#3859B8]";
+
 export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPageProps) {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
@@ -29,7 +32,7 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
             <Logo markSize={42} />
           </Link>
           <Link
-            className="rounded-lg border border-[#0A66C2] bg-white px-4 py-2 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
+            className={primaryCtaClass}
             href="/"
           >
             Back to Assessment

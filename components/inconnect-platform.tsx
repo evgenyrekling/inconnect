@@ -56,6 +56,7 @@ type LimitState = {
 };
 type StoredReturningIdentity = {
   userKey: string;
+  name?: string;
   email: string;
   linkedinUrl: string;
   latestAssessmentId?: string;
@@ -69,6 +70,7 @@ type ReturningUserProfile = {
   hasPreviousAssessment: true;
   user: {
     userKey: string;
+    name?: string;
     email: string;
     linkedinUrl: string;
     planType: "admin" | "free" | "pro" | string;
@@ -121,6 +123,10 @@ const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const HEADLINE_GENERATIONS_STORAGE_KEY = "inconnect:headline-generations";
+const HEADLINE_SELECTION_LIMIT = 10;
+const PRIMARY_CTA_CLASS =
+  "bg-[#4A6FD0] font-semibold text-[#FFFFFF] transition-colors duration-200 ease-[ease] hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none";
+const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
   { label: "Assessment", href: "#assessment" },
@@ -277,6 +283,14 @@ function storeReturningIdentity(identity: StoredReturningIdentity) {
   }
 }
 
+function clearReturningIdentity() {
+  try {
+    window.localStorage.removeItem(RETURNING_USER_STORAGE_KEY);
+  } catch {
+    // localStorage can be unavailable in private browsing or embedded contexts.
+  }
+}
+
 function isStoredReturningIdentity(value: unknown): value is StoredReturningIdentity {
   return (
     typeof value === "object" &&
@@ -310,6 +324,20 @@ function getFirstName(assessment: ProfileIntelligenceAssessment) {
   const name = assessment.profileSnapshot?.name?.trim();
   if (!name || /^not clearly/i.test(name)) return "";
   return name.split(/\s+/)[0] ?? "";
+}
+
+function getAssessmentDisplayName(assessment?: ProfileIntelligenceAssessment | null) {
+  const name = assessment?.profileSnapshot?.name?.trim() ?? "";
+  return name && !/^not clearly/i.test(name) ? name : "";
+}
+
+function getIdentityDisplayName(identity?: StoredReturningIdentity | null) {
+  const name = identity?.name?.trim() ?? "";
+  return name && !/^not clearly/i.test(name) ? name : "";
+}
+
+function getFirstNameFromDisplayName(name: string) {
+  return name.trim().split(/\s+/)[0] ?? "";
 }
 
 function getAssessmentError({
@@ -565,7 +593,7 @@ function HeroSection() {
             Your AI LinkedIn Intelligence Platform
           </p>
           <h1 className="mt-5 max-w-4xl text-4xl font-semibold leading-tight sm:text-6xl">
-            Most professionals are invisible on LinkedIn. INConnect helps change that.
+            Most professionals and companies are invisible on LinkedIn. INConnect helps change that.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
             Discover how the market sees you and build a stronger professional
@@ -574,13 +602,19 @@ function HeroSection() {
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <a
-              className="inline-flex h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 font-semibold text-white transition hover:bg-[#004182]"
+              className={classNames(
+                "inline-flex h-12 items-center justify-center rounded-lg px-5",
+                PRIMARY_CTA_CLASS,
+              )}
               href="#assessment"
             >
               Start Assessment
             </a>
             <a
-              className="inline-flex h-12 items-center justify-center rounded-lg border border-[#78B7F4]/45 bg-white/[0.06] px-5 font-semibold text-white transition hover:bg-white/[0.12]"
+              className={classNames(
+                "inline-flex h-12 items-center justify-center rounded-lg px-5",
+                PRIMARY_CTA_CLASS,
+              )}
               href="#headline-generator"
             >
               Generate Headlines
@@ -747,7 +781,10 @@ function ModuleGrid() {
                 </ul>
                 {isActive ? (
                   <a
-                    className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white transition hover:bg-[#004182]"
+                    className={classNames(
+                      "mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg px-4 text-sm",
+                      PRIMARY_CTA_CLASS,
+                    )}
                     href={module.href}
                   >
                     {module.title === "Headline Generator"
@@ -878,7 +915,11 @@ function AssessmentForm({
       </div>
 
       <button
-        className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center text-sm font-semibold leading-5 text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none sm:text-base"
+        className={classNames(
+          "mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center text-sm leading-5 sm:text-base",
+          PRIMARY_CTA_CLASS,
+          PRIMARY_CTA_SHADOW,
+        )}
         disabled={isSubmitDisabled}
         type="submit"
       >
@@ -946,7 +987,10 @@ function AssessmentForm({
           <p className="mt-2 text-[#666666]">{limitState.message}</p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0A66C2] px-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+              className={classNames(
+                "inline-flex h-10 items-center justify-center rounded-lg px-4",
+                PRIMARY_CTA_CLASS,
+              )}
               disabled={!limitState.latestAssessment}
               onClick={onViewLatest}
               type="button"
@@ -954,7 +998,10 @@ function AssessmentForm({
               View Latest Assessment
             </button>
             <button
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2]"
+              className={classNames(
+                "inline-flex h-10 items-center justify-center rounded-lg px-4",
+                PRIMARY_CTA_CLASS,
+              )}
               onClick={onUpgrade}
               type="button"
             >
@@ -993,7 +1040,13 @@ function AssessmentForm({
   );
 }
 
-function HeadlineGenerator() {
+function HeadlineGenerator({
+  identity,
+  onSwitchUser,
+}: {
+  identity: StoredReturningIdentity | null;
+  onSwitchUser: () => void;
+}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [hasStarted, setHasStarted] = useState(false);
@@ -1013,29 +1066,39 @@ function HeadlineGenerator() {
   const [error, setError] = useState("");
   const [results, setResults] = useState<HeadlineGeneratorResponse | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const recognizedName = getIdentityDisplayName(identity);
+  const recognizedEmail = identity?.email.trim() ?? "";
+  const isRecognizedUser = Boolean(
+    identity?.userKey && recognizedName && isValidEmail(recognizedEmail),
+  );
+  const shouldShowWizard = hasStarted || isRecognizedUser;
+  const effectiveName = isRecognizedUser ? recognizedName : name;
+  const effectiveEmail = isRecognizedUser ? recognizedEmail : email;
+  const recognizedFirstName = getFirstNameFromDisplayName(recognizedName);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(HEADLINE_GENERATIONS_STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
-      if (!Array.isArray(parsed)) return;
-      const latest = parsed.find(
-        (item): item is HeadlineGenerationRecord =>
-          typeof item === "object" &&
-          item !== null &&
-          "name" in item &&
-          typeof item.name === "string" &&
-          "email" in item &&
-          typeof item.email === "string",
-      );
-      if (latest) {
-        setName((current) => current || latest.name);
-        setEmail((current) => current || latest.email);
-      }
-    } catch {
-      // Stored headline identity is best-effort.
+    if (isRecognizedUser) {
+      setName(recognizedName);
+      setEmail(recognizedEmail);
+      setHasStarted(true);
+      setError("");
+      return;
     }
-  }, []);
+
+    if (identity) {
+      setName(identity.name ?? "");
+      setEmail(identity.email ?? "");
+      setHasStarted(false);
+      return;
+    }
+
+    setName("");
+    setEmail("");
+    setHasStarted(false);
+    setResults(null);
+    setCopiedIndex(null);
+    setError("");
+  }, [identity, isRecognizedUser, recognizedEmail, recognizedName]);
 
   const inputs: HeadlineInputs = {
     roles: uniqueItems(selectedRoles),
@@ -1044,11 +1107,12 @@ function HeadlineGenerator() {
     values: uniqueItems(selectedValue),
     perceptions: uniqueItems(selectedPerception),
   };
-  const identityIsValid = name.trim().length > 1 && isValidEmail(email);
+  const identityIsValid =
+    effectiveName.trim().length > 1 && isValidEmail(effectiveEmail);
   const steps = [
     {
       question: "What is your current professional role?",
-      helper: "Select your top 1-3 roles.",
+      helper: "Select up to 10 roles.",
       options: roleOptions,
       selected: inputs.roles,
       setSelected: setSelectedRoles,
@@ -1057,11 +1121,11 @@ function HeadlineGenerator() {
       customValue: customRole,
       setCustomValue: setCustomRole,
       minSelections: 1,
-      maxSelections: 3,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
     },
     {
       question: "Which industries do you want people to associate you with?",
-      helper: "Select your top 3-5 industries.",
+      helper: "Select up to 10 industries.",
       options: industryOptions,
       selected: inputs.industries,
       setSelected: setSelectedIndustries,
@@ -1069,12 +1133,12 @@ function HeadlineGenerator() {
       customPlaceholder: "Example: Baggage Handling Systems",
       customValue: customIndustry,
       setCustomValue: setCustomIndustry,
-      minSelections: 3,
-      maxSelections: 5,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
     },
     {
       question: "What are your strongest professional skills or expertise areas?",
-      helper: "Select your top 3-5 expertise areas.",
+      helper: "Select up to 10 expertise areas.",
       options: expertiseOptions,
       selected: inputs.expertise,
       setSelected: setSelectedExpertise,
@@ -1082,12 +1146,12 @@ function HeadlineGenerator() {
       customPlaceholder: "Example: Partner Ecosystem Strategy",
       customValue: customExpertise,
       setCustomValue: setCustomExpertise,
-      minSelections: 3,
-      maxSelections: 5,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
     },
     {
       question: "What business value or outcome do you help create?",
-      helper: "Select your top 3-5 outcomes.",
+      helper: "Select up to 10 outcomes.",
       options: businessValueOptions,
       selected: inputs.values,
       setSelected: setSelectedValue,
@@ -1095,13 +1159,13 @@ function HeadlineGenerator() {
       customPlaceholder: "Example: Improve airport throughput",
       customValue: customValue,
       setCustomValue: setCustomValue,
-      minSelections: 3,
-      maxSelections: 5,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
     },
     {
       question:
         "If someone remembers only one thing about you after visiting your profile, what should it be?",
-      helper: "Select your top 1-3 desired perceptions.",
+      helper: "Select up to 10 desired perceptions.",
       options: perceptionOptions,
       selected: inputs.perceptions,
       setSelected: setSelectedPerception,
@@ -1110,7 +1174,7 @@ function HeadlineGenerator() {
       customValue: customPerception,
       setCustomValue: setCustomPerception,
       minSelections: 1,
-      maxSelections: 3,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
     },
   ];
   const activeStep = steps[stepIndex];
@@ -1159,8 +1223,8 @@ function HeadlineGenerator() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
+          name: effectiveName.trim(),
+          email: effectiveEmail.trim(),
           roles: inputs.roles,
           industries: inputs.industries,
           expertise: inputs.expertise,
@@ -1183,8 +1247,8 @@ function HeadlineGenerator() {
 
       setResults(payload);
       storeHeadlineGeneration({
-        name: name.trim(),
-        email: email.trim(),
+        name: effectiveName.trim(),
+        email: effectiveEmail.trim(),
         inputs,
         outputs: payload,
         createdAt: new Date().toISOString(),
@@ -1203,7 +1267,7 @@ function HeadlineGenerator() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!hasStarted) {
+    if (!shouldShowWizard) {
       startGenerator();
       return;
     }
@@ -1243,7 +1307,30 @@ function HeadlineGenerator() {
             </p>
           </div>
 
-          {!hasStarted ? (
+          {isRecognizedUser && (
+            <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-[#191919]">
+                    Welcome back{recognizedFirstName ? `, ${recognizedFirstName}` : ""}.
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[#666666]">
+                    Generating headlines for:
+                  </p>
+                  <p className="font-semibold text-[#191919]">{recognizedEmail}</p>
+                </div>
+                <button
+                  className="w-fit text-sm font-semibold text-[#0A66C2] underline-offset-4 hover:underline"
+                  onClick={onSwitchUser}
+                  type="button"
+                >
+                  Not you?
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!shouldShowWizard ? (
             <div className="mt-6 grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-[#191919]">
                 Name
@@ -1265,7 +1352,11 @@ function HeadlineGenerator() {
                 />
               </label>
               <button
-                className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-5 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
+                className={classNames(
+                  "inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center",
+                  PRIMARY_CTA_CLASS,
+                  PRIMARY_CTA_SHADOW,
+                )}
                 disabled={!identityIsValid}
                 type="submit"
               >
@@ -1281,7 +1372,7 @@ function HeadlineGenerator() {
                     Step {stepIndex + 1} of {steps.length}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-[#191919]">
-                    {activeStep.selected.length}/{activeStep.maxSelections} selected
+                    {activeStep.selected.length} of {activeStep.maxSelections} selected
                   </p>
                 </div>
                 <p className="text-sm leading-6 text-[#666666]">
@@ -1377,7 +1468,11 @@ function HeadlineGenerator() {
                 </button>
                 {isFinalStep ? (
                   <button
-                    className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-6 py-3 text-center font-semibold text-white shadow-[0_12px_28px_rgba(10,102,194,0.24)] transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none"
+                    className={classNames(
+                      "inline-flex min-h-14 items-center justify-center gap-2 rounded-lg px-6 py-3 text-center",
+                      PRIMARY_CTA_CLASS,
+                      PRIMARY_CTA_SHADOW,
+                    )}
                     disabled={!canGenerate || isGenerating}
                     type="submit"
                   >
@@ -1390,7 +1485,10 @@ function HeadlineGenerator() {
                   </button>
                 ) : (
                   <button
-                    className="inline-flex h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 text-sm font-semibold text-white transition hover:bg-[#004182] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+                    className={classNames(
+                      "inline-flex h-12 items-center justify-center rounded-lg px-5 text-sm",
+                      PRIMARY_CTA_CLASS,
+                    )}
                     disabled={!currentStepIsComplete || isGenerating}
                     onClick={() =>
                       setStepIndex((current) =>
@@ -1428,7 +1526,10 @@ function HeadlineGenerator() {
               </p>
             </div>
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#666666]"
+              className={classNames(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
               disabled={!results || !canGenerate || isGenerating}
               onClick={generateHeadlines}
               type="button"
@@ -1438,7 +1539,7 @@ function HeadlineGenerator() {
             </button>
           </div>
 
-          {!hasStarted ? (
+          {!shouldShowWizard ? (
             <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
               <p className="font-semibold text-[#191919]">
                 Add your name and email to begin.
@@ -1490,7 +1591,10 @@ function HeadlineGenerator() {
                         </p>
                       </div>
                       <button
-                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-3 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
+                        className={classNames(
+                          "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-sm",
+                          PRIMARY_CTA_CLASS,
+                        )}
                         onClick={() => handleCopy(option.headline, index)}
                         type="button"
                       >
@@ -1514,7 +1618,10 @@ function HeadlineGenerator() {
               })}
 
               <a
-                className="inline-flex min-h-12 items-center justify-center rounded-lg bg-[#0A66C2] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#004182]"
+                className={classNames(
+                  "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-sm",
+                  PRIMARY_CTA_CLASS,
+                )}
                 href="#assessment"
               >
                 Start Profile Assessment
@@ -1739,6 +1846,7 @@ function WelcomeBackSection({
   limitMessage,
   onOpenAssessment,
   onRunNew,
+  onSwitchUser,
   onUpgrade,
   onViewLatest,
   profile,
@@ -1748,12 +1856,14 @@ function WelcomeBackSection({
   limitMessage: string;
   onOpenAssessment: (assessmentId: string) => void;
   onRunNew: () => void;
+  onSwitchUser: () => void;
   onUpgrade: () => void;
   onViewLatest: () => void;
   profile: ReturningUserProfile;
 }) {
   const latest = profile.latestAssessment;
-  const firstName = getFirstName(latest);
+  const displayName = profile.user.name || getAssessmentDisplayName(latest);
+  const firstName = displayName ? getFirstNameFromDisplayName(displayName) : getFirstName(latest);
   const trend = profile.authorityTrend.scores.join(" → ");
 
   return (
@@ -1767,6 +1877,13 @@ function WelcomeBackSection({
             <h2 className="mt-3 text-2xl font-semibold">
               Welcome back{firstName ? `, ${firstName}` : ""}.
             </h2>
+            <button
+              className="mt-2 text-sm font-semibold text-[#0A66C2] underline-offset-4 hover:underline"
+              onClick={onSwitchUser}
+              type="button"
+            >
+              Not you?
+            </button>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
@@ -1794,7 +1911,10 @@ function WelcomeBackSection({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 text-sm font-semibold text-white transition hover:bg-[#004182]"
+              className={classNames(
+                "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
               disabled={isLoading}
               onClick={onViewLatest}
               type="button"
@@ -1803,7 +1923,10 @@ function WelcomeBackSection({
               View Latest Assessment
             </button>
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
+              className={classNames(
+                "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
               disabled={isLoading}
               onClick={onRunNew}
               type="button"
@@ -1819,7 +1942,10 @@ function WelcomeBackSection({
             <p className="font-semibold text-[#191919]">{limitMessage}</p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white"
+                className={classNames(
+                  "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4",
+                  PRIMARY_CTA_CLASS,
+                )}
                 onClick={onViewLatest}
                 type="button"
               >
@@ -1827,7 +1953,10 @@ function WelcomeBackSection({
                 View Latest Assessment
               </button>
               <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2]"
+                className={classNames(
+                  "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4",
+                  PRIMARY_CTA_CLASS,
+                )}
                 onClick={onUpgrade}
                 type="button"
               >
@@ -1996,7 +2125,10 @@ function AssessmentResults({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 font-semibold text-white transition hover:bg-[#004182] disabled:opacity-70 sm:w-auto"
+          className={classNames(
+            "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg px-4 disabled:opacity-70 sm:w-auto",
+            PRIMARY_CTA_CLASS,
+          )}
           disabled={isCardActionRunning}
           onClick={handleSaveCard}
           type="button"
@@ -2009,7 +2141,10 @@ function AssessmentResults({
           Save Card
         </button>
         <button
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:opacity-70 sm:w-auto"
+          className={classNames(
+            "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg px-4 disabled:opacity-70 sm:w-auto",
+            PRIMARY_CTA_CLASS,
+          )}
           disabled={isCardActionRunning}
           onClick={handleLinkedInShare}
           type="button"
@@ -2851,8 +2986,14 @@ export function INConnectPlatform() {
       }
 
       setReturningUser(payload);
+      const displayName =
+        payload.user.name ||
+        getAssessmentDisplayName(payload.latestAssessment) ||
+        identity.name ||
+        "";
       const nextIdentity = {
         userKey: payload.user.userKey,
+        name: displayName,
         email: payload.user.email || identity.email,
         linkedinUrl: payload.user.linkedinUrl || identity.linkedinUrl,
         latestAssessmentId: payload.latestAssessmentId,
@@ -2916,6 +3057,17 @@ export function INConnectPlatform() {
 
   function handleUpgrade() {
     document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function handleSwitchUser() {
+    clearReturningIdentity();
+    setReturningIdentity(null);
+    setReturningUser(null);
+    setReturningUserLimitMessage("");
+    setAssessment(null);
+    setAssessmentDebug(null);
+    setError("");
+    setLimitState(null);
   }
 
   async function handleAssessmentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -3025,6 +3177,7 @@ export function INConnectPlatform() {
       if (nextAssessment.userKey) {
         const nextIdentity = {
           userKey: nextAssessment.userKey,
+          name: getAssessmentDisplayName(nextAssessment),
           email,
           linkedinUrl,
           latestAssessmentId: nextAssessment.assessmentId,
@@ -3058,6 +3211,7 @@ export function INConnectPlatform() {
               limitMessage={returningUserLimitMessage}
               onOpenAssessment={handleOpenAssessment}
               onRunNew={handleRunNewAssessment}
+              onSwitchUser={handleSwitchUser}
               onUpgrade={handleUpgrade}
               onViewLatest={handleViewLatestAssessment}
               profile={returningUser}
@@ -3083,7 +3237,7 @@ export function INConnectPlatform() {
           {assessment && <AssessmentResults assessment={assessment} />}
         </div>
       </section>
-      <HeadlineGenerator />
+      <HeadlineGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
       <LockedPreview
         id="trend-radar"
         title="Trend Radar"

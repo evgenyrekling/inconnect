@@ -33,6 +33,7 @@ const HEADLINE_STYLES = [
   "Thought Leadership Style",
   "Clear Professional Style",
 ] as const;
+const MAX_SELECTIONS_PER_QUESTION = 10;
 
 const headlineSchema = {
   type: "object",
@@ -96,8 +97,12 @@ export async function POST(request: NextRequest) {
           content: [
             "You are INConnect, an AI LinkedIn Intelligence Platform.",
             "Generate premium LinkedIn headline options from positioning signals.",
+            "Create headlines for the LinkedIn headline field only.",
+            "Never include the user's name in any headline.",
             "Do not invent credentials, employers, degrees, awards, years of experience, client names, revenue numbers, or unverifiable claims.",
-            "Keep every headline under 220 characters.",
+            "Keep every headline concise, senior, strategic, and under 220 characters.",
+            "Use selected inputs to prioritize relevance, but do not try to include every input.",
+            "Avoid keyword stuffing, awkward wording, repeated concepts, and overly long headlines.",
             "Avoid hype, emojis, hashtags, and vague buzzwords.",
             "Use concise, professional wording suitable for LinkedIn.",
           ].join(" "),
@@ -106,10 +111,13 @@ export async function POST(request: NextRequest) {
           role: "user",
           content: [
             "Generate 3-5 LinkedIn headline options for this professional.",
+            "These are LinkedIn headline field options, not profile names, titles, or score-card headings.",
+            "Do not include the person's name in any headline output.",
+            "Generate 3-5 different headline styles with distinct positioning angles.",
             "Use the five requested styles when possible:",
             HEADLINE_STYLES.join(", "),
             "",
-            `Name: ${input.name}`,
+            `Profile name for internal personalization only, never for headline output: ${input.name}`,
             `Roles: ${input.roles.join(", ")}`,
             `Target industries: ${input.industries.join(", ")}`,
             `Expertise areas: ${input.expertise.join(", ")}`,
@@ -119,7 +127,7 @@ export async function POST(request: NextRequest) {
             "Required response:",
             "- headlines: 3 to 5 options.",
             "- style: one of the exact requested style labels.",
-            "- headline: a LinkedIn-ready headline under 220 characters.",
+            "- headline: a LinkedIn-ready headline under 220 characters and without the user's name.",
             "- score: numeric quality score out of 10.",
             "- reason: one short explanation for why the headline works.",
             "- bestFor: one short description of the best use case.",
@@ -145,7 +153,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      normalizeHeadlineResponse(response.output_parsed as HeadlineGeneratorResponse),
+      normalizeHeadlineResponse(
+        response.output_parsed as HeadlineGeneratorResponse,
+        input.name,
+      ),
     );
   } catch (error) {
     console.error("OpenAI headline generation failed", error);
@@ -162,11 +173,20 @@ function normalizeHeadlineRequest(value: unknown): HeadlineGeneratorRequest | nu
   const record = value as Record<string, unknown>;
   const name = getString(record.name);
   const email = getString(record.email);
-  const roles = getStringArray(record.roles).slice(0, 3);
-  const industries = getStringArray(record.industries).slice(0, 5);
-  const expertise = getStringArray(record.expertise).slice(0, 5);
-  const values = getStringArray(record.values).slice(0, 5);
-  const perceptions = getStringArray(record.perceptions).slice(0, 3);
+  const roles = getStringArray(record.roles).slice(0, MAX_SELECTIONS_PER_QUESTION);
+  const industries = getStringArray(record.industries).slice(
+    0,
+    MAX_SELECTIONS_PER_QUESTION,
+  );
+  const expertise = getStringArray(record.expertise).slice(
+    0,
+    MAX_SELECTIONS_PER_QUESTION,
+  );
+  const values = getStringArray(record.values).slice(0, MAX_SELECTIONS_PER_QUESTION);
+  const perceptions = getStringArray(record.perceptions).slice(
+    0,
+    MAX_SELECTIONS_PER_QUESTION,
+  );
 
   if (
     name.length < 2 ||
@@ -193,6 +213,7 @@ function normalizeHeadlineRequest(value: unknown): HeadlineGeneratorRequest | nu
 
 function normalizeHeadlineResponse(
   response: HeadlineGeneratorResponse,
+  userName: string,
 ): HeadlineGeneratorResponse {
   const headlines = response.headlines
     .map((headline) => ({
@@ -201,7 +222,7 @@ function normalizeHeadlineResponse(
       )
         ? headline.style
         : "Clear Professional Style",
-      headline: headline.headline.trim().slice(0, 220),
+      headline: removeUserNameFromHeadline(headline.headline, userName).slice(0, 220),
       score: Math.min(10, Math.max(0, Number(headline.score) || 0)),
       reason: headline.reason.trim(),
       bestFor: headline.bestFor.trim(),
@@ -240,4 +261,33 @@ function getStringArray(value: unknown) {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function removeUserNameFromHeadline(headline: string, userName: string) {
+  const nameParts = userName
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 2);
+  const candidates = Array.from(new Set([userName.trim(), ...nameParts].filter(Boolean)));
+
+  let cleaned = headline.trim();
+  for (const candidate of candidates) {
+    cleaned = cleaned.replace(
+      new RegExp(`\\b${escapeRegExp(candidate)}\\b`, "gi"),
+      "",
+    );
+  }
+
+  return cleaned
+    .replace(/\s*\|\s*\|/g, " | ")
+    .replace(/\s*[-:;,]\s*([|])/g, " $1")
+    .replace(/^\s*[|:;,-]+\s*/g, "")
+    .replace(/\s*[|:;,-]+\s*$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+\|\s+/g, " | ")
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

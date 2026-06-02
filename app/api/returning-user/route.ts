@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     hasPreviousAssessment: true,
-    user: createUserPayload(user, planType),
+    user: createUserPayload(user, planType, getAssessmentDisplayName(latestAssessment)),
     latestAssessment,
     selectedAssessment,
     latestAssessmentId: latestRow.id,
@@ -213,14 +213,20 @@ function getAssessmentScore(row: AssessmentRow) {
   return null;
 }
 
-function createUserPayload(user: UserRow, planType = getPlanType(user)) {
+function createUserPayload(user: UserRow, planType = getPlanType(user), name = "") {
   return {
     userKey: user.user_key,
+    name,
     email: user.email,
     linkedinUrl: user.linkedin_url,
     planType,
     isAdmin: planType === "admin",
   };
+}
+
+function getAssessmentDisplayName(assessment: ProfileIntelligenceAssessment) {
+  const name = assessment.profileSnapshot?.name?.trim() ?? "";
+  return name && !/^not clearly/i.test(name) ? name : "";
 }
 
 function getPlanType(user: UserRow) {
