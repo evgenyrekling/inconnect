@@ -71,7 +71,7 @@ create table if not exists public.user_profiles (
   name text,
   email text not null,
   linkedin_url text,
-  current_role text,
+  professional_role text,
   seniority_level text,
   current_company text,
   location text,

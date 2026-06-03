@@ -51,7 +51,7 @@ type UserProfileRow = {
   name: string | null;
   email: string;
   linkedin_url: string | null;
-  current_role: string | null;
+  professional_role: string | null;
   seniority_level: string | null;
   current_company: string | null;
   location: string | null;
@@ -80,7 +80,7 @@ type ProfilePatch = {
   name?: string;
   email: string;
   linkedin_url?: string;
-  current_role?: string;
+  professional_role?: string;
   seniority_level?: string;
   current_company?: string;
   location?: string;
@@ -272,7 +272,7 @@ export async function upsertProfileFromAssessment(
     name: cleanProfileText(snapshot.name),
     email: normalizeEmail(values.email),
     linkedin_url: values.linkedinUrl.trim(),
-    current_role: cleanProfileText(snapshot.currentRole),
+    professional_role: cleanProfileText(snapshot.currentRole),
     seniority_level: inferSeniorityLevel([
       snapshot.currentRole,
       values.assessment.marketPosition,
@@ -312,7 +312,7 @@ export async function upsertProfileFromHeadlineGenerator(
     user_key: values.user.user_key,
     name: cleanProfileText(values.name),
     email: normalizeEmail(values.email),
-    current_role: values.inputs.roles[0],
+    professional_role: values.inputs.roles[0],
     seniority_level: inferSeniorityLevel(values.inputs.roles),
     industries: values.inputs.industries,
     top_skills: values.inputs.expertise,
@@ -384,7 +384,7 @@ function mergeProfilePatch(existingProfile: UserProfileRow | null, patch: Profil
     name: preferText(patch.name, source?.name),
     email: patch.email,
     linkedin_url: preferText(patch.linkedin_url, source?.linkedin_url),
-    current_role: preferText(patch.current_role, source?.current_role),
+    professional_role: preferText(patch.professional_role, source?.professional_role),
     seniority_level: preferText(patch.seniority_level, source?.seniority_level),
     current_company: preferText(patch.current_company, source?.current_company),
     location: preferText(patch.location, source?.location),

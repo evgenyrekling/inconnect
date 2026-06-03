@@ -5,7 +5,7 @@ create table if not exists public.user_profiles (
   name text,
   email text not null,
   linkedin_url text,
-  current_role text,
+  professional_role text,
   seniority_level text,
   current_company text,
   location text,
@@ -30,6 +30,31 @@ create table if not exists public.user_profiles (
 alter table public.users
   alter column linkedin_url drop not null,
   alter column normalized_linkedin_url drop not null;
+
+alter table public.user_profiles
+  add column if not exists professional_role text;
+
+do $$
+declare
+  old_role_column text := 'current' || '_role';
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'user_profiles'
+      and column_name = old_role_column
+  ) then
+    execute format(
+      'update public.user_profiles set professional_role = coalesce(professional_role, %I)',
+      old_role_column
+    );
+    execute format(
+      'alter table public.user_profiles drop column if exists %I',
+      old_role_column
+    );
+  end if;
+end $$;
 
 create unique index if not exists user_profiles_email_idx
   on public.user_profiles (email);
