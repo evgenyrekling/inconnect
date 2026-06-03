@@ -32,7 +32,34 @@ alter table public.users
   alter column normalized_linkedin_url drop not null;
 
 alter table public.user_profiles
-  add column if not exists professional_role text;
+  add column if not exists user_id uuid references public.users(id),
+  add column if not exists user_key text,
+  add column if not exists name text,
+  add column if not exists email text,
+  add column if not exists linkedin_url text,
+  add column if not exists professional_role text,
+  add column if not exists seniority_level text,
+  add column if not exists current_company text,
+  add column if not exists location text,
+  add column if not exists industries jsonb not null default '[]'::jsonb,
+  add column if not exists sub_industries jsonb not null default '[]'::jsonb,
+  add column if not exists interests jsonb not null default '[]'::jsonb,
+  add column if not exists top_skills jsonb not null default '[]'::jsonb,
+  add column if not exists expertise_domains jsonb not null default '[]'::jsonb,
+  add column if not exists business_goals jsonb not null default '[]'::jsonb,
+  add column if not exists desired_perception text,
+  add column if not exists professional_archetype jsonb,
+  add column if not exists latest_authority_score integer,
+  add column if not exists latest_assessment_id uuid,
+  add column if not exists last_assessment_date timestamptz,
+  add column if not exists headline_generator_inputs jsonb,
+  add column if not exists headline_generator_outputs jsonb,
+  add column if not exists profile_source text,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table public.user_profiles
+  alter column email set not null;
 
 do $$
 declare

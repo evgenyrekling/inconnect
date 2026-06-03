@@ -871,6 +871,7 @@ function mergeProfileDebug(
     userCreated: identityDebug.userCreated,
     userKeyUpdated: identityDebug.userKeyUpdated,
     profileFound: profileDebug.profileFound,
+    profileCreated: profileDebug.profileCreated,
     profileUpdated: profileDebug.profileUpdated,
     profileMergeCompleted: profileDebug.profileMergeCompleted,
     fieldsUpdated: Array.from(

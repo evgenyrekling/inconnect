@@ -28,6 +28,7 @@ export type UserProfileDebug = {
   userCreated: boolean;
   userKeyUpdated: boolean;
   profileFound: boolean;
+  profileCreated: boolean;
   profileUpdated: boolean;
   profileMergeCompleted: boolean;
   fieldsUpdated: string[];
@@ -137,7 +138,13 @@ export async function findUserByEmailOrKey(
       .limit(1)
       .maybeSingle<UserRow>();
 
-    if (emailError) throw emailError;
+    if (emailError) {
+      console.error("INConnect Supabase users email lookup error", {
+        normalizedEmail,
+        error: emailError,
+      });
+      throw emailError;
+    }
     if (emailUser) return emailUser;
 
     if (!values.userKey) return null;
@@ -150,7 +157,13 @@ export async function findUserByEmailOrKey(
       .eq("user_key", values.userKey)
       .maybeSingle<UserRow>();
 
-    if (keyError) throw keyError;
+    if (keyError) {
+      console.error("INConnect Supabase users user_key lookup error", {
+        userKey: values.userKey,
+        error: keyError,
+      });
+      throw keyError;
+    }
     return keyUser;
   } catch (error) {
     throw new UserProfileStorageError("users lookup", error);
@@ -184,6 +197,15 @@ export async function upsertUserIdentity(
         ? "pro"
         : values.planType || "free";
 
+  console.info("INConnect user identity lookup completed", {
+    email: normalizedEmail,
+    userFound: Boolean(existingUser),
+    userCreated: false,
+    existingUserId: existingUser?.id ?? null,
+    existingUserKey: existingUser?.user_key ?? null,
+    requestedUserKey: nextUserKey,
+  });
+
   try {
     if (existingUser) {
       const previousUserKey = existingUser.user_key;
@@ -195,26 +217,40 @@ export async function upsertUserIdentity(
       const nextLinkedInUrl = linkedinUrl || existingUser.linkedin_url || null;
       const nextNormalizedLinkedInUrl =
         normalizedLinkedInUrl || existingUser.normalized_linkedin_url || null;
+      const userUpdatePayload = {
+        user_key: shouldUpdateUserKey ? nextUserKey : previousUserKey,
+        email: values.email.trim(),
+        linkedin_url: nextLinkedInUrl,
+        normalized_email: normalizedEmail,
+        normalized_linkedin_url: nextNormalizedLinkedInUrl,
+        is_admin: values.isAdminUser || Boolean(existingUser.is_admin),
+        plan_type: planType,
+        updated_at: timestamp,
+      };
+
+      console.info("INConnect Supabase users update payload", {
+        userFound: true,
+        userCreated: false,
+        userId: existingUser.id,
+        payload: userUpdatePayload,
+      });
 
       const { data, error } = await supabase
         .from("users")
-        .update({
-          user_key: shouldUpdateUserKey ? nextUserKey : previousUserKey,
-          email: values.email.trim(),
-          linkedin_url: nextLinkedInUrl,
-          normalized_email: normalizedEmail,
-          normalized_linkedin_url: nextNormalizedLinkedInUrl,
-          is_admin: values.isAdminUser || Boolean(existingUser.is_admin),
-          plan_type: planType,
-          updated_at: timestamp,
-        })
+        .update(userUpdatePayload)
         .eq("id", existingUser.id)
         .select(
           "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
         )
         .single<UserRow>();
 
-      if (error) throw error;
+      if (error) {
+        console.error("INConnect Supabase users update error", {
+          payload: userUpdatePayload,
+          error,
+        });
+        throw error;
+      }
 
       debug.userKeyUpdated = shouldUpdateUserKey;
       debug.fieldsUpdated.push("users");
@@ -223,30 +259,58 @@ export async function upsertUserIdentity(
         await rekeyUserArtifacts(supabase, previousUserKey, nextUserKey);
       }
 
+      console.info("INConnect user identity saved", {
+        userFound: true,
+        userCreated: false,
+        userKeyUpdated: shouldUpdateUserKey,
+        user: data,
+      });
+
       return { user: data, debug };
     }
 
+    const userInsertPayload = {
+      user_key: nextUserKey,
+      email: values.email.trim(),
+      linkedin_url: linkedinUrl || null,
+      normalized_email: normalizedEmail,
+      normalized_linkedin_url: normalizedLinkedInUrl || null,
+      is_admin: values.isAdminUser,
+      plan_type: planType,
+      updated_at: timestamp,
+    };
+
+    console.info("INConnect Supabase users insert payload", {
+      userFound: false,
+      userCreated: true,
+      payload: userInsertPayload,
+    });
+
     const { data, error } = await supabase
       .from("users")
-      .insert({
-        user_key: nextUserKey,
-        email: values.email.trim(),
-        linkedin_url: linkedinUrl || null,
-        normalized_email: normalizedEmail,
-        normalized_linkedin_url: normalizedLinkedInUrl || null,
-        is_admin: values.isAdminUser,
-        plan_type: planType,
-        updated_at: timestamp,
-      })
+      .insert(userInsertPayload)
       .select(
         "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
       )
       .single<UserRow>();
 
-    if (error) throw error;
+    if (error) {
+      console.error("INConnect Supabase users insert error", {
+        payload: userInsertPayload,
+        error,
+      });
+      throw error;
+    }
 
     debug.userCreated = true;
     debug.fieldsUpdated.push("users");
+
+    console.info("INConnect user identity saved", {
+      userFound: false,
+      userCreated: true,
+      userKeyUpdated: false,
+      user: data,
+    });
 
     return { user: data, debug };
   } catch (error) {
@@ -331,10 +395,27 @@ async function upsertUserProfile(supabase: SupabaseAdminClient, patch: ProfilePa
   const existingProfile = await getExistingUserProfile(supabase, patch.email);
   const debug = createProfileDebug(null);
   debug.profileFound = Boolean(existingProfile);
+  debug.profileCreated = !existingProfile;
 
   const merged = mergeProfilePatch(existingProfile, patch);
   const fieldsUpdated = getUpdatedFields(existingProfile, merged);
   debug.fieldsUpdated.push(...fieldsUpdated);
+  const action = existingProfile ? "update" : "insert";
+
+  console.info("INConnect user_profiles lookup completed", {
+    email: patch.email,
+    profileFound: Boolean(existingProfile),
+    profileCreated: !existingProfile,
+    existingProfileId: existingProfile?.id ?? null,
+  });
+
+  console.info(`INConnect Supabase user_profiles ${action} payload`, {
+    action,
+    profileFound: Boolean(existingProfile),
+    profileCreated: !existingProfile,
+    profileId: existingProfile?.id ?? null,
+    payload: merged,
+  });
 
   try {
     const query = existingProfile
@@ -342,14 +423,24 @@ async function upsertUserProfile(supabase: SupabaseAdminClient, patch: ProfilePa
       : supabase.from("user_profiles").insert(merged);
     const { error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error(`INConnect Supabase user_profiles ${action} error`, {
+        action,
+        profileId: existingProfile?.id ?? null,
+        payload: merged,
+        error,
+      });
+      throw error;
+    }
 
     debug.profileUpdated = true;
     debug.profileMergeCompleted = true;
 
-    if (process.env.NODE_ENV === "development") {
-      console.info("INConnect user profile merge completed", debug);
-    }
+    console.info("INConnect user profile merge completed", {
+      ...debug,
+      action,
+      payload: merged,
+    });
 
     return debug;
   } catch (error) {
@@ -368,7 +459,13 @@ async function getExistingUserProfile(
       .eq("email", normalizedEmail)
       .maybeSingle<UserProfileRow>();
 
-    if (error) throw error;
+    if (error) {
+      console.error("INConnect Supabase user_profiles lookup error", {
+        email: normalizedEmail,
+        error,
+      });
+      throw error;
+    }
     return data;
   } catch (error) {
     throw new UserProfileStorageError("user_profiles lookup", error);
@@ -444,6 +541,7 @@ function createProfileDebug(existingUser: UserRow | null): UserProfileDebug {
     userCreated: false,
     userKeyUpdated: false,
     profileFound: false,
+    profileCreated: false,
     profileUpdated: false,
     profileMergeCompleted: false,
     fieldsUpdated: [],

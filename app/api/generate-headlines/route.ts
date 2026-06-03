@@ -194,17 +194,32 @@ export async function POST(request: NextRequest) {
       outputs: normalizedResponse,
       user,
     });
+    const mergedProfileDebug = mergeProfileDebug(identityProfileDebug, profileDebug);
+
+    console.info("INConnect headline profile save flow completed", {
+      userFound: mergedProfileDebug.userFound,
+      userCreated: mergedProfileDebug.userCreated,
+      userKeyUpdated: mergedProfileDebug.userKeyUpdated,
+      profileFound: mergedProfileDebug.profileFound,
+      profileCreated: mergedProfileDebug.profileCreated,
+      profileUpdated: mergedProfileDebug.profileUpdated,
+      profileMergeCompleted: mergedProfileDebug.profileMergeCompleted,
+      fieldsUpdated: mergedProfileDebug.fieldsUpdated,
+      userKey: user.user_key,
+      email: normalizeEmail(input.email),
+    });
 
     return NextResponse.json({
       ...normalizedResponse,
       userKey: user.user_key,
       profileDebug:
         process.env.NODE_ENV === "development"
-          ? mergeProfileDebug(identityProfileDebug, profileDebug)
+          ? mergedProfileDebug
           : undefined,
     });
   } catch (error) {
     if (isUserProfileStorageError(error)) {
+      const isDevelopment = process.env.NODE_ENV === "development";
       console.error("Headline profile storage failed", {
         stage: error.stage,
         error: error.message,
@@ -212,20 +227,27 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json(
         {
-          error: "Headline profile could not be stored. Please try again.",
+          error: isDevelopment
+            ? error.message
+            : "Headline profile could not be stored. Please try again.",
+          userMessage: "Headline profile could not be stored. Please try again.",
           stage: error.stage,
-          details: process.env.NODE_ENV === "development" ? error.details : "",
+          details: isDevelopment ? error.details : "",
         },
         { status: 500 },
       );
     }
     if (error instanceof Error && /supabase/i.test(error.message)) {
+      const isDevelopment = process.env.NODE_ENV === "development";
       console.error("Headline profile storage configuration failed", error);
       return NextResponse.json(
         {
-          error: "Headline profile could not be stored. Please try again.",
+          error: isDevelopment
+            ? error.message
+            : "Headline profile could not be stored. Please try again.",
+          userMessage: "Headline profile could not be stored. Please try again.",
           stage: "Supabase configuration",
-          details: process.env.NODE_ENV === "development" ? error.stack || error.message : "",
+          details: isDevelopment ? error.stack || error.message : "",
         },
         { status: 500 },
       );
@@ -381,6 +403,7 @@ function mergeProfileDebug(
   },
   profileDebug: {
     profileFound: boolean;
+    profileCreated: boolean;
     profileUpdated: boolean;
     profileMergeCompleted: boolean;
     fieldsUpdated: string[];
@@ -391,6 +414,7 @@ function mergeProfileDebug(
     userCreated: identityDebug.userCreated,
     userKeyUpdated: identityDebug.userKeyUpdated,
     profileFound: profileDebug.profileFound,
+    profileCreated: profileDebug.profileCreated,
     profileUpdated: profileDebug.profileUpdated,
     profileMergeCompleted: profileDebug.profileMergeCompleted,
     fieldsUpdated: Array.from(

@@ -44,6 +44,7 @@ type UserProfileDebug = {
   userCreated: boolean;
   userKeyUpdated: boolean;
   profileFound: boolean;
+  profileCreated: boolean;
   profileUpdated: boolean;
   profileMergeCompleted: boolean;
   fieldsUpdated: string[];
@@ -489,6 +490,8 @@ function isUserProfileDebug(value: unknown): value is UserProfileDebug {
     typeof value.userKeyUpdated === "boolean" &&
     "profileFound" in value &&
     typeof value.profileFound === "boolean" &&
+    "profileCreated" in value &&
+    typeof value.profileCreated === "boolean" &&
     "profileUpdated" in value &&
     typeof value.profileUpdated === "boolean" &&
     "profileMergeCompleted" in value &&
@@ -1107,6 +1110,7 @@ function AssessmentForm({
                 <p>User Created: {String(debug.profile.userCreated)}</p>
                 <p>User Key Updated: {String(debug.profile.userKeyUpdated)}</p>
                 <p>Profile Found: {String(debug.profile.profileFound)}</p>
+                <p>Profile Created: {String(debug.profile.profileCreated)}</p>
                 <p>Profile Updated: {String(debug.profile.profileUpdated)}</p>
                 <p>
                   Profile Merge Completed:{" "}
@@ -1707,6 +1711,7 @@ function HeadlineGenerator({
                 <p>User Created: {String(profileDebug.userCreated)}</p>
                 <p>User Key Updated: {String(profileDebug.userKeyUpdated)}</p>
                 <p>Profile Found: {String(profileDebug.profileFound)}</p>
+                <p>Profile Created: {String(profileDebug.profileCreated)}</p>
                 <p>Profile Updated: {String(profileDebug.profileUpdated)}</p>
                 <p>
                   Profile Merge Completed:{" "}
