@@ -129,9 +129,9 @@ const PRIMARY_CTA_CLASS =
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
-  { label: "Assessment", href: "#assessment" },
-  { label: "Headline Generator", href: "#headline-generator" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Assessment", href: "/assessment" },
+  { label: "Headline Generator", href: "/headline-generator" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 const roleOptions = [
@@ -548,7 +548,7 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
-        <a href="#assessment" aria-label="INConnect assessment">
+        <a href="/" aria-label="INConnect home">
           <Logo markSize={46} />
         </a>
         <nav className="hidden items-center gap-1 lg:flex">
@@ -603,7 +603,7 @@ function HeroSection() {
                 "inline-flex h-12 items-center justify-center rounded-lg px-5",
                 PRIMARY_CTA_CLASS,
               )}
-              href="#assessment"
+              href="/assessment"
             >
               Start Assessment
             </a>
@@ -612,7 +612,7 @@ function HeroSection() {
                 "inline-flex h-12 items-center justify-center rounded-lg px-5",
                 PRIMARY_CTA_CLASS,
               )}
-              href="#headline-generator"
+              href="/headline-generator"
             >
               Generate Headlines
             </a>
@@ -651,7 +651,7 @@ function ModuleGrid() {
         "Market Position",
         "Assessment History",
       ],
-      href: "#assessment",
+      href: "/assessment",
     },
     {
       title: "Headline Generator",
@@ -664,7 +664,7 @@ function ModuleGrid() {
         "Recommended headline",
         "Copy and regenerate",
       ],
-      href: "#headline-generator",
+      href: "/headline-generator",
     },
     {
       title: "Trend Radar",
@@ -1619,7 +1619,7 @@ function HeadlineGenerator({
                   "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-sm",
                   PRIMARY_CTA_CLASS,
                 )}
-                href="#assessment"
+                href="/assessment"
               >
                 Start Profile Assessment
               </a>
@@ -1740,6 +1740,15 @@ function ChipGroup({
 }
 
 function PlanLimits() {
+  const comparisonRows = [
+    ["Profile Intelligence Assessment", "1 per week", "Unlimited"],
+    ["LinkedIn Headline Generator", "Included", "Included"],
+    ["Assessment History", "Latest profile history", "Expanded tracking"],
+    ["Trend Radar", "Coming soon", "Included in future Pro"],
+    ["Content Intelligence", "Coming soon", "Included in future Pro"],
+    ["Profile Optimization Suite", "Coming soon", "Included in future Pro"],
+  ];
+
   return (
     <section className="mt-6" id="pricing">
       <p className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
@@ -1772,6 +1781,28 @@ function PlanLimits() {
             "Authority growth tracking",
           ]}
         />
+      </div>
+      <div className="mt-5 overflow-hidden rounded-lg border border-[#D9DDE3] bg-white">
+        <div className="border-b border-[#D9DDE3] bg-[#F8F8F6] p-4">
+          <h2 className="font-semibold text-[#191919]">Feature comparison</h2>
+        </div>
+        <div className="grid text-sm">
+          <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr] gap-3 border-b border-[#D9DDE3] bg-white px-4 py-3 font-semibold text-[#191919]">
+            <span>Feature</span>
+            <span>Free</span>
+            <span>Pro</span>
+          </div>
+          {comparisonRows.map(([feature, free, pro]) => (
+            <div
+              className="grid grid-cols-[1.2fr_0.9fr_0.9fr] gap-3 border-b border-[#D9DDE3] px-4 py-3 text-[#666666] last:border-b-0"
+              key={feature}
+            >
+              <span className="font-semibold text-[#191919]">{feature}</span>
+              <span>{free}</span>
+              <span>{pro}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -3100,7 +3131,66 @@ function Footer() {
   );
 }
 
-export function INConnectPlatform() {
+function useHeadlineGeneratorIdentity() {
+  const [returningIdentity, setReturningIdentity] =
+    useState<StoredReturningIdentity | null>(null);
+
+  useEffect(() => {
+    const storedIdentity = readStoredReturningIdentity();
+    if (!storedIdentity?.userKey) return;
+
+    setReturningIdentity(storedIdentity);
+
+    async function hydrateIdentity(identity: StoredReturningIdentity) {
+      try {
+        const params = new URLSearchParams({ userKey: identity.userKey });
+        const response = await fetch(`/api/returning-user?${params.toString()}`);
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok || !isReturningUserProfile(payload)) return;
+
+        const nextIdentity = {
+          userKey: payload.user.userKey,
+          name:
+            payload.user.name ||
+            getAssessmentDisplayName(payload.latestAssessment) ||
+            identity.name ||
+            "",
+          email: payload.user.email || identity.email,
+          linkedinUrl: payload.user.linkedinUrl || identity.linkedinUrl,
+          latestAssessmentId: payload.latestAssessmentId,
+        };
+        setReturningIdentity(nextIdentity);
+        storeReturningIdentity(nextIdentity);
+      } catch (error) {
+        console.error("Headline generator identity lookup failed", error);
+      }
+    }
+
+    void hydrateIdentity(storedIdentity);
+  }, []);
+
+  function handleSwitchUser() {
+    clearReturningIdentity();
+    setReturningIdentity(null);
+  }
+
+  return { returningIdentity, handleSwitchUser };
+}
+
+export function INConnectHomePage() {
+  return (
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
+      <HeroSection />
+      <ModuleGrid />
+      <SponsoredContent />
+      <Footer />
+    </main>
+  );
+}
+
+export function INConnectAssessmentPage() {
   const [assessment, setAssessment] =
     useState<ProfileIntelligenceAssessment | null>(null);
   const [assessmentDebug, setAssessmentDebug] = useState<AssessmentDebug | null>(null);
@@ -3207,7 +3297,7 @@ export function INConnectPlatform() {
   }
 
   function handleUpgrade() {
-    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    window.location.href = "/pricing";
   }
 
   function handleSwitchUser() {
@@ -3351,8 +3441,6 @@ export function INConnectPlatform() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
       <Header />
-      <HeroSection />
-      <ModuleGrid />
       <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
         <div className="mx-auto grid max-w-7xl gap-6">
           {returningUser && (
@@ -3388,34 +3476,41 @@ export function INConnectPlatform() {
           {assessment && <AssessmentResults assessment={assessment} />}
         </div>
       </section>
+      <SponsoredContent />
+      <Footer />
+    </main>
+  );
+}
+
+export function INConnectHeadlineGeneratorPage() {
+  const { returningIdentity, handleSwitchUser } = useHeadlineGeneratorIdentity();
+
+  return (
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
       <HeadlineGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
-      <LockedPreview
-        id="trend-radar"
-        title="Trend Radar"
-        subtitle="Discover relevant industry trends matched to your positioning."
-        items={[
-          "Industry Trend Detection",
-          "Growth Opportunities",
-          "Technology Trends",
-          "Positioning Opportunities",
-          "Authority-Building Themes",
-        ]}
-      />
-      <LockedPreview
-        id="content-intelligence"
-        title="Content Intelligence"
-        subtitle="Generate personalized LinkedIn content opportunities based on your profile and market position."
-        items={[
-          "Content Pillars",
-          "Post Ideas",
-          "Newsletter Ideas",
-          "Authority-Building Topics",
-          "Weekly Content Roadmap",
-        ]}
-      />
-      <FuturePlatformModules />
+      <SponsoredContent />
+      <Footer />
+    </main>
+  );
+}
+
+export function INConnectPricingPage() {
+  return (
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
       <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Pricing
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold text-[#191919]">
+            Choose the right INConnect plan.
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666666]">
+            Start with free profile intelligence and headline generation. Pro
+            expands into trend, content, profile, and personal brand tools.
+          </p>
           <PlanLimits />
           <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666]">
             <p>
@@ -3432,4 +3527,8 @@ export function INConnectPlatform() {
       <Footer />
     </main>
   );
+}
+
+export function INConnectPlatform() {
+  return <INConnectHomePage />;
 }

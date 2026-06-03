@@ -1,5 +1,5 @@
-import { INConnectPlatform } from "@/components/inconnect-platform";
+import { INConnectHomePage } from "@/components/inconnect-platform";
 
 export default function Home() {
-  return <INConnectPlatform />;
+  return <INConnectHomePage />;
 }
