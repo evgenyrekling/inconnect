@@ -21,18 +21,29 @@ type AssessmentRow = {
 type UserRow = {
   user_key: string;
   email: string;
-  linkedin_url: string;
+  linkedin_url: string | null;
   plan_type: string | null;
   is_admin: boolean | null;
 };
 
+type UserProfileRow = {
+  name: string | null;
+  email: string;
+  linkedin_url: string | null;
+  user_key: string | null;
+  latest_assessment_id: string | null;
+  latest_authority_score: number | null;
+  last_assessment_date: string | null;
+};
+
 export async function GET(request: NextRequest) {
   const userKey = request.nextUrl.searchParams.get("userKey")?.trim();
+  const email = request.nextUrl.searchParams.get("email")?.trim();
   const assessmentId = request.nextUrl.searchParams.get("assessmentId")?.trim();
 
-  if (!userKey) {
+  if (!userKey && !email) {
     return NextResponse.json(
-      { error: "userKey is required.", hasPreviousAssessment: false },
+      { error: "userKey or email is required.", hasPreviousAssessment: false },
       { status: 400 },
     );
   }
@@ -48,10 +59,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data: user, error: userError } = await supabase
+  const userQuery = supabase
     .from("users")
     .select("user_key, email, linkedin_url, plan_type, is_admin")
-    .eq("user_key", userKey)
+    .limit(1);
+  const { data: user, error: userError } = await (userKey
+    ? userQuery.eq("user_key", userKey)
+    : userQuery.eq("normalized_email", normalizeEmail(email ?? "")))
     .maybeSingle<UserRow>();
 
   if (userError) {
@@ -62,14 +76,32 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!user) {
+  const profile = user
+    ? await getUserProfile(supabase, {
+        email: user.email,
+        userKey: user.user_key,
+      })
+    : email
+      ? await getUserProfile(supabase, { email, userKey: userKey ?? "" })
+      : null;
+
+  if (!user && !profile) {
     return NextResponse.json({ hasPreviousAssessment: false });
+  }
+
+  const resolvedUserKey = user?.user_key ?? profile?.user_key ?? userKey ?? "";
+
+  if (!resolvedUserKey) {
+    return NextResponse.json({
+      hasPreviousAssessment: false,
+      user: createProfileOnlyUserPayload(profile),
+    });
   }
 
   const { data: rows, error: historyError } = await supabase
     .from("assessments")
     .select("id, created_at, authority_score, ai_response")
-    .eq("user_key", userKey)
+    .eq("user_key", resolvedUserKey)
     .not("ai_response", "is", null)
     .order("created_at", { ascending: false })
     .limit(HISTORY_LIMIT)
@@ -89,16 +121,18 @@ export async function GET(request: NextRequest) {
   if (!latestRow) {
     return NextResponse.json({
       hasPreviousAssessment: false,
-      user: createUserPayload(user),
+      user: user
+        ? createUserPayload(user, getPlanType(user), profile?.name ?? "")
+        : createProfileOnlyUserPayload(profile),
     });
   }
 
   const selectedRow = assessmentId
-    ? await getAssessmentById(supabase, userKey, assessmentId, historyRows)
+    ? await getAssessmentById(supabase, resolvedUserKey, assessmentId, historyRows)
     : latestRow;
-  const latestAssessment = hydrateAssessmentRow(latestRow, userKey);
+  const latestAssessment = hydrateAssessmentRow(latestRow, resolvedUserKey);
   const selectedAssessment = selectedRow
-    ? hydrateAssessmentRow(selectedRow, userKey)
+    ? hydrateAssessmentRow(selectedRow, resolvedUserKey)
     : latestAssessment;
   const history = historyRows.map((row) => ({
     id: row.id,
@@ -111,8 +145,8 @@ export async function GET(request: NextRequest) {
     .map((entry) => entry.totalScore)
     .filter((score): score is number => typeof score === "number");
   const { periodStart, periodEnd } = getCurrentWeeklyUsagePeriod();
-  const usageCount = await getUsageCount(supabase, userKey, periodStart, periodEnd);
-  const planType = getPlanType(user);
+  const usageCount = await getUsageCount(supabase, resolvedUserKey, periodStart, periodEnd);
+  const planType = user ? getPlanType(user) : "free";
   const usedThisWeek =
     usageCount >= 1 ||
     historyRows.some((row) => {
@@ -125,7 +159,13 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     hasPreviousAssessment: true,
-    user: createUserPayload(user, planType, getAssessmentDisplayName(latestAssessment)),
+    user: user
+      ? createUserPayload(
+          user,
+          planType,
+          getAssessmentDisplayName(latestAssessment) || profile?.name || "",
+        )
+      : createProfileOnlyUserPayload(profile),
     latestAssessment,
     selectedAssessment,
     latestAssessmentId: latestRow.id,
@@ -142,6 +182,32 @@ export async function GET(request: NextRequest) {
     canRunNewAssessment,
     nextFreeAssessmentDate,
   });
+}
+
+async function getUserProfile(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  values: {
+    email: string;
+    userKey: string;
+  },
+) {
+  const query = supabase
+    .from("user_profiles")
+    .select(
+      "name, email, linkedin_url, user_key, latest_assessment_id, latest_authority_score, last_assessment_date",
+    )
+    .limit(1);
+  const { data, error } = await (values.email
+    ? query.eq("email", normalizeEmail(values.email))
+    : query.eq("user_key", values.userKey))
+    .maybeSingle<UserProfileRow>();
+
+  if (error) {
+    console.error("Returning user profile lookup failed", error);
+    return null;
+  }
+
+  return data;
 }
 
 async function getAssessmentById(
@@ -218,9 +284,20 @@ function createUserPayload(user: UserRow, planType = getPlanType(user), name = "
     userKey: user.user_key,
     name,
     email: user.email,
-    linkedinUrl: user.linkedin_url,
+    linkedinUrl: user.linkedin_url ?? "",
     planType,
     isAdmin: planType === "admin",
+  };
+}
+
+function createProfileOnlyUserPayload(profile: UserProfileRow | null) {
+  return {
+    userKey: profile?.user_key ?? "",
+    name: profile?.name ?? "",
+    email: profile?.email ?? "",
+    linkedinUrl: profile?.linkedin_url ?? "",
+    planType: "free",
+    isAdmin: false,
   };
 }
 

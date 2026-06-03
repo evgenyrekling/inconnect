@@ -5,9 +5,16 @@ import {
   normalizeProfileAssessment,
   type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
-import { createUserKey, normalizeEmail, normalizeLinkedInUrl } from "@/lib/identity";
+import { createUserKey, normalizeEmail } from "@/lib/identity";
 import { extractPdfTextFromBuffer } from "@/lib/pdf-extraction";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import {
+  findUserByEmailOrKey,
+  isUserProfileStorageError,
+  upsertProfileFromAssessment,
+  upsertUserIdentity,
+  type UserProfileDebug,
+} from "@/lib/user-profile-store";
 import { getCurrentWeeklyUsagePeriod } from "@/lib/usage-period";
 
 export const runtime = "nodejs";
@@ -25,6 +32,7 @@ type AssessmentDebug = {
   openAIRequest: PipelineStatus;
   supabaseInsert: PipelineStatus;
   actualError?: string;
+  profile?: UserProfileDebug;
   storageDiagnostic?: StorageDiagnostic;
 };
 
@@ -201,12 +209,22 @@ export async function POST(request: NextRequest) {
 
   const linkedinUrl = getFormString(formData, "linkedinUrl");
   const email = getFormString(formData, "email");
+  const hasProfileConsent = getFormBoolean(formData, "profileConsent");
   const pdfFile = formData.get("profilePdf");
 
   if (!linkedinUrl || !email || !(pdfFile instanceof File)) {
     return assessmentError(
       "Assessment Generation",
       "LinkedIn profile URL, email, and LinkedIn Profile PDF are required.",
+      400,
+      debug,
+    );
+  }
+
+  if (!hasProfileConsent) {
+    return assessmentError(
+      "Assessment Generation",
+      "Consent is required before INConnect can store your profile information and assessment result.",
       400,
       debug,
     );
@@ -241,7 +259,6 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  const normalizedLinkedInUrl = normalizeLinkedInUrl(linkedinUrl);
   const userKey = createUserKey(email, linkedinUrl);
   // Temporary founder/admin testing logic. ADMIN_EMAILS is server-only and must
   // never be exposed to the frontend.
@@ -262,13 +279,24 @@ export async function POST(request: NextRequest) {
 
   try {
     debug.supabaseInsert = "PENDING";
-    const existingUser = await getExistingUserPlan(supabase, userKey);
+    const existingUser = await findUserByEmailOrKey(supabase, {
+      email: normalizedEmail,
+      userKey,
+    });
     const planType = isAdminUser ? "admin" : existingUser?.plan_type ?? "free";
 
     if (!isAdminUser && planType !== "pro") {
-      const usage = await getUsageCount(supabase, userKey, periodStart, periodEnd);
+      const usage = await getUsageCountForKeys(
+        supabase,
+        [userKey, existingUser?.user_key].filter(Boolean) as string[],
+        periodStart,
+        periodEnd,
+      );
       if (usage >= 1) {
-        const latestAssessment = await getLatestStoredAssessment(supabase, userKey);
+        const latestAssessment = await getLatestStoredAssessmentForKeys(
+          supabase,
+          [userKey, existingUser?.user_key].filter(Boolean) as string[],
+        );
         const nextFreeAssessmentDate = getNextFreeAssessmentDate(periodEnd);
         return NextResponse.json(
           {
@@ -285,15 +313,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const user = await upsertUser(supabase, {
+    const { user, debug: identityProfileDebug } = await upsertUserIdentity(supabase, {
       email,
       linkedinUrl,
-      normalizedEmail,
-      normalizedLinkedInUrl,
       isAdminUser,
       planType,
       userKey,
     });
+    debug.profile = identityProfileDebug;
 
     const assessmentRecord = await createAssessmentRecord(supabase, {
       userId: user.id,
@@ -397,6 +424,16 @@ export async function POST(request: NextRequest) {
       ai_response: storedAssessment,
     });
 
+    const profileDebug = await upsertProfileFromAssessment(supabase, {
+      assessment: storedAssessment,
+      assessmentDate: storedAssessment.assessmentDate,
+      assessmentId,
+      email,
+      linkedinUrl,
+      user,
+    });
+    debug.profile = mergeProfileDebug(identityProfileDebug, profileDebug);
+
     if (!isAdminUser && planType !== "pro") {
       await incrementUsage(supabase, {
         userKey,
@@ -406,9 +443,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(storedAssessment);
+    return NextResponse.json({
+      ...storedAssessment,
+      profileDebug: process.env.NODE_ENV === "development" ? debug.profile : undefined,
+    });
   } catch (error) {
     console.error("INConnect assessment storage flow failed", error);
+    if (isUserProfileStorageError(error)) {
+      return assessmentError(
+        error.stage,
+        "Assessment could not be stored.",
+        500,
+        debug,
+        error,
+      );
+    }
     if (error instanceof StorageDiagnosticError) {
       return assessmentError(
         error.diagnostic.stage,
@@ -629,27 +678,6 @@ async function uploadProfilePdf(
   }
 }
 
-async function getExistingUserPlan(
-  supabase: ReturnType<typeof getSupabaseAdminClient>,
-  userKey: string,
-) {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, plan_type")
-      .eq("user_key", userKey)
-      .maybeSingle();
-
-    if (error) {
-      throwStorageDiagnostic("users lookup", error);
-    }
-    return data;
-  } catch (error) {
-    if (error instanceof StorageDiagnosticError) throw error;
-    throwStorageDiagnostic("users lookup", error);
-  }
-}
-
 async function getUsageCount(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   userKey: string,
@@ -675,45 +703,17 @@ async function getUsageCount(
   }
 }
 
-async function upsertUser(
+async function getUsageCountForKeys(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
-  values: {
-    email: string;
-    isAdminUser: boolean;
-    linkedinUrl: string;
-    normalizedEmail: string;
-    normalizedLinkedInUrl: string;
-    planType: string;
-    userKey: string;
-  },
+  userKeys: string[],
+  periodStart: string,
+  periodEnd: string,
 ) {
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .upsert(
-        {
-          user_key: values.userKey,
-          email: values.email,
-          linkedin_url: values.linkedinUrl,
-          normalized_email: values.normalizedEmail,
-          normalized_linkedin_url: values.normalizedLinkedInUrl,
-          is_admin: values.isAdminUser,
-          plan_type: values.planType,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_key" },
-      )
-      .select("id, plan_type")
-      .single();
-
-    if (error) {
-      throwStorageDiagnostic("users insert", error);
-    }
-    return data;
-  } catch (error) {
-    if (error instanceof StorageDiagnosticError) throw error;
-    throwStorageDiagnostic("users insert", error);
-  }
+  const keys = Array.from(new Set(userKeys.filter(Boolean)));
+  const counts = await Promise.all(
+    keys.map((key) => getUsageCount(supabase, key, periodStart, periodEnd)),
+  );
+  return Math.max(0, ...counts);
 }
 
 async function getLatestStoredAssessment(
@@ -755,6 +755,18 @@ async function getLatestStoredAssessment(
     assessmentId: data.id as string,
     userKey,
   });
+}
+
+async function getLatestStoredAssessmentForKeys(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  userKeys: string[],
+) {
+  const keys = Array.from(new Set(userKeys.filter(Boolean)));
+  for (const key of keys) {
+    const assessment = await getLatestStoredAssessment(supabase, key);
+    if (assessment) return assessment;
+  }
+  return null;
 }
 
 async function createAssessmentRecord(
@@ -850,6 +862,23 @@ function createAssessmentDebug(): AssessmentDebug {
   };
 }
 
+function mergeProfileDebug(
+  identityDebug: UserProfileDebug,
+  profileDebug: UserProfileDebug,
+): UserProfileDebug {
+  return {
+    userFound: identityDebug.userFound,
+    userCreated: identityDebug.userCreated,
+    userKeyUpdated: identityDebug.userKeyUpdated,
+    profileFound: profileDebug.profileFound,
+    profileUpdated: profileDebug.profileUpdated,
+    profileMergeCompleted: profileDebug.profileMergeCompleted,
+    fieldsUpdated: Array.from(
+      new Set([...identityDebug.fieldsUpdated, ...profileDebug.fieldsUpdated]),
+    ),
+  };
+}
+
 function getAdminEmails() {
   return (process.env.ADMIN_EMAILS ?? "")
     .split(",")
@@ -928,9 +957,12 @@ function isSupabaseDiagnosticStage(stage: string) {
   return [
     "users lookup",
     "users insert",
+    "users insert/update",
     "assessments lookup",
     "assessments insert",
     "assessments update",
+    "user_profiles lookup",
+    "user_profiles insert/update",
     "usage_limits lookup",
     "usage_limits insert/update",
     "storage bucket",
@@ -987,6 +1019,11 @@ function formatReadableDate(value: string) {
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getFormBoolean(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value === "true" || value === "on" || value === "1";
 }
 
 function isPdfUpload(file: File) {

@@ -10,6 +10,7 @@ type DebugSupabaseResponse = {
   hasAnonKey: boolean;
   hasServiceRoleKey: boolean;
   usersTableReachable: boolean;
+  userProfilesTableReachable: boolean;
   assessmentsTableReachable: boolean;
   usageLimitsReachable: boolean;
   storageBucketReachable: boolean;
@@ -21,6 +22,7 @@ export async function GET() {
     hasAnonKey: Boolean(process.env.SUPABASE_ANON_KEY),
     hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     usersTableReachable: false,
+    userProfilesTableReachable: false,
     assessmentsTableReachable: false,
     usageLimitsReachable: false,
     storageBucketReachable: false,
@@ -40,11 +42,13 @@ export async function GET() {
 
   const [
     usersTableReachable,
+    userProfilesTableReachable,
     assessmentsTableReachable,
     usageLimitsReachable,
     storageBucketReachable,
   ] = await Promise.all([
     isTableReachable(supabase, "users"),
+    isTableReachable(supabase, "user_profiles"),
     isTableReachable(supabase, "assessments"),
     isTableReachable(supabase, "usage_limits"),
     isStorageBucketReachable(supabase),
@@ -53,6 +57,7 @@ export async function GET() {
   return NextResponse.json({
     ...response,
     usersTableReachable,
+    userProfilesTableReachable,
     assessmentsTableReachable,
     usageLimitsReachable,
     storageBucketReachable,
@@ -61,7 +66,7 @@ export async function GET() {
 
 async function isTableReachable(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
-  tableName: "users" | "assessments" | "usage_limits",
+  tableName: "users" | "user_profiles" | "assessments" | "usage_limits",
 ) {
   try {
     const { error } = await supabase

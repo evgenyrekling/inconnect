@@ -1,5 +1,12 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeEmail } from "@/lib/identity";
+import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import {
+  isUserProfileStorageError,
+  upsertProfileFromHeadlineGenerator,
+  upsertUserIdentity,
+} from "@/lib/user-profile-store";
 
 export const runtime = "nodejs";
 
@@ -11,6 +18,7 @@ type HeadlineGeneratorRequest = {
   expertise: string[];
   values: string[];
   perceptions: string[];
+  profileConsent: boolean;
 };
 
 type HeadlineOption = {
@@ -78,6 +86,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!input.profileConsent) {
+    return NextResponse.json(
+      {
+        error:
+          "Consent is required before INConnect can store your profile information and headline results.",
+      },
+      { status: 400 },
+    );
+  }
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "Headline generation is not configured yet." },
@@ -86,6 +104,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const supabase = getSupabaseAdminClient();
+    const isAdminUser = getAdminEmails().includes(normalizeEmail(input.email));
+    const { user, debug: identityProfileDebug } = await upsertUserIdentity(supabase, {
+      email: input.email,
+      isAdminUser,
+      planType: isAdminUser ? "admin" : "free",
+    });
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.responses.parse({
       model: "gpt-4o-mini",
@@ -152,13 +177,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      normalizeHeadlineResponse(
-        response.output_parsed as HeadlineGeneratorResponse,
-        input.name,
-      ),
+    const normalizedResponse = normalizeHeadlineResponse(
+      response.output_parsed as HeadlineGeneratorResponse,
+      input.name,
     );
+    const profileDebug = await upsertProfileFromHeadlineGenerator(supabase, {
+      email: input.email,
+      inputs: {
+        roles: input.roles,
+        industries: input.industries,
+        expertise: input.expertise,
+        values: input.values,
+        perceptions: input.perceptions,
+      },
+      name: input.name,
+      outputs: normalizedResponse,
+      user,
+    });
+
+    return NextResponse.json({
+      ...normalizedResponse,
+      userKey: user.user_key,
+      profileDebug:
+        process.env.NODE_ENV === "development"
+          ? mergeProfileDebug(identityProfileDebug, profileDebug)
+          : undefined,
+    });
   } catch (error) {
+    if (isUserProfileStorageError(error)) {
+      console.error("Headline profile storage failed", {
+        stage: error.stage,
+        error: error.message,
+        details: error.details,
+      });
+      return NextResponse.json(
+        {
+          error: "Headline profile could not be stored. Please try again.",
+          stage: error.stage,
+          details: process.env.NODE_ENV === "development" ? error.details : "",
+        },
+        { status: 500 },
+      );
+    }
+    if (error instanceof Error && /supabase/i.test(error.message)) {
+      console.error("Headline profile storage configuration failed", error);
+      return NextResponse.json(
+        {
+          error: "Headline profile could not be stored. Please try again.",
+          stage: "Supabase configuration",
+          details: process.env.NODE_ENV === "development" ? error.stack || error.message : "",
+        },
+        { status: 500 },
+      );
+    }
     console.error("OpenAI headline generation failed", error);
     return NextResponse.json(
       { error: "Headline generation failed. Please try again." },
@@ -187,6 +258,7 @@ function normalizeHeadlineRequest(value: unknown): HeadlineGeneratorRequest | nu
     0,
     MAX_SELECTIONS_PER_QUESTION,
   );
+  const profileConsent = record.profileConsent === true;
 
   if (
     name.length < 2 ||
@@ -208,6 +280,7 @@ function normalizeHeadlineRequest(value: unknown): HeadlineGeneratorRequest | nu
     expertise,
     values,
     perceptions,
+    profileConsent,
   };
 }
 
@@ -290,4 +363,38 @@ function removeUserNameFromHeadline(headline: string, userName: string) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getAdminEmails() {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
+}
+
+function mergeProfileDebug(
+  identityDebug: {
+    userFound: boolean;
+    userCreated: boolean;
+    userKeyUpdated: boolean;
+    fieldsUpdated: string[];
+  },
+  profileDebug: {
+    profileFound: boolean;
+    profileUpdated: boolean;
+    profileMergeCompleted: boolean;
+    fieldsUpdated: string[];
+  },
+) {
+  return {
+    userFound: identityDebug.userFound,
+    userCreated: identityDebug.userCreated,
+    userKeyUpdated: identityDebug.userKeyUpdated,
+    profileFound: profileDebug.profileFound,
+    profileUpdated: profileDebug.profileUpdated,
+    profileMergeCompleted: profileDebug.profileMergeCompleted,
+    fieldsUpdated: Array.from(
+      new Set([...identityDebug.fieldsUpdated, ...profileDebug.fieldsUpdated]),
+    ),
+  };
 }

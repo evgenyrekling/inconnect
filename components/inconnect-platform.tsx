@@ -17,7 +17,6 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import { toPng } from "html-to-image";
 import {
   type DragEvent,
   FormEvent,
@@ -40,6 +39,15 @@ type AssessmentDiagnostic = {
   error: string;
   details: string;
 };
+type UserProfileDebug = {
+  userFound: boolean;
+  userCreated: boolean;
+  userKeyUpdated: boolean;
+  profileFound: boolean;
+  profileUpdated: boolean;
+  profileMergeCompleted: boolean;
+  fieldsUpdated: string[];
+};
 type AssessmentDebug = {
   failedStage?: string;
   pdfUpload: "PENDING" | "SUCCESS" | "FAILED";
@@ -48,6 +56,7 @@ type AssessmentDebug = {
   openAIRequest: "PENDING" | "SUCCESS" | "FAILED";
   supabaseInsert: "PENDING" | "SUCCESS" | "FAILED";
   actualError?: string;
+  profile?: UserProfileDebug;
   storageDiagnostic?: AssessmentDiagnostic;
 };
 type LimitState = {
@@ -99,6 +108,8 @@ type HeadlineOption = {
 type HeadlineGeneratorResponse = {
   recommendedIndex: number;
   headlines: HeadlineOption[];
+  profileDebug?: UserProfileDebug;
+  userKey?: string;
 };
 type HeadlineInputs = {
   roles: string[];
@@ -339,10 +350,12 @@ function getFirstNameFromDisplayName(name: string) {
 
 function getAssessmentError({
   email,
+  hasProfileConsent,
   linkedinUrl,
   profilePdf,
 }: {
   email: string;
+  hasProfileConsent: boolean;
   linkedinUrl: string;
   profilePdf: File | null;
 }) {
@@ -359,7 +372,41 @@ function getAssessmentError({
     return "Please upload a PDF file.";
   }
   if (profilePdf.size > MAX_PDF_SIZE_BYTES) return "PDF file size must be 5 MB or less.";
+  if (!hasProfileConsent) {
+    return "Consent is required before INConnect can store your profile information and assessment result.";
+  }
   return "";
+}
+
+function ProfileConsentCheckbox({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+      <input
+        checked={checked}
+        className="mt-1 h-4 w-4 rounded border-[#D9DDE3] text-[#0A66C2] focus:ring-[#0A66C2]"
+        onChange={(event) => onChange(event.target.checked)}
+        required
+        type="checkbox"
+      />
+      <span>
+        <span className="font-semibold text-[#191919]">
+          I agree that INConnect may store my profile information and tool
+          results to provide assessments, recommendations, and personalized
+          LinkedIn growth features.
+        </span>
+        <span className="mt-1 block">
+          We store your profile data so INConnect can remember your results and
+          improve future recommendations. You can request deletion anytime.
+        </span>
+      </span>
+    </label>
+  );
 }
 
 async function copyTextToClipboard(text: string) {
@@ -430,6 +477,27 @@ function isAssessmentDiagnostic(value: unknown): value is AssessmentDiagnostic {
   );
 }
 
+function isUserProfileDebug(value: unknown): value is UserProfileDebug {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "userFound" in value &&
+    typeof value.userFound === "boolean" &&
+    "userCreated" in value &&
+    typeof value.userCreated === "boolean" &&
+    "userKeyUpdated" in value &&
+    typeof value.userKeyUpdated === "boolean" &&
+    "profileFound" in value &&
+    typeof value.profileFound === "boolean" &&
+    "profileUpdated" in value &&
+    typeof value.profileUpdated === "boolean" &&
+    "profileMergeCompleted" in value &&
+    typeof value.profileMergeCompleted === "boolean" &&
+    "fieldsUpdated" in value &&
+    Array.isArray(value.fieldsUpdated)
+  );
+}
+
 function isReturningUserProfile(value: unknown): value is ReturningUserProfile {
   return (
     typeof value === "object" &&
@@ -450,6 +518,39 @@ function isReturningUserProfile(value: unknown): value is ReturningUserProfile {
     typeof value.authorityTrend === "object" &&
     value.authorityTrend !== null
   );
+}
+
+function readReturningUserIdentityPayload(
+  value: unknown,
+  fallback: StoredReturningIdentity,
+): StoredReturningIdentity | null {
+  if (typeof value !== "object" || value === null || !("user" in value)) return null;
+  const user = value.user;
+  if (typeof user !== "object" || user === null) return null;
+
+  const userKey =
+    "userKey" in user && typeof user.userKey === "string" ? user.userKey : fallback.userKey;
+  const email =
+    "email" in user && typeof user.email === "string" ? user.email : fallback.email;
+  const linkedinUrl =
+    "linkedinUrl" in user && typeof user.linkedinUrl === "string"
+      ? user.linkedinUrl
+      : fallback.linkedinUrl;
+  const name =
+    "name" in user && typeof user.name === "string" ? user.name : fallback.name ?? "";
+
+  if (!userKey || !email) return null;
+
+  return {
+    userKey,
+    name,
+    email,
+    linkedinUrl,
+    latestAssessmentId:
+      "latestAssessmentId" in value && typeof value.latestAssessmentId === "string"
+        ? value.latestAssessmentId
+        : fallback.latestAssessmentId,
+  };
 }
 
 function isHeadlineGeneratorResponse(value: unknown): value is HeadlineGeneratorResponse {
@@ -824,14 +925,22 @@ function AssessmentForm({
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [email, setEmail] = useState("");
   const [profilePdf, setProfilePdf] = useState<File | null>(null);
-  const validationError = getAssessmentError({ email, linkedinUrl, profilePdf });
+  const [hasProfileConsent, setHasProfileConsent] = useState(false);
+  const validationError = getAssessmentError({
+    email,
+    hasProfileConsent,
+    linkedinUrl,
+    profilePdf,
+  });
   const isDevelopment = process.env.NODE_ENV === "development";
   const storageDiagnostic = debug?.storageDiagnostic;
   const isSubmitDisabled = isAnalyzing || Boolean(validationError);
   const submitLabel = isAnalyzing
     ? "Analyzing Profile..."
     : isSubmitDisabled
-      ? "Upload your LinkedIn Profile PDF to continue"
+      ? profilePdf && !hasProfileConsent
+        ? "Agree to profile storage to continue"
+        : "Upload your LinkedIn Profile PDF to continue"
       : "Start Assessment";
 
   useEffect(() => {
@@ -848,6 +957,11 @@ function AssessmentForm({
     >
       <input name="linkedinUrl" type="hidden" value={linkedinUrl} />
       <input name="email" type="hidden" value={email} />
+      <input
+        name="profileConsent"
+        type="hidden"
+        value={hasProfileConsent ? "true" : "false"}
+      />
       <div className="border-b border-[#D9DDE3] pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
           Profile Intelligence Assessment
@@ -911,6 +1025,27 @@ function AssessmentForm({
         </label>
       </div>
 
+      <label className="mt-5 flex items-start gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+        <input
+          checked={hasProfileConsent}
+          className="mt-1 h-4 w-4 rounded border-[#D9DDE3] text-[#0A66C2] focus:ring-[#0A66C2]"
+          onChange={(event) => setHasProfileConsent(event.target.checked)}
+          required
+          type="checkbox"
+        />
+        <span>
+          <span className="font-semibold text-[#191919]">
+            I agree that INConnect may store my profile information and tool
+            results to provide assessments, recommendations, and personalized
+            LinkedIn growth features.
+          </span>
+          <span className="mt-1 block">
+            We store your profile data so INConnect can remember your results
+            and improve future recommendations. You can request deletion anytime.
+          </span>
+        </span>
+      </label>
+
       <button
         className={classNames(
           "mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center text-sm leading-5 sm:text-base",
@@ -966,6 +1101,23 @@ function AssessmentForm({
             <p>Extracted Characters: {debug.extractedCharacters ?? "N/A"}</p>
             <p>OpenAI Request: {debug.openAIRequest}</p>
             <p>Supabase Insert: {debug.supabaseInsert}</p>
+            {debug.profile && (
+              <>
+                <p>User Found: {String(debug.profile.userFound)}</p>
+                <p>User Created: {String(debug.profile.userCreated)}</p>
+                <p>User Key Updated: {String(debug.profile.userKeyUpdated)}</p>
+                <p>Profile Found: {String(debug.profile.profileFound)}</p>
+                <p>Profile Updated: {String(debug.profile.profileUpdated)}</p>
+                <p>
+                  Profile Merge Completed:{" "}
+                  {String(debug.profile.profileMergeCompleted)}
+                </p>
+                <p>
+                  Profile Fields Updated:{" "}
+                  {debug.profile.fieldsUpdated.join(", ") || "None"}
+                </p>
+              </>
+            )}
           </div>
           {debug.actualError && (
             <>
@@ -1063,6 +1215,8 @@ function HeadlineGenerator({
   const [error, setError] = useState("");
   const [results, setResults] = useState<HeadlineGeneratorResponse | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [hasProfileConsent, setHasProfileConsent] = useState(false);
+  const [profileDebug, setProfileDebug] = useState<UserProfileDebug | null>(null);
   const recognizedName = getIdentityDisplayName(identity);
   const recognizedEmail = identity?.email.trim() ?? "";
   const isRecognizedUser = Boolean(
@@ -1086,14 +1240,17 @@ function HeadlineGenerator({
       setName(identity.name ?? "");
       setEmail(identity.email ?? "");
       setHasStarted(false);
+      setHasProfileConsent(false);
       return;
     }
 
     setName("");
     setEmail("");
     setHasStarted(false);
+    setHasProfileConsent(false);
     setResults(null);
     setCopiedIndex(null);
+    setProfileDebug(null);
     setError("");
   }, [identity, isRecognizedUser, recognizedEmail, recognizedName]);
 
@@ -1180,6 +1337,7 @@ function HeadlineGenerator({
     activeStep.selected.length <= activeStep.maxSelections;
   const canGenerate =
     identityIsValid &&
+    hasProfileConsent &&
     steps.every((step) => step.selected.length >= step.minSelections) &&
     steps.every((step) => step.selected.length <= step.maxSelections);
   const progressPercent = ((stepIndex + 1) / steps.length) * 100;
@@ -1188,6 +1346,12 @@ function HeadlineGenerator({
   function startGenerator() {
     if (!identityIsValid) {
       setError("Add your name and a valid email address to continue.");
+      return;
+    }
+    if (!hasProfileConsent) {
+      setError(
+        "Consent is required before INConnect can store your profile information and headline results.",
+      );
       return;
     }
 
@@ -1214,6 +1378,7 @@ function HeadlineGenerator({
     setIsGenerating(true);
     setError("");
     setCopiedIndex(null);
+    setProfileDebug(null);
 
     try {
       const response = await fetch("/api/generate-headlines", {
@@ -1227,6 +1392,7 @@ function HeadlineGenerator({
           expertise: inputs.expertise,
           values: inputs.values,
           perceptions: inputs.perceptions,
+          profileConsent: hasProfileConsent,
         }),
       });
       const payload = (await response.json().catch(() => null)) as unknown;
@@ -1243,6 +1409,20 @@ function HeadlineGenerator({
       }
 
       setResults(payload);
+      setProfileDebug(
+        payload.profileDebug && isUserProfileDebug(payload.profileDebug)
+          ? payload.profileDebug
+          : null,
+      );
+      if (payload.userKey) {
+        storeReturningIdentity({
+          userKey: payload.userKey,
+          name: effectiveName.trim(),
+          email: effectiveEmail.trim(),
+          linkedinUrl: identity?.linkedinUrl ?? "",
+          latestAssessmentId: identity?.latestAssessmentId,
+        });
+      }
       storeHeadlineGeneration({
         name: effectiveName.trim(),
         email: effectiveEmail.trim(),
@@ -1348,13 +1528,17 @@ function HeadlineGenerator({
                   value={email}
                 />
               </label>
+              <ProfileConsentCheckbox
+                checked={hasProfileConsent}
+                onChange={setHasProfileConsent}
+              />
               <button
                 className={classNames(
                   "inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center",
                   PRIMARY_CTA_CLASS,
                   PRIMARY_CTA_SHADOW,
                 )}
-                disabled={!identityIsValid}
+                disabled={!identityIsValid || !hasProfileConsent}
                 type="submit"
               >
                 <Sparkles className="h-5 w-5" />
@@ -1454,6 +1638,13 @@ function HeadlineGenerator({
                 )}
               </fieldset>
 
+              <div className="mt-6">
+                <ProfileConsentCheckbox
+                  checked={hasProfileConsent}
+                  onChange={setHasProfileConsent}
+                />
+              </div>
+
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <button
                   className="inline-flex h-12 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:text-[#666666]"
@@ -1506,6 +1697,27 @@ function HeadlineGenerator({
               {error}
             </p>
           )}
+          {process.env.NODE_ENV === "development" && profileDebug && (
+            <section className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-xs leading-6 text-[#666666]">
+              <h3 className="text-sm font-semibold text-[#191919]">
+                User Profile Debug
+              </h3>
+              <div className="mt-2 grid gap-1 font-mono">
+                <p>User Found: {String(profileDebug.userFound)}</p>
+                <p>User Created: {String(profileDebug.userCreated)}</p>
+                <p>User Key Updated: {String(profileDebug.userKeyUpdated)}</p>
+                <p>Profile Found: {String(profileDebug.profileFound)}</p>
+                <p>Profile Updated: {String(profileDebug.profileUpdated)}</p>
+                <p>
+                  Profile Merge Completed:{" "}
+                  {String(profileDebug.profileMergeCompleted)}
+                </p>
+                <p>
+                  Fields Updated: {profileDebug.fieldsUpdated.join(", ") || "None"}
+                </p>
+              </div>
+            </section>
+          )}
         </form>
 
         <section className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7">
@@ -1542,8 +1754,8 @@ function HeadlineGenerator({
                 Add your name and email to begin.
               </p>
               <p className="mt-2 text-sm leading-6 text-[#666666]">
-                Your generated inputs and headline outputs will be stored locally
-                for now and are ready for a future headline_generations table.
+                Your generated inputs and headline outputs will be stored with
+                your INConnect profile after generation.
               </p>
             </div>
           ) : !results ? (
@@ -2069,6 +2281,7 @@ function AssessmentResults({
     await waitForRenderFrame();
 
     try {
+      const { toPng } = await import("html-to-image");
       const imageUrl = await toPng(card, {
         backgroundColor: "#0A192F",
         cacheBust: true,
@@ -3147,19 +3360,23 @@ function useHeadlineGeneratorIdentity() {
         const response = await fetch(`/api/returning-user?${params.toString()}`);
         const payload = (await response.json().catch(() => null)) as unknown;
 
-        if (!response.ok || !isReturningUserProfile(payload)) return;
+        if (!response.ok) return;
 
-        const nextIdentity = {
-          userKey: payload.user.userKey,
-          name:
-            payload.user.name ||
-            getAssessmentDisplayName(payload.latestAssessment) ||
-            identity.name ||
-            "",
-          email: payload.user.email || identity.email,
-          linkedinUrl: payload.user.linkedinUrl || identity.linkedinUrl,
-          latestAssessmentId: payload.latestAssessmentId,
-        };
+        const nextIdentity = isReturningUserProfile(payload)
+          ? {
+              userKey: payload.user.userKey,
+              name:
+                payload.user.name ||
+                getAssessmentDisplayName(payload.latestAssessment) ||
+                identity.name ||
+                "",
+              email: payload.user.email || identity.email,
+              linkedinUrl: payload.user.linkedinUrl || identity.linkedinUrl,
+              latestAssessmentId: payload.latestAssessmentId,
+            }
+          : readReturningUserIdentityPayload(payload, identity);
+
+        if (!nextIdentity) return;
         setReturningIdentity(nextIdentity);
         storeReturningIdentity(nextIdentity);
       } catch (error) {
@@ -3317,9 +3534,11 @@ export function INConnectAssessmentPage() {
     const formData = new FormData(form);
     const linkedinUrl = String(formData.get("linkedinUrl") ?? "");
     const email = String(formData.get("email") ?? "");
+    const hasProfileConsent = formData.get("profileConsent") === "true";
     const profilePdf = formData.get("profilePdf");
     const validationError = getAssessmentError({
       email,
+      hasProfileConsent,
       linkedinUrl,
       profilePdf: profilePdf instanceof File ? profilePdf : null,
     });

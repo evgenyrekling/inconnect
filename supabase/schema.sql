@@ -4,9 +4,9 @@ create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   user_key text unique not null,
   email text not null,
-  linkedin_url text not null,
+  linkedin_url text,
   normalized_email text not null,
-  normalized_linkedin_url text not null,
+  normalized_linkedin_url text,
   is_admin boolean not null default false,
   plan_type text not null default 'free',
   created_at timestamp with time zone not null default now(),
@@ -64,7 +64,37 @@ create table if not exists public.assessment_feedback (
     check (feedback_type <> 'negative' or nullif(trim(feedback_text), '') is not null)
 );
 
+create table if not exists public.user_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id),
+  user_key text,
+  name text,
+  email text not null,
+  linkedin_url text,
+  current_role text,
+  seniority_level text,
+  current_company text,
+  location text,
+  industries jsonb not null default '[]'::jsonb,
+  sub_industries jsonb not null default '[]'::jsonb,
+  interests jsonb not null default '[]'::jsonb,
+  top_skills jsonb not null default '[]'::jsonb,
+  expertise_domains jsonb not null default '[]'::jsonb,
+  business_goals jsonb not null default '[]'::jsonb,
+  desired_perception text,
+  professional_archetype jsonb,
+  latest_authority_score integer,
+  latest_assessment_id uuid,
+  last_assessment_date timestamptz,
+  headline_generator_inputs jsonb,
+  headline_generator_outputs jsonb,
+  profile_source text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists users_user_key_idx on public.users (user_key);
+create index if not exists users_normalized_email_idx on public.users (normalized_email);
 create index if not exists assessments_user_key_created_at_idx
   on public.assessments (user_key, created_at desc);
 create index if not exists usage_limits_user_key_period_idx
@@ -73,6 +103,12 @@ create unique index if not exists assessment_feedback_assessment_id_idx
   on public.assessment_feedback (assessment_id);
 create index if not exists assessment_feedback_user_key_created_at_idx
   on public.assessment_feedback (user_key, created_at desc);
+create unique index if not exists user_profiles_email_idx
+  on public.user_profiles (email);
+create index if not exists user_profiles_user_key_idx
+  on public.user_profiles (user_key);
+create index if not exists user_profiles_user_id_idx
+  on public.user_profiles (user_id);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
