@@ -11,6 +11,8 @@ type DebugSupabaseResponse = {
   hasServiceRoleKey: boolean;
   usersTableReachable: boolean;
   userProfilesTableReachable: boolean;
+  userProfilesAboutFieldsReachable: boolean;
+  aboutGenerationsTableReachable: boolean;
   assessmentsTableReachable: boolean;
   usageLimitsReachable: boolean;
   storageBucketReachable: boolean;
@@ -23,6 +25,8 @@ export async function GET() {
     hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     usersTableReachable: false,
     userProfilesTableReachable: false,
+    userProfilesAboutFieldsReachable: false,
+    aboutGenerationsTableReachable: false,
     assessmentsTableReachable: false,
     usageLimitsReachable: false,
     storageBucketReachable: false,
@@ -43,12 +47,16 @@ export async function GET() {
   const [
     usersTableReachable,
     userProfilesTableReachable,
+    userProfilesAboutFieldsReachable,
+    aboutGenerationsTableReachable,
     assessmentsTableReachable,
     usageLimitsReachable,
     storageBucketReachable,
   ] = await Promise.all([
     isTableReachable(supabase, "users"),
     isTableReachable(supabase, "user_profiles"),
+    areUserProfileAboutFieldsReachable(supabase),
+    isTableReachable(supabase, "about_generations"),
     isTableReachable(supabase, "assessments"),
     isTableReachable(supabase, "usage_limits"),
     isStorageBucketReachable(supabase),
@@ -58,6 +66,8 @@ export async function GET() {
     ...response,
     usersTableReachable,
     userProfilesTableReachable,
+    userProfilesAboutFieldsReachable,
+    aboutGenerationsTableReachable,
     assessmentsTableReachable,
     usageLimitsReachable,
     storageBucketReachable,
@@ -66,7 +76,12 @@ export async function GET() {
 
 async function isTableReachable(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
-  tableName: "users" | "user_profiles" | "assessments" | "usage_limits",
+  tableName:
+    | "users"
+    | "user_profiles"
+    | "about_generations"
+    | "assessments"
+    | "usage_limits",
 ) {
   try {
     const { error } = await supabase
@@ -81,6 +96,29 @@ async function isTableReachable(
     return true;
   } catch (error) {
     console.error(`Supabase debug ${tableName} table check threw`, error);
+    return false;
+  }
+}
+
+async function areUserProfileAboutFieldsReachable(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+) {
+  try {
+    const { error } = await supabase
+      .from("user_profiles")
+      .select("id, about_generator_inputs, about_generator_outputs", {
+        count: "exact",
+        head: true,
+      });
+
+    if (error) {
+      console.error("Supabase debug user_profiles About fields check failed", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Supabase debug user_profiles About fields check threw", error);
     return false;
   }
 }

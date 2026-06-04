@@ -6,6 +6,7 @@ import {
   isUserProfileStorageError,
   upsertProfileFromAboutGenerator,
   upsertUserIdentity,
+  UserProfileStorageError,
   type AboutProfileInputs,
   type AboutProfileOutputs,
 } from "@/lib/user-profile-store";
@@ -288,7 +289,7 @@ async function createAboutGenerationRecord(
       payload,
       error,
     });
-    throw error;
+    throw new UserProfileStorageError("about_generations insert", error);
   }
 
   return data;
