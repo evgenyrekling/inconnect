@@ -44,6 +44,26 @@ export type AboutProfileOutputs = {
   }>;
 };
 
+export type ArticleProfileInputs = {
+  addInconnectMention: boolean;
+  cta: string;
+  industry: string;
+  keyPoints: string[];
+  mainAngle: string;
+  sourceNotes: string;
+  targetAudience: string;
+  tone: string;
+  topic: string;
+};
+
+export type ArticleProfileOutputs = {
+  announcementPost: string;
+  article: string;
+  hashtags: string[];
+  headline: string;
+  subtitle: string;
+};
+
 export type UserProfileDebug = {
   userFound: boolean;
   userCreated: boolean;
@@ -94,6 +114,8 @@ type UserProfileRow = {
   headline_generator_outputs: unknown;
   about_generator_inputs: unknown;
   about_generator_outputs: unknown;
+  article_generator_inputs: unknown;
+  article_generator_outputs: unknown;
   profile_source: string | null;
 };
 
@@ -127,7 +149,13 @@ type ProfilePatch = {
   headline_generator_outputs?: HeadlineProfileOutputs;
   about_generator_inputs?: AboutProfileInputs;
   about_generator_outputs?: AboutProfileOutputs;
-  profile_source: "assessment" | "headline_generator" | "about_generator";
+  article_generator_inputs?: ArticleProfileInputs;
+  article_generator_outputs?: ArticleProfileOutputs;
+  profile_source:
+    | "assessment"
+    | "headline_generator"
+    | "about_generator"
+    | "article_generator";
 };
 
 export class UserProfileStorageError extends Error {
@@ -466,6 +494,29 @@ export async function upsertProfileFromAboutGenerator(
   return upsertUserProfile(supabase, patch);
 }
 
+export async function upsertProfileFromArticleGenerator(
+  supabase: SupabaseAdminClient,
+  values: {
+    email: string;
+    inputs: ArticleProfileInputs;
+    outputs: ArticleProfileOutputs;
+    user: UserRow;
+  },
+) {
+  const patch: ProfilePatch = {
+    user_id: values.user.id,
+    user_key: values.user.user_key,
+    email: normalizeEmail(values.email),
+    industries: values.inputs.industry ? [values.inputs.industry] : [],
+    business_goals: [values.inputs.mainAngle, values.inputs.targetAudience].filter(Boolean),
+    article_generator_inputs: values.inputs,
+    article_generator_outputs: values.outputs,
+    profile_source: "article_generator",
+  };
+
+  return upsertUserProfile(supabase, patch);
+}
+
 async function upsertUserProfile(supabase: SupabaseAdminClient, patch: ProfilePatch) {
   const existingProfile = await getExistingUserProfile(supabase, patch.email);
   const debug = createProfileDebug(null);
@@ -590,6 +641,10 @@ function mergeProfilePatch(existingProfile: UserProfileRow | null, patch: Profil
       patch.about_generator_inputs ?? source?.about_generator_inputs ?? null,
     about_generator_outputs:
       patch.about_generator_outputs ?? source?.about_generator_outputs ?? null,
+    article_generator_inputs:
+      patch.article_generator_inputs ?? source?.article_generator_inputs ?? null,
+    article_generator_outputs:
+      patch.article_generator_outputs ?? source?.article_generator_outputs ?? null,
     profile_source: mergeProfileSource(source?.profile_source, patch.profile_source),
     updated_at: new Date().toISOString(),
   };

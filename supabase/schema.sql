@@ -92,6 +92,8 @@ create table if not exists public.user_profiles (
   headline_generator_outputs jsonb,
   about_generator_inputs jsonb,
   about_generator_outputs jsonb,
+  article_generator_inputs jsonb,
+  article_generator_outputs jsonb,
   profile_source text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -106,6 +108,17 @@ create table if not exists public.about_generations (
   inputs jsonb not null,
   outputs jsonb not null,
   selected_version text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.article_generations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id),
+  user_key text,
+  email text not null,
+  topic text,
+  inputs jsonb,
+  outputs jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -129,6 +142,10 @@ create index if not exists about_generations_user_key_created_at_idx
   on public.about_generations (user_key, created_at desc);
 create index if not exists about_generations_email_created_at_idx
   on public.about_generations (email, created_at desc);
+create index if not exists article_generations_user_key_created_at_idx
+  on public.article_generations (user_key, created_at desc);
+create index if not exists article_generations_email_created_at_idx
+  on public.article_generations (email, created_at desc);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)

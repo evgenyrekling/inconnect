@@ -126,6 +126,16 @@ type AboutGeneratorResponse = {
   profileDebug?: UserProfileDebug;
   userKey?: string;
 };
+type ArticleGeneratorResponse = {
+  announcementPost: string;
+  article: string;
+  generationId?: string;
+  hashtags: string[];
+  headline: string;
+  profileDebug?: UserProfileDebug;
+  subtitle: string;
+  userKey?: string;
+};
 type AboutStorageDiagnostic = {
   error: string;
   stage: string;
@@ -166,6 +176,7 @@ type AboutGenerationRecord = {
   createdAt: string;
   supabaseTable: "about_generations";
 };
+type ArticleAccessState = "checking" | "locked" | "admin";
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png";
@@ -176,6 +187,15 @@ const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const HEADLINE_GENERATIONS_STORAGE_KEY = "inconnect:headline-generations";
 const ABOUT_GENERATIONS_STORAGE_KEY = "inconnect:about-generations";
 const HEADLINE_SELECTION_LIMIT = 10;
+const ARTICLE_TONES = [
+  "Professional",
+  "Thought leadership",
+  "Technical",
+  "Executive",
+  "Educational",
+  "Provocative",
+  "Story-driven",
+];
 const PRIMARY_CTA_CLASS =
   "bg-[#4A6FD0] font-semibold text-[#FFFFFF] transition-colors duration-200 ease-[ease] hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none";
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
@@ -773,6 +793,24 @@ function isAboutGeneratorResponse(value: unknown): value is AboutGeneratorRespon
   );
 }
 
+function isArticleGeneratorResponse(value: unknown): value is ArticleGeneratorResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "headline" in value &&
+    typeof value.headline === "string" &&
+    "subtitle" in value &&
+    typeof value.subtitle === "string" &&
+    "article" in value &&
+    typeof value.article === "string" &&
+    "announcementPost" in value &&
+    typeof value.announcementPost === "string" &&
+    "hashtags" in value &&
+    Array.isArray(value.hashtags) &&
+    value.hashtags.every((hashtag) => typeof hashtag === "string")
+  );
+}
+
 function isAboutStorageDiagnostic(value: unknown): value is AboutStorageDiagnostic {
   if (typeof value !== "object" || value === null) return false;
 
@@ -886,7 +924,7 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function Header() {
+function Header({ showSocialProof = false }: { showSocialProof?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
@@ -916,8 +954,72 @@ function Header() {
           </a>
         ))}
       </nav>
+      {showSocialProof && <UserCountSocialProof />}
     </header>
   );
+}
+
+function UserCountSocialProof() {
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadUsersCount() {
+      try {
+        const response = await fetch("/api/stats/users-count", {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!isActive) return;
+
+        if (!response.ok || !isUsersCountResponse(payload)) {
+          setMessage("Professionals are already joining INConnect");
+          return;
+        }
+
+        setMessage(getUsersCountMessage(payload.usersCount));
+      } catch {
+        if (isActive) {
+          setMessage("Professionals are already joining INConnect");
+        }
+      }
+    }
+
+    void loadUsersCount();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  if (!message) return null;
+
+  return (
+    <div className="border-t border-[#D9DDE3] bg-[#F3F7FD] px-5 py-2 text-center sm:px-8 lg:px-10">
+      <p className="text-sm font-semibold leading-6 text-[#0A66C2]">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+function isUsersCountResponse(value: unknown): value is { usersCount: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "usersCount" in value &&
+    typeof value.usersCount === "number" &&
+    Number.isFinite(value.usersCount) &&
+    value.usersCount >= 0
+  );
+}
+
+function getUsersCountMessage(usersCount: number) {
+  const count = Math.floor(usersCount);
+  if (count === 0) return "Be among the first professionals to join INConnect";
+  if (count === 1) return "1 professional has already joined INConnect";
+  return `${count.toLocaleString("en-US")} professionals have already joined INConnect`;
 }
 
 function HeroSection() {
@@ -1054,6 +1156,19 @@ function ModuleGrid() {
         "Weekly roadmap",
       ],
       href: "#content-intelligence",
+    },
+    {
+      title: "LinkedIn Article Generator",
+      status: "Coming Soon in Pro",
+      description:
+        "Create LinkedIn-style long-form articles, announcement posts, and hashtags from strategic positioning inputs.",
+      features: [
+        "Article headline",
+        "Long-form article draft",
+        "Announcement post",
+        "Suggested hashtags",
+      ],
+      href: "/article-generator",
     },
     {
       title: "Profile Optimization Suite",
@@ -2870,6 +2985,580 @@ function AboutGenerator({
   );
 }
 
+function ArticleGenerator({
+  identity,
+  onSwitchUser,
+}: {
+  identity: StoredReturningIdentity | null;
+  onSwitchUser: () => void;
+}) {
+  const [accessState, setAccessState] = useState<ArticleAccessState>(
+    identity?.email ? "checking" : "locked",
+  );
+  const [accessEmail, setAccessEmail] = useState(identity?.email ?? "");
+  const [accessError, setAccessError] = useState("");
+  const [topic, setTopic] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [mainAngle, setMainAngle] = useState("");
+  const [tone, setTone] = useState(ARTICLE_TONES[0]);
+  const [keyPointsText, setKeyPointsText] = useState("");
+  const [sourceNotes, setSourceNotes] = useState("");
+  const [cta, setCta] = useState("");
+  const [addInconnectMention, setAddInconnectMention] = useState(true);
+  const [results, setResults] = useState<ArticleGeneratorResponse | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [copiedTarget, setCopiedTarget] = useState<"article" | "post" | null>(null);
+  const recognizedName = getIdentityDisplayName(identity);
+  const recognizedFirstName = getFirstNameFromDisplayName(recognizedName);
+  const keyPoints = parseKeyPoints(keyPointsText);
+  const canGenerate =
+    accessState === "admin" &&
+    isValidEmail(accessEmail) &&
+    topic.trim().length > 3 &&
+    targetAudience.trim().length > 2 &&
+    industry.trim().length > 1 &&
+    mainAngle.trim().length > 4 &&
+    keyPoints.length > 0 &&
+    !isGenerating;
+
+  useEffect(() => {
+    const email = identity?.email ?? "";
+    setAccessEmail(email);
+
+    if (!email || !isValidEmail(email)) {
+      setAccessState("locked");
+      return;
+    }
+
+    let isActive = true;
+    setAccessState("checking");
+    setAccessError("");
+
+    async function verifyStoredAdminEmail() {
+      const isAdmin = await verifyArticleAdminAccess(email);
+      if (!isActive) return;
+      setAccessState(isAdmin ? "admin" : "locked");
+      if (!isAdmin) {
+        setAccessError("");
+      }
+    }
+
+    void verifyStoredAdminEmail();
+    return () => {
+      isActive = false;
+    };
+  }, [identity?.email]);
+
+  async function handleAccessSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const email = accessEmail.trim();
+
+    if (!isValidEmail(email)) {
+      setAccessError("Enter a valid admin email address.");
+      return;
+    }
+
+    setAccessState("checking");
+    setAccessError("");
+    const isAdmin = await verifyArticleAdminAccess(email);
+    setAccessState(isAdmin ? "admin" : "locked");
+    setAccessError(isAdmin ? "" : "This Pro prototype is locked for this account.");
+  }
+
+  async function generateArticle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitArticleGeneration();
+  }
+
+  async function submitArticleGeneration() {
+    if (!canGenerate) return;
+
+    setIsGenerating(true);
+    setError("");
+    setCopiedTarget(null);
+
+    try {
+      const response = await fetch("/api/generate-article", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addInconnectMention,
+          cta,
+          email: accessEmail.trim(),
+          industry,
+          keyPoints,
+          mainAngle,
+          sourceNotes,
+          targetAudience,
+          tone,
+          topic,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const errorMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
+          : "";
+
+      if (response.status === 403) {
+        setAccessState("locked");
+        throw new Error(errorMessage || "LinkedIn Article Generator is coming soon in Pro.");
+      }
+
+      if (!response.ok || !isArticleGeneratorResponse(payload)) {
+        throw new Error(errorMessage || "Article generation failed.");
+      }
+
+      setResults(payload);
+      if (payload.userKey) {
+        storeReturningIdentity({
+          userKey: payload.userKey,
+          name: identity?.name ?? "",
+          email: accessEmail.trim(),
+          linkedinUrl: identity?.linkedinUrl ?? "",
+          latestAssessmentId: identity?.latestAssessmentId,
+        });
+      }
+    } catch (generateError) {
+      setError(
+        generateError instanceof Error
+          ? generateError.message
+          : "Article generation failed.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleCopy(text: string, target: "article" | "post") {
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
+      setCopiedTarget(target);
+      window.setTimeout(() => setCopiedTarget(null), 2200);
+    }
+  }
+
+  if (accessState !== "admin") {
+    return (
+      <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1fr_0.82fr]">
+          <div className="relative overflow-hidden rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7">
+            <div className="pointer-events-none select-none blur-[2px]">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+                Pro prototype
+              </p>
+              <h1 className="mt-3 text-3xl font-semibold leading-tight text-[#191919] sm:text-5xl">
+                LinkedIn Article Generator
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-[#666666]">
+                Draft long-form LinkedIn articles, announcement posts, and
+                hashtags from strategic positioning inputs.
+              </p>
+              <div className="mt-7 grid gap-3 md:grid-cols-3">
+                {["Article headline", "Full article", "Announcement post"].map((item) => (
+                  <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={item}>
+                    <FileText className="h-5 w-5 text-[#0A66C2]" />
+                    <h2 className="mt-4 font-semibold text-[#191919]">{item}</h2>
+                    <p className="mt-2 text-sm leading-6 text-[#666666]">
+                      Coming soon in Pro.
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="absolute inset-0 grid place-items-center bg-white/65 p-5">
+              <div className="max-w-md rounded-lg border border-[#0A66C2]/20 bg-white p-5 text-center shadow-[0_18px_48px_rgba(10,25,47,0.14)]">
+                <LockKeyhole className="mx-auto h-7 w-7 text-[#0A66C2]" />
+                <h2 className="mt-4 text-xl font-semibold text-[#191919]">
+                  LinkedIn Article Generator is coming soon in Pro.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-[#666666]">
+                  This admin-only prototype is locked for normal users until the
+                  public Pro release.
+                </p>
+                <a
+                  className={classNames(
+                    "mt-5 inline-flex h-12 items-center justify-center rounded-lg px-5",
+                    PRIMARY_CTA_CLASS,
+                    PRIMARY_CTA_SHADOW,
+                  )}
+                  href="/contact"
+                >
+                  Join Pro Waitlist
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <form
+            className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7"
+            onSubmit={handleAccessSubmit}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              Admin preview access
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+              Verify admin email
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[#666666]">
+              Admin users listed in `ADMIN_EMAILS` can access the prototype
+              before the public Pro release.
+            </p>
+            {identity?.email && (
+              <div className="mt-4 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+                <p className="font-semibold text-[#191919]">
+                  Welcome back{recognizedFirstName ? `, ${recognizedFirstName}` : ""}.
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[#666666]">{identity.email}</p>
+                <button
+                  className="mt-2 text-sm font-semibold text-[#0A66C2] underline-offset-4 hover:underline"
+                  onClick={onSwitchUser}
+                  type="button"
+                >
+                  Not you?
+                </button>
+              </div>
+            )}
+            <label className="mt-5 grid gap-2 text-sm font-medium text-[#191919]">
+              Email
+              <input
+                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setAccessEmail(event.target.value)}
+                placeholder="admin@example.com"
+                type="email"
+                value={accessEmail}
+              />
+            </label>
+            {accessError && (
+              <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+                {accessError}
+              </p>
+            )}
+            <button
+              className={classNames(
+                "mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg px-5",
+                PRIMARY_CTA_CLASS,
+              )}
+              disabled={accessState === "checking"}
+              type="submit"
+            >
+              {accessState === "checking" && <LoaderCircle className="h-5 w-5 animate-spin" />}
+              {accessState === "checking" ? "Checking Access..." : "Unlock Admin Preview"}
+            </button>
+          </form>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+        <form
+          className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
+          onSubmit={generateArticle}
+        >
+          <div className="border-b border-[#D9DDE3] pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              Admin Pro prototype
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold leading-tight text-[#191919] sm:text-5xl">
+              LinkedIn Article Generator
+            </h1>
+            <p className="mt-4 text-sm leading-6 text-[#666666]">
+              Generate long-form LinkedIn articles, announcement posts, and
+              hashtags from strategic positioning inputs.
+            </p>
+          </div>
+
+          <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-[#191919]">
+                  Admin access verified
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[#666666]">{accessEmail}</p>
+              </div>
+              <button
+                className="w-fit text-sm font-semibold text-[#0A66C2] underline-offset-4 hover:underline"
+                onClick={() => {
+                  setAccessState("locked");
+                  onSwitchUser();
+                }}
+                type="button"
+              >
+                Switch user
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Article topic
+              <input
+                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder="Example: How AI is changing airport operations"
+                value={topic}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Target audience
+              <input
+                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setTargetAudience(event.target.value)}
+                placeholder="Example: Airport executives and innovation leaders"
+                value={targetAudience}
+              />
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Industry
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setIndustry(event.target.value)}
+                  placeholder="Example: Aviation"
+                  value={industry}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Desired tone
+                <select
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setTone(event.target.value)}
+                  value={tone}
+                >
+                  {ARTICLE_TONES.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Main angle
+              <input
+                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setMainAngle(event.target.value)}
+                placeholder="Example: AI adoption should improve operational clarity, not add complexity"
+                value={mainAngle}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Key points to include
+              <textarea
+                className="min-h-32 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setKeyPointsText(event.target.value)}
+                placeholder={"One point per line\nOperational visibility\nPassenger flow\nDecision support"}
+                value={keyPointsText}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Optional source notes
+              <textarea
+                className="min-h-24 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setSourceNotes(event.target.value)}
+                placeholder="Paste rough notes, claims to avoid, or context you want reflected."
+                value={sourceNotes}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-[#191919]">
+              Optional CTA
+              <input
+                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                onChange={(event) => setCta(event.target.value)}
+                placeholder="Example: Connect to discuss practical AI adoption"
+                value={cta}
+              />
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+              <input
+                checked={addInconnectMention}
+                className="mt-1 h-4 w-4 rounded border-[#D9DDE3] text-[#0A66C2] focus:ring-[#0A66C2]"
+                onChange={(event) => setAddInconnectMention(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <span className="font-semibold text-[#191919]">
+                  Add soft INConnect collaboration mention
+                </span>
+                <span className="mt-1 block">
+                  Adds one subtle attribution line near the end of the article.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {error && (
+            <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+              {error}
+            </p>
+          )}
+
+          <button
+            className={classNames(
+              "mt-6 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center",
+              PRIMARY_CTA_CLASS,
+              PRIMARY_CTA_SHADOW,
+            )}
+            disabled={!canGenerate}
+            type="submit"
+          >
+            {isGenerating ? (
+              <LoaderCircle className="h-5 w-5 animate-spin" />
+            ) : (
+              <FileText className="h-5 w-5" />
+            )}
+            {isGenerating ? "Generating Article..." : "Generate Article"}
+          </button>
+        </form>
+
+        <section className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7">
+          <div className="flex flex-col gap-3 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+                Generated output
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+                Article package
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[#666666]">
+                Review carefully before publishing. INConnect does not post to
+                LinkedIn automatically.
+              </p>
+            </div>
+            <button
+              className={classNames(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              disabled={!results || !canGenerate}
+              onClick={submitArticleGeneration}
+              type="button"
+            >
+              <RefreshCw className={classNames("h-4 w-4", isGenerating && "animate-spin")} />
+              Regenerate
+            </button>
+          </div>
+
+          {!results ? (
+            <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-5">
+              <p className="font-semibold text-[#191919]">
+                Your article output will appear here.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                The prototype creates a headline, subtitle, full article,
+                announcement post, and suggested hashtags.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                  Headline
+                </p>
+                <h3 className="mt-3 text-2xl font-semibold leading-tight text-[#191919]">
+                  {results.headline}
+                </h3>
+                <p className="mt-3 text-base leading-7 text-[#666666]">
+                  {results.subtitle}
+                </p>
+              </article>
+              <article className="rounded-lg border border-[#D9DDE3] bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                    Full article
+                  </p>
+                  <button
+                    className={classNames(
+                      "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm",
+                      PRIMARY_CTA_CLASS,
+                    )}
+                    onClick={() => handleCopy(results.article, "article")}
+                    type="button"
+                  >
+                    {copiedTarget === "article" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedTarget === "article" ? "Copied" : "Copy Article"}
+                  </button>
+                </div>
+                <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#191919]">
+                  {results.article}
+                </p>
+              </article>
+              <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                    Announcement post
+                  </p>
+                  <button
+                    className={classNames(
+                      "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm",
+                      PRIMARY_CTA_CLASS,
+                    )}
+                    onClick={() => handleCopy(results.announcementPost, "post")}
+                    type="button"
+                  >
+                    {copiedTarget === "post" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedTarget === "post" ? "Copied" : "Copy Post"}
+                  </button>
+                </div>
+                <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#191919]">
+                  {results.announcementPost}
+                </p>
+              </article>
+              <div className="flex flex-wrap gap-2">
+                {results.hashtags.map((hashtag) => (
+                  <span
+                    className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] px-3 py-1 text-sm font-semibold text-[#0A66C2]"
+                    key={hashtag}
+                  >
+                    {hashtag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+async function verifyArticleAdminAccess(email: string) {
+  try {
+    const response = await fetch("/api/article-generator-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const payload = (await response.json().catch(() => null)) as unknown;
+    return (
+      response.ok &&
+      typeof payload === "object" &&
+      payload !== null &&
+      "isAdmin" in payload &&
+      payload.isAdmin === true
+    );
+  } catch {
+    return false;
+  }
+}
+
+function parseKeyPoints(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/\n|;/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 12);
+}
+
 function SelectedOrderList({
   draggedIndex,
   items,
@@ -2986,6 +3675,7 @@ function PlanLimits() {
     ["Assessment History", "Latest profile history", "Expanded tracking"],
     ["Trend Radar", "Coming soon", "Included in future Pro"],
     ["Content Intelligence", "Coming soon", "Included in future Pro"],
+    ["LinkedIn Article Generator", "Coming soon", "Coming soon in Pro"],
     ["Profile Optimization Suite", "Coming soon", "Included in future Pro"],
   ];
 
@@ -3017,6 +3707,7 @@ function PlanLimits() {
             "Unlimited profile assessments",
             "Trend Radar",
             "Content Intelligence",
+            "LinkedIn Article Generator",
             "Profile Optimization Suite",
             "Personal Brand Intelligence",
             "Authority growth tracking",
@@ -4426,7 +5117,7 @@ function useHeadlineGeneratorIdentity() {
 export function INConnectHomePage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <HeroSection />
       <ModuleGrid />
       <SponsoredContent />
@@ -4687,7 +5378,7 @@ export function INConnectAssessmentPage() {
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <section className="px-5 py-8 sm:px-8 lg:px-10" id="assessment">
         <div className="mx-auto grid max-w-7xl gap-6">
           {returningUser && (
@@ -4734,7 +5425,7 @@ export function INConnectHeadlineGeneratorPage() {
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <HeadlineGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
       <SponsoredContent />
       <Footer />
@@ -4747,8 +5438,21 @@ export function INConnectAboutGeneratorPage() {
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <AboutGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
+      <SponsoredContent />
+      <Footer />
+    </main>
+  );
+}
+
+export function INConnectArticleGeneratorPage() {
+  const { returningIdentity, handleSwitchUser } = useHeadlineGeneratorIdentity();
+
+  return (
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
+      <ArticleGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
       <SponsoredContent />
       <Footer />
     </main>
@@ -4758,7 +5462,7 @@ export function INConnectAboutGeneratorPage() {
 export function INConnectPricingPage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
