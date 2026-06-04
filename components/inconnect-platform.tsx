@@ -1093,6 +1093,8 @@ function HeroSection() {
 }
 
 function ModuleGrid() {
+  const { isAdmin: articleAccessIsAdmin, isChecking: articleAccessIsChecking } =
+    useArticleGeneratorAccess();
   const modules = [
     {
       title: "Profile Intelligence Assessment",
@@ -1133,6 +1135,20 @@ function ModuleGrid() {
       href: "/about-generator",
     },
     {
+      title: "LinkedIn Article Generator",
+      status: "PRO",
+      description:
+        "Create long-form LinkedIn articles, industry insights, newsletters, and thought leadership content.",
+      features: [
+        "AI-generated articles",
+        "Industry-focused content",
+        "Thought leadership positioning",
+        "Article announcement post",
+        "Newsletter-ready output",
+      ],
+      href: "/article-generator",
+    },
+    {
       title: "Trend Radar",
       status: "Coming Soon in Pro",
       description: "Discover emerging industry trends aligned with your expertise and positioning.",
@@ -1156,19 +1172,6 @@ function ModuleGrid() {
         "Weekly roadmap",
       ],
       href: "#content-intelligence",
-    },
-    {
-      title: "LinkedIn Article Generator",
-      status: "Coming Soon in Pro",
-      description:
-        "Create LinkedIn-style long-form articles, announcement posts, and hashtags from strategic positioning inputs.",
-      features: [
-        "Article headline",
-        "Long-form article draft",
-        "Announcement post",
-        "Suggested hashtags",
-      ],
-      href: "/article-generator",
     },
     {
       title: "Profile Optimization Suite",
@@ -1215,14 +1218,16 @@ function ModuleGrid() {
             intelligence.
           </p>
         </div>
-        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {modules.map((module) => {
             const isActive = module.status === "Active";
+            const isArticleModule = module.title === "LinkedIn Article Generator";
+            const isPremium = module.status === "PRO";
             return (
               <article
                 className={classNames(
                   "flex min-h-full flex-col rounded-lg border p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
-                  isActive
+                  isActive || isPremium
                     ? "border-[#0A66C2]/25 bg-white"
                     : "border-[#D9DDE3] bg-[#F8F8F6]",
                 )}
@@ -1235,7 +1240,9 @@ function ModuleGrid() {
                       "shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold",
                       isActive
                         ? "border-[#057642]/20 bg-[#EEF7F2] text-[#057642]"
-                        : "border-[#D9DDE3] bg-white text-[#666666]",
+                        : isPremium
+                          ? "border-[#0A66C2]/20 bg-[#E8F1FB] text-[#0A66C2]"
+                          : "border-[#D9DDE3] bg-white text-[#666666]",
                     )}
                   >
                     {module.status}
@@ -1247,7 +1254,7 @@ function ModuleGrid() {
                 <ul className="mt-4 grid gap-2 text-sm leading-6 text-[#666666]">
                   {module.features.map((feature) => (
                     <li className="flex gap-2" key={feature}>
-                      {isActive ? (
+                      {isActive || isPremium ? (
                         <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
                       ) : (
                         <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#0A66C2]" />
@@ -1269,6 +1276,23 @@ function ModuleGrid() {
                       : module.title === "About Generator"
                         ? "Generate About Section"
                         : "Start Assessment"}
+                  </a>
+                ) : isArticleModule ? (
+                  <a
+                    aria-disabled={!articleAccessIsAdmin}
+                    className={classNames(
+                      "mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors duration-200 ease-[ease]",
+                      articleAccessIsAdmin
+                        ? `${PRIMARY_CTA_CLASS}`
+                        : "border border-[#D9DDE3] bg-[#F8F8F6] text-[#666666] hover:border-[#0A66C2] hover:text-[#0A66C2]",
+                    )}
+                    href={articleAccessIsAdmin ? "/article-generator" : "/pricing"}
+                  >
+                    {articleAccessIsChecking
+                      ? "Checking Access..."
+                      : articleAccessIsAdmin
+                        ? "Generate Article"
+                        : "Available in Pro"}
                   </a>
                 ) : (
                   <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666]">
@@ -3000,7 +3024,6 @@ function ArticleGenerator({
   const [topic, setTopic] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [industry, setIndustry] = useState("");
-  const [mainAngle, setMainAngle] = useState("");
   const [tone, setTone] = useState(ARTICLE_TONES[0]);
   const [keyPointsText, setKeyPointsText] = useState("");
   const [sourceNotes, setSourceNotes] = useState("");
@@ -3019,7 +3042,6 @@ function ArticleGenerator({
     topic.trim().length > 3 &&
     targetAudience.trim().length > 2 &&
     industry.trim().length > 1 &&
-    mainAngle.trim().length > 4 &&
     keyPoints.length > 0 &&
     !isGenerating;
 
@@ -3089,7 +3111,6 @@ function ArticleGenerator({
           email: accessEmail.trim(),
           industry,
           keyPoints,
-          mainAngle,
           sourceNotes,
           targetAudience,
           tone,
@@ -3160,7 +3181,7 @@ function ArticleGenerator({
                 hashtags from strategic positioning inputs.
               </p>
               <div className="mt-7 grid gap-3 md:grid-cols-3">
-                {["Article headline", "Full article", "Announcement post"].map((item) => (
+                {["Article headline", "Full LinkedIn article", "LinkedIn post announcement"].map((item) => (
                   <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4" key={item}>
                     <FileText className="h-5 w-5 text-[#0A66C2]" />
                     <h2 className="mt-4 font-semibold text-[#191919]">{item}</h2>
@@ -3299,7 +3320,7 @@ function ArticleGenerator({
 
           <div className="mt-6 grid gap-4">
             <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Article topic
+              Article Topic
               <input
                 className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                 onChange={(event) => setTopic(event.target.value)}
@@ -3308,7 +3329,7 @@ function ArticleGenerator({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Target audience
+              Audience
               <input
                 className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                 onChange={(event) => setTargetAudience(event.target.value)}
@@ -3327,7 +3348,7 @@ function ArticleGenerator({
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-[#191919]">
-                Desired tone
+                Tone
                 <select
                   className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                   onChange={(event) => setTone(event.target.value)}
@@ -3340,16 +3361,7 @@ function ArticleGenerator({
               </label>
             </div>
             <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Main angle
-              <input
-                className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                onChange={(event) => setMainAngle(event.target.value)}
-                placeholder="Example: AI adoption should improve operational clarity, not add complexity"
-                value={mainAngle}
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Key points to include
+              Key Points
               <textarea
                 className="min-h-32 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                 onChange={(event) => setKeyPointsText(event.target.value)}
@@ -3358,7 +3370,7 @@ function ArticleGenerator({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Optional source notes
+              Optional Sources
               <textarea
                 className="min-h-24 rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                 onChange={(event) => setSourceNotes(event.target.value)}
@@ -3367,7 +3379,7 @@ function ArticleGenerator({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium text-[#191919]">
-              Optional CTA
+              CTA
               <input
                 className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
                 onChange={(event) => setCta(event.target.value)}
@@ -3413,7 +3425,7 @@ function ArticleGenerator({
             ) : (
               <FileText className="h-5 w-5" />
             )}
-            {isGenerating ? "Generating Article..." : "Generate Article"}
+            {isGenerating ? "Generating..." : "Generate"}
           </button>
         </form>
 
@@ -3459,7 +3471,7 @@ function ArticleGenerator({
             <div className="mt-5 grid gap-4">
               <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                  Headline
+                  Article Headline
                 </p>
                 <h3 className="mt-3 text-2xl font-semibold leading-tight text-[#191919]">
                   {results.headline}
@@ -3471,7 +3483,7 @@ function ArticleGenerator({
               <article className="rounded-lg border border-[#D9DDE3] bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                    Full article
+                    Full LinkedIn Article
                   </p>
                   <button
                     className={classNames(
@@ -3492,7 +3504,7 @@ function ArticleGenerator({
               <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                    Announcement post
+                    LinkedIn Post Announcement
                   </p>
                   <button
                     className={classNames(
@@ -3503,7 +3515,7 @@ function ArticleGenerator({
                     type="button"
                   >
                     {copiedTarget === "post" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copiedTarget === "post" ? "Copied" : "Copy Post"}
+                    {copiedTarget === "post" ? "Copied" : "Copy Announcement Post"}
                   </button>
                 </div>
                 <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#191919]">
@@ -3546,6 +3558,39 @@ async function verifyArticleAdminAccess(email: string) {
   } catch {
     return false;
   }
+}
+
+function useArticleGeneratorAccess() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+
+  useEffect(() => {
+    const storedIdentity = readStoredReturningIdentity();
+    const email = storedIdentity?.email ?? "";
+
+    if (!email || !isValidEmail(email)) {
+      setIsAdmin(false);
+      setIsChecking(false);
+      return;
+    }
+
+    let isActive = true;
+    setIsChecking(true);
+
+    async function verifyAccess() {
+      const nextIsAdmin = await verifyArticleAdminAccess(email);
+      if (!isActive) return;
+      setIsAdmin(nextIsAdmin);
+      setIsChecking(false);
+    }
+
+    void verifyAccess();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  return { isAdmin, isChecking };
 }
 
 function parseKeyPoints(value: string) {

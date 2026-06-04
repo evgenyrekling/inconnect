@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Email, topic, audience, industry, angle, tone, and key points are required.",
+          "Email, article topic, industry, audience, tone, and key points are required.",
       },
       { status: 400 },
     );
@@ -114,13 +114,12 @@ export async function POST(request: NextRequest) {
             "Generate a LinkedIn long-form article package.",
             "",
             `Article topic: ${input.topic}`,
-            `Target audience: ${input.targetAudience}`,
             `Industry: ${input.industry}`,
-            `Main angle: ${input.mainAngle}`,
-            `Desired tone: ${input.tone}`,
+            `Audience: ${input.targetAudience}`,
+            `Tone: ${input.tone}`,
             `Key points to include: ${input.keyPoints.join("; ")}`,
-            input.sourceNotes ? `Source notes: ${input.sourceNotes}` : "",
-            input.cta ? `Optional CTA: ${input.cta}` : "",
+            input.sourceNotes ? `Optional sources: ${input.sourceNotes}` : "",
+            input.cta ? `CTA: ${input.cta}` : "",
             `Soft INConnect mention enabled: ${input.addInconnectMention ? "yes" : "no"}`,
             "",
             "Required response:",
@@ -290,7 +289,6 @@ function normalizeArticleRequest(value: unknown): ArticleGeneratorRequest | null
     email,
     industry: getString(record.industry),
     keyPoints: getStringArray(record.keyPoints).slice(0, 12),
-    mainAngle: getString(record.mainAngle),
     sourceNotes: getString(record.sourceNotes).slice(0, 5000),
     targetAudience: getString(record.targetAudience),
     tone: ARTICLE_TONES.includes(tone as (typeof ARTICLE_TONES)[number])
@@ -304,7 +302,6 @@ function normalizeArticleRequest(value: unknown): ArticleGeneratorRequest | null
     input.topic.length < 4 ||
     input.targetAudience.length < 3 ||
     input.industry.length < 2 ||
-    input.mainAngle.length < 5 ||
     input.keyPoints.length === 0
   ) {
     return null;

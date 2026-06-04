@@ -49,7 +49,6 @@ export type ArticleProfileInputs = {
   cta: string;
   industry: string;
   keyPoints: string[];
-  mainAngle: string;
   sourceNotes: string;
   targetAudience: string;
   tone: string;
@@ -508,7 +507,7 @@ export async function upsertProfileFromArticleGenerator(
     user_key: values.user.user_key,
     email: normalizeEmail(values.email),
     industries: values.inputs.industry ? [values.inputs.industry] : [],
-    business_goals: [values.inputs.mainAngle, values.inputs.targetAudience].filter(Boolean),
+    business_goals: [values.inputs.targetAudience, values.inputs.cta].filter(Boolean),
     article_generator_inputs: values.inputs,
     article_generator_outputs: values.outputs,
     profile_source: "article_generator",
