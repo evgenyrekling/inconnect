@@ -23,6 +23,27 @@ export type HeadlineProfileOutputs = {
   }>;
 };
 
+export type AboutProfileInputs = {
+  roles: string[];
+  industries: string[];
+  expertise: string[];
+  values: string[];
+  identities: string[];
+  writingStyles: string[];
+  callsToAction: string[];
+};
+
+export type AboutProfileOutputs = {
+  recommendedIndex: number;
+  versions: Array<{
+    style: string;
+    aboutSection: string;
+    bestUseCase: string;
+    toneScore: number;
+    whyThisWorks: string;
+  }>;
+};
+
 export type UserProfileDebug = {
   userFound: boolean;
   userCreated: boolean;
@@ -62,6 +83,8 @@ type UserProfileRow = {
   top_skills: unknown;
   expertise_domains: unknown;
   business_goals: unknown;
+  professional_identity: unknown;
+  writing_preferences: unknown;
   desired_perception: string | null;
   professional_archetype: unknown;
   latest_authority_score: number | null;
@@ -69,6 +92,8 @@ type UserProfileRow = {
   last_assessment_date: string | null;
   headline_generator_inputs: unknown;
   headline_generator_outputs: unknown;
+  about_generator_inputs: unknown;
+  about_generator_outputs: unknown;
   profile_source: string | null;
 };
 
@@ -91,6 +116,8 @@ type ProfilePatch = {
   top_skills?: string[];
   expertise_domains?: string[];
   business_goals?: string[];
+  professional_identity?: string[];
+  writing_preferences?: string[];
   desired_perception?: string;
   professional_archetype?: ProfileIntelligenceAssessment["professionalArchetype"];
   latest_authority_score?: number;
@@ -98,7 +125,9 @@ type ProfilePatch = {
   last_assessment_date?: string;
   headline_generator_inputs?: HeadlineProfileInputs;
   headline_generator_outputs?: HeadlineProfileOutputs;
-  profile_source: "assessment" | "headline_generator";
+  about_generator_inputs?: AboutProfileInputs;
+  about_generator_outputs?: AboutProfileOutputs;
+  profile_source: "assessment" | "headline_generator" | "about_generator";
 };
 
 export class UserProfileStorageError extends Error {
@@ -391,6 +420,38 @@ export async function upsertProfileFromHeadlineGenerator(
   return upsertUserProfile(supabase, patch);
 }
 
+export async function upsertProfileFromAboutGenerator(
+  supabase: SupabaseAdminClient,
+  values: {
+    email: string;
+    inputs: AboutProfileInputs;
+    name: string;
+    outputs: AboutProfileOutputs;
+    user: UserRow;
+  },
+) {
+  const patch: ProfilePatch = {
+    user_id: values.user.id,
+    user_key: values.user.user_key,
+    name: cleanProfileText(values.name),
+    email: normalizeEmail(values.email),
+    professional_role: values.inputs.roles[0],
+    seniority_level: inferSeniorityLevel(values.inputs.roles),
+    industries: values.inputs.industries,
+    top_skills: values.inputs.expertise,
+    expertise_domains: values.inputs.expertise,
+    business_goals: values.inputs.values,
+    professional_identity: values.inputs.identities,
+    writing_preferences: values.inputs.writingStyles,
+    desired_perception: values.inputs.identities.join("; "),
+    about_generator_inputs: values.inputs,
+    about_generator_outputs: values.outputs,
+    profile_source: "about_generator",
+  };
+
+  return upsertUserProfile(supabase, patch);
+}
+
 async function upsertUserProfile(supabase: SupabaseAdminClient, patch: ProfilePatch) {
   const existingProfile = await getExistingUserProfile(supabase, patch.email);
   const debug = createProfileDebug(null);
@@ -491,6 +552,14 @@ function mergeProfilePatch(existingProfile: UserProfileRow | null, patch: Profil
     top_skills: mergeJsonbArrays(source?.top_skills, patch.top_skills),
     expertise_domains: mergeJsonbArrays(source?.expertise_domains, patch.expertise_domains),
     business_goals: mergeJsonbArrays(source?.business_goals, patch.business_goals),
+    professional_identity: mergeJsonbArrays(
+      source?.professional_identity,
+      patch.professional_identity,
+    ),
+    writing_preferences: mergeJsonbArrays(
+      source?.writing_preferences,
+      patch.writing_preferences,
+    ),
     desired_perception: preferText(patch.desired_perception, source?.desired_perception),
     professional_archetype: patch.professional_archetype ?? source?.professional_archetype ?? null,
     latest_authority_score:
@@ -503,6 +572,10 @@ function mergeProfilePatch(existingProfile: UserProfileRow | null, patch: Profil
       patch.headline_generator_inputs ?? source?.headline_generator_inputs ?? null,
     headline_generator_outputs:
       patch.headline_generator_outputs ?? source?.headline_generator_outputs ?? null,
+    about_generator_inputs:
+      patch.about_generator_inputs ?? source?.about_generator_inputs ?? null,
+    about_generator_outputs:
+      patch.about_generator_outputs ?? source?.about_generator_outputs ?? null,
     profile_source: mergeProfileSource(source?.profile_source, patch.profile_source),
     updated_at: new Date().toISOString(),
   };

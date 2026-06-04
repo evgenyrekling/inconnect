@@ -112,12 +112,35 @@ type HeadlineGeneratorResponse = {
   profileDebug?: UserProfileDebug;
   userKey?: string;
 };
+type AboutOption = {
+  style: string;
+  aboutSection: string;
+  bestUseCase: string;
+  toneScore: number;
+  whyThisWorks: string;
+};
+type AboutGeneratorResponse = {
+  generationId?: string;
+  recommendedIndex: number;
+  versions: AboutOption[];
+  profileDebug?: UserProfileDebug;
+  userKey?: string;
+};
 type HeadlineInputs = {
   roles: string[];
   industries: string[];
   expertise: string[];
   values: string[];
   perceptions: string[];
+};
+type AboutInputs = {
+  roles: string[];
+  industries: string[];
+  expertise: string[];
+  values: string[];
+  identities: string[];
+  writingStyles: string[];
+  callsToAction: string[];
 };
 type HeadlineGenerationRecord = {
   name: string;
@@ -127,6 +150,14 @@ type HeadlineGenerationRecord = {
   createdAt: string;
   futureSupabaseTable: "headline_generations";
 };
+type AboutGenerationRecord = {
+  name: string;
+  email: string;
+  inputs: AboutInputs;
+  outputs: AboutGeneratorResponse;
+  createdAt: string;
+  supabaseTable: "about_generations";
+};
 
 const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
 const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png";
@@ -135,6 +166,7 @@ const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const HEADLINE_GENERATIONS_STORAGE_KEY = "inconnect:headline-generations";
+const ABOUT_GENERATIONS_STORAGE_KEY = "inconnect:about-generations";
 const HEADLINE_SELECTION_LIMIT = 10;
 const PRIMARY_CTA_CLASS =
   "bg-[#4A6FD0] font-semibold text-[#FFFFFF] transition-colors duration-200 ease-[ease] hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none";
@@ -143,6 +175,7 @@ const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 const navItems = [
   { label: "Assessment", href: "/assessment" },
   { label: "Headline Generator", href: "/headline-generator" },
+  { label: "About Generator", href: "/about-generator" },
   { label: "Pricing", href: "/pricing" },
 ];
 
@@ -267,6 +300,130 @@ const perceptionOptions = [
   "Technical Specialist",
   "Executive Leader",
   "Other",
+];
+
+const aboutRoleOptions = [
+  "Specialist",
+  "Manager",
+  "Director",
+  "Executive",
+  "Founder",
+  "Entrepreneur",
+  "Consultant",
+  "Freelancer",
+  "Business Developer",
+  "Sales Professional",
+  "Engineer",
+  "Product Manager",
+  "Project Manager",
+  "Marketing Professional",
+  "Researcher",
+  "Investor",
+  "Advisor",
+  "Other",
+];
+
+const aboutIndustryOptions = [
+  "Technology",
+  "AI",
+  "SaaS",
+  "Industrial Automation",
+  "Manufacturing",
+  "Logistics",
+  "Airports",
+  "Transportation",
+  "Smart Mobility",
+  "Rail",
+  "Ports",
+  "Construction",
+  "Energy",
+  "Healthcare",
+  "Finance",
+  "Consulting",
+  "Cybersecurity",
+  "Robotics",
+  "Data Analytics",
+  "Education",
+  "Sustainability",
+];
+
+const aboutExpertiseOptions = [
+  "Business Development",
+  "Sales Leadership",
+  "Market Development",
+  "Strategic Partnerships",
+  "Solution Selling",
+  "Innovation",
+  "Product Management",
+  "Project Management",
+  "Operations",
+  "Leadership",
+  "Team Building",
+  "Automation",
+  "Digital Transformation",
+  "AI Strategy",
+  "Engineering",
+  "Marketing",
+  "Revenue Growth",
+  "Go-To-Market",
+  "Customer Success",
+  "Public Speaking",
+];
+
+const aboutBusinessValueOptions = [
+  "Drive business growth",
+  "Increase revenue",
+  "Open new markets",
+  "Enable automation",
+  "Improve efficiency",
+  "Reduce costs",
+  "Improve safety",
+  "Improve customer experience",
+  "Scale operations",
+  "Accelerate innovation",
+  "Build partnerships",
+  "Improve productivity",
+  "Improve sustainability",
+  "Strengthen brand authority",
+  "Generate leads",
+];
+
+const aboutIdentityOptions = [
+  "Industry Authority",
+  "Trusted Expert",
+  "Thought Leader",
+  "Innovator",
+  "Strategic Leader",
+  "Visionary",
+  "Problem Solver",
+  "Connector",
+  "Growth Driver",
+  "Technical Expert",
+  "Business Builder",
+  "Change Maker",
+];
+
+const aboutWritingStyleOptions = [
+  "Executive",
+  "Professional",
+  "Human",
+  "Commercial",
+  "Thought Leadership",
+  "Technical",
+  "Inspirational",
+  "Founder Style",
+  "Consultant Style",
+];
+
+const aboutCallToActionOptions = [
+  "Connect with me",
+  "Follow my content",
+  "Contact me",
+  "Explore partnerships",
+  "Discuss opportunities",
+  "Reach out for consulting",
+  "Visit my website",
+  "Book a meeting",
 ];
 
 function classNames(...classes: Array<string | false | null | undefined>) {
@@ -582,6 +739,32 @@ function isHeadlineGeneratorResponse(value: unknown): value is HeadlineGenerator
   );
 }
 
+function isAboutGeneratorResponse(value: unknown): value is AboutGeneratorResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "recommendedIndex" in value &&
+    typeof value.recommendedIndex === "number" &&
+    "versions" in value &&
+    Array.isArray(value.versions) &&
+    value.versions.every(
+      (version) =>
+        typeof version === "object" &&
+        version !== null &&
+        "style" in version &&
+        typeof version.style === "string" &&
+        "aboutSection" in version &&
+        typeof version.aboutSection === "string" &&
+        "bestUseCase" in version &&
+        typeof version.bestUseCase === "string" &&
+        "toneScore" in version &&
+        typeof version.toneScore === "number" &&
+        "whyThisWorks" in version &&
+        typeof version.whyThisWorks === "string",
+    )
+  );
+}
+
 function storeHeadlineGeneration(record: HeadlineGenerationRecord) {
   try {
     const raw = window.localStorage.getItem(HEADLINE_GENERATIONS_STORAGE_KEY);
@@ -593,6 +776,20 @@ function storeHeadlineGeneration(record: HeadlineGenerationRecord) {
     );
   } catch {
     // Local storage is best-effort until Supabase headline storage is added.
+  }
+}
+
+function storeAboutGeneration(record: AboutGenerationRecord) {
+  try {
+    const raw = window.localStorage.getItem(ABOUT_GENERATIONS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    const existing = Array.isArray(parsed) ? parsed : [];
+    window.localStorage.setItem(
+      ABOUT_GENERATIONS_STORAGE_KEY,
+      JSON.stringify([record, ...existing].slice(0, 20)),
+    );
+  } catch {
+    // Local storage is best-effort; Supabase remains the source of truth.
   }
 }
 
@@ -720,6 +917,15 @@ function HeroSection() {
             >
               Generate Headlines
             </a>
+            <a
+              className={classNames(
+                "inline-flex h-12 items-center justify-center rounded-lg px-5",
+                PRIMARY_CTA_CLASS,
+              )}
+              href="/about-generator"
+            >
+              Generate About Section
+            </a>
           </div>
         </div>
         <div className="grid gap-3">
@@ -771,6 +977,19 @@ function ModuleGrid() {
       href: "/headline-generator",
     },
     {
+      title: "About Generator",
+      status: "Active",
+      description:
+        "Create a powerful LinkedIn About section from your expertise, business value, and positioning goals.",
+      features: [
+        "7-step positioning wizard",
+        "AI-generated About sections",
+        "Recommended version",
+        "Copy and regenerate",
+      ],
+      href: "/about-generator",
+    },
+    {
       title: "Trend Radar",
       status: "Coming Soon in Pro",
       description: "Discover emerging industry trends aligned with your expertise and positioning.",
@@ -801,9 +1020,9 @@ function ModuleGrid() {
       description:
         "Future tools for rewriting, strengthening, and optimizing every major LinkedIn profile section.",
       features: [
-        "About Section Generator",
         "Experience Rewriter",
         "Skills Optimizer",
+        "Profile Strength Check",
         "Keyword Optimizer",
       ],
       href: "#profile-optimization-suite",
@@ -834,9 +1053,10 @@ function ModuleGrid() {
             One platform for positioning, visibility, authority, and growth.
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
-            Assessment is the entry point. Headline Generator is the second free
-            tool. Future Pro modules expand trend, content, profile, and personal
-            brand intelligence.
+            Assessment is the entry point. Headline and About generators help
+            turn profile intelligence into stronger LinkedIn positioning. Future
+            Pro modules expand trend, content, profile, and personal brand
+            intelligence.
           </p>
         </div>
         <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -890,7 +1110,9 @@ function ModuleGrid() {
                   >
                     {module.title === "Headline Generator"
                       ? "Generate Headlines"
-                      : "Start Assessment"}
+                      : module.title === "About Generator"
+                        ? "Generate About Section"
+                        : "Start Assessment"}
                   </a>
                 ) : (
                   <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666]">
@@ -1848,6 +2070,725 @@ function HeadlineGenerator({
   );
 }
 
+function AboutGenerator({
+  identity,
+  onSwitchUser,
+}: {
+  identity: StoredReturningIdentity | null;
+  onSwitchUser: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [hasStarted, setHasStarted] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [customRole, setCustomRole] = useState("");
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [customIndustry, setCustomIndustry] = useState("");
+  const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
+  const [customExpertise, setCustomExpertise] = useState("");
+  const [selectedValue, setSelectedValue] = useState<string[]>([]);
+  const [customValue, setCustomValue] = useState("");
+  const [selectedIdentity, setSelectedIdentity] = useState<string[]>([]);
+  const [customIdentity, setCustomIdentity] = useState("");
+  const [selectedWritingStyles, setSelectedWritingStyles] = useState<string[]>([]);
+  const [customWritingStyle, setCustomWritingStyle] = useState("");
+  const [selectedCallsToAction, setSelectedCallsToAction] = useState<string[]>([]);
+  const [customCallToAction, setCustomCallToAction] = useState("");
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [results, setResults] = useState<AboutGeneratorResponse | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [hasProfileConsent, setHasProfileConsent] = useState(false);
+  const [profileDebug, setProfileDebug] = useState<UserProfileDebug | null>(null);
+  const recognizedName = getIdentityDisplayName(identity);
+  const recognizedEmail = identity?.email.trim() ?? "";
+  const isRecognizedUser = Boolean(
+    identity?.userKey && recognizedName && isValidEmail(recognizedEmail),
+  );
+  const shouldShowWizard = hasStarted || isRecognizedUser;
+  const effectiveName = isRecognizedUser ? recognizedName : name;
+  const effectiveEmail = isRecognizedUser ? recognizedEmail : email;
+  const recognizedFirstName = getFirstNameFromDisplayName(recognizedName);
+
+  useEffect(() => {
+    if (isRecognizedUser) {
+      setName(recognizedName);
+      setEmail(recognizedEmail);
+      setHasStarted(true);
+      setError("");
+      return;
+    }
+
+    if (identity) {
+      setName(identity.name ?? "");
+      setEmail(identity.email ?? "");
+      setHasStarted(false);
+      setHasProfileConsent(false);
+      return;
+    }
+
+    setName("");
+    setEmail("");
+    setHasStarted(false);
+    setHasProfileConsent(false);
+    setResults(null);
+    setCopiedIndex(null);
+    setProfileDebug(null);
+    setError("");
+  }, [identity, isRecognizedUser, recognizedEmail, recognizedName]);
+
+  const inputs: AboutInputs = {
+    roles: uniqueItems(selectedRoles),
+    industries: uniqueItems(selectedIndustries),
+    expertise: uniqueItems(selectedExpertise),
+    values: uniqueItems(selectedValue),
+    identities: uniqueItems(selectedIdentity),
+    writingStyles: uniqueItems(selectedWritingStyles),
+    callsToAction: uniqueItems(selectedCallsToAction),
+  };
+  const identityIsValid =
+    effectiveName.trim().length > 1 && isValidEmail(effectiveEmail);
+  const steps = [
+    {
+      question: "What best describes your professional role?",
+      helper: "Select up to 10 roles.",
+      options: aboutRoleOptions,
+      selected: inputs.roles,
+      setSelected: setSelectedRoles,
+      customPlaceholder: "Example: Airport Automation Leader",
+      customValue: customRole,
+      setCustomValue: setCustomRole,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "Which industries should your About section position you in?",
+      helper: "Select up to 10 industries.",
+      options: aboutIndustryOptions,
+      selected: inputs.industries,
+      setSelected: setSelectedIndustries,
+      customPlaceholder: "Example: Smart Ports",
+      customValue: customIndustry,
+      setCustomValue: setCustomIndustry,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "What expertise should be highlighted?",
+      helper: "Select up to 10 expertise areas.",
+      options: aboutExpertiseOptions,
+      selected: inputs.expertise,
+      setSelected: setSelectedExpertise,
+      customPlaceholder: "Example: LiDAR",
+      customValue: customExpertise,
+      setCustomValue: setCustomExpertise,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "What business outcomes do you help create?",
+      helper: "Select up to 10 outcomes.",
+      options: aboutBusinessValueOptions,
+      selected: inputs.values,
+      setSelected: setSelectedValue,
+      customPlaceholder: "Example: Improve airport throughput",
+      customValue: customValue,
+      setCustomValue: setCustomValue,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "How would you like to be perceived?",
+      helper: "Select up to 10 professional identity signals.",
+      options: aboutIdentityOptions,
+      selected: inputs.identities,
+      setSelected: setSelectedIdentity,
+      customPlaceholder: "Example: Trusted international growth partner",
+      customValue: customIdentity,
+      setCustomValue: setCustomIdentity,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "What tone should your About section have?",
+      helper: "Select up to 10 writing style preferences.",
+      options: aboutWritingStyleOptions,
+      selected: inputs.writingStyles,
+      setSelected: setSelectedWritingStyles,
+      customPlaceholder: "Example: Strategic and practical",
+      customValue: customWritingStyle,
+      setCustomValue: setCustomWritingStyle,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+    {
+      question: "What should readers do after reading your About section?",
+      helper: "Select up to 10 calls to action.",
+      options: aboutCallToActionOptions,
+      selected: inputs.callsToAction,
+      setSelected: setSelectedCallsToAction,
+      customPlaceholder: "Example: Discuss airport automation opportunities",
+      customValue: customCallToAction,
+      setCustomValue: setCustomCallToAction,
+      minSelections: 1,
+      maxSelections: HEADLINE_SELECTION_LIMIT,
+    },
+  ];
+  const activeStep = steps[stepIndex];
+  const currentStepIsComplete =
+    activeStep.selected.length >= activeStep.minSelections &&
+    activeStep.selected.length <= activeStep.maxSelections;
+  const canGenerate =
+    identityIsValid &&
+    hasProfileConsent &&
+    steps.every((step) => step.selected.length >= step.minSelections) &&
+    steps.every((step) => step.selected.length <= step.maxSelections);
+  const progressPercent = ((stepIndex + 1) / steps.length) * 100;
+  const isFinalStep = stepIndex === steps.length - 1;
+
+  function startGenerator() {
+    if (!identityIsValid) {
+      setError("Add your name and a valid email address to continue.");
+      return;
+    }
+    if (!hasProfileConsent) {
+      setError(
+        "Consent is required before INConnect can store your profile information and About section results.",
+      );
+      return;
+    }
+
+    setError("");
+    setHasStarted(true);
+  }
+
+  function addCustomSelection() {
+    const value = activeStep.customValue.trim();
+    if (!value) return;
+
+    activeStep.setSelected((current) => {
+      const existing = uniqueItems(current);
+      if (existing.includes(value)) return existing;
+      if (existing.length >= activeStep.maxSelections) return existing;
+      return [...existing, value];
+    });
+    activeStep.setCustomValue("");
+  }
+
+  async function generateAboutSection() {
+    if (!canGenerate || isGenerating) return;
+
+    setIsGenerating(true);
+    setError("");
+    setCopiedIndex(null);
+    setProfileDebug(null);
+
+    try {
+      const response = await fetch("/api/generate-about", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: effectiveName.trim(),
+          email: effectiveEmail.trim(),
+          roles: inputs.roles,
+          industries: inputs.industries,
+          expertise: inputs.expertise,
+          values: inputs.values,
+          identities: inputs.identities,
+          writingStyles: inputs.writingStyles,
+          callsToAction: inputs.callsToAction,
+          profileConsent: hasProfileConsent,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const errorMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        typeof payload.error === "string"
+          ? payload.error
+          : "";
+
+      if (!response.ok || !isAboutGeneratorResponse(payload)) {
+        throw new Error(errorMessage || "About section generation failed.");
+      }
+
+      setResults(payload);
+      setProfileDebug(
+        payload.profileDebug && isUserProfileDebug(payload.profileDebug)
+          ? payload.profileDebug
+          : null,
+      );
+      if (payload.userKey) {
+        storeReturningIdentity({
+          userKey: payload.userKey,
+          name: effectiveName.trim(),
+          email: effectiveEmail.trim(),
+          linkedinUrl: identity?.linkedinUrl ?? "",
+          latestAssessmentId: identity?.latestAssessmentId,
+        });
+      }
+      storeAboutGeneration({
+        name: effectiveName.trim(),
+        email: effectiveEmail.trim(),
+        inputs,
+        outputs: payload,
+        createdAt: new Date().toISOString(),
+        supabaseTable: "about_generations",
+      });
+    } catch (generateError) {
+      setError(
+        generateError instanceof Error
+          ? generateError.message
+          : "About section generation failed.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!shouldShowWizard) {
+      startGenerator();
+      return;
+    }
+    if (isFinalStep) {
+      await generateAboutSection();
+    }
+  }
+
+  async function handleCopy(aboutSection: string, index: number) {
+    const copied = await copyTextToClipboard(aboutSection);
+    if (copied) {
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex(null), 2200);
+    }
+  }
+
+  return (
+    <section
+      className="bg-white px-5 py-10 sm:px-8 lg:px-10"
+      id="about-generator"
+    >
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.94fr_1.06fr]">
+        <form
+          className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-7"
+          onSubmit={handleSubmit}
+        >
+          <div className="border-b border-[#D9DDE3] pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              LinkedIn About Generator
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold leading-tight text-[#191919] sm:text-5xl">
+              Create a stronger LinkedIn About section.
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
+              Turn your expertise, experience, and business value into a
+              compelling professional story.
+            </p>
+          </div>
+
+          {isRecognizedUser && (
+            <div className="mt-6 rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-[#191919]">
+                    Welcome back{recognizedFirstName ? `, ${recognizedFirstName}` : ""}.
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[#666666]">
+                    Generating About sections for:
+                  </p>
+                  <p className="font-semibold text-[#191919]">{recognizedEmail}</p>
+                </div>
+                <button
+                  className="w-fit text-sm font-semibold text-[#0A66C2] underline-offset-4 hover:underline"
+                  onClick={onSwitchUser}
+                  type="button"
+                >
+                  Not you?
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!shouldShowWizard ? (
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Name
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  value={name}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                Email
+                <input
+                  className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                />
+              </label>
+              <ProfileConsentCheckbox
+                checked={hasProfileConsent}
+                onChange={setHasProfileConsent}
+              />
+              <button
+                className={classNames(
+                  "inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-center",
+                  PRIMARY_CTA_CLASS,
+                  PRIMARY_CTA_SHADOW,
+                )}
+                disabled={!identityIsValid || !hasProfileConsent}
+                type="submit"
+              >
+                <Sparkles className="h-5 w-5" />
+                Generate About Section
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                    Step {stepIndex + 1} of {steps.length}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[#191919]">
+                    {activeStep.selected.length} of {activeStep.maxSelections} selected
+                  </p>
+                </div>
+                <p className="text-sm leading-6 text-[#666666]">
+                  {activeStep.helper}
+                </p>
+              </div>
+
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E8F1FB]">
+                <div
+                  className="h-full rounded-full bg-[#0A66C2] transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              <fieldset className="mt-6 grid gap-4">
+                <legend className="text-xl font-semibold leading-8 text-[#191919]">
+                  {activeStep.question}
+                </legend>
+                <ChipGroup
+                  maxSelections={activeStep.maxSelections}
+                  onToggle={(item) =>
+                    activeStep.setSelected((current) =>
+                      toggleSelection(item, current, activeStep.maxSelections),
+                    )
+                  }
+                  options={activeStep.options}
+                  selected={activeStep.selected}
+                />
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-2 text-sm font-medium text-[#191919]">
+                    Add Custom
+                    <input
+                      className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-3 outline-none transition placeholder:text-[#666666] focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
+                      onChange={(event) => activeStep.setCustomValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addCustomSelection();
+                        }
+                      }}
+                      placeholder={activeStep.customPlaceholder}
+                      value={activeStep.customValue}
+                    />
+                  </label>
+                  <button
+                    className="inline-flex h-12 items-center justify-center rounded-lg border border-[#0A66C2] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#666666]"
+                    disabled={
+                      !activeStep.customValue.trim() ||
+                      activeStep.selected.length >= activeStep.maxSelections
+                    }
+                    onClick={addCustomSelection}
+                    type="button"
+                  >
+                    Add Custom
+                  </button>
+                </div>
+                <SelectedOrderList
+                  draggedIndex={draggedIndex}
+                  items={activeStep.selected}
+                  onDragStart={setDraggedIndex}
+                  onDrop={(fromIndex, toIndex) => {
+                    activeStep.setSelected((current) =>
+                      moveItem(current, fromIndex, toIndex),
+                    );
+                    setDraggedIndex(null);
+                  }}
+                  onMove={(fromIndex, toIndex) =>
+                    activeStep.setSelected((current) =>
+                      moveItem(current, fromIndex, toIndex),
+                    )
+                  }
+                  onRemove={(item) =>
+                    activeStep.setSelected((current) =>
+                      current.filter((selectedItem) => selectedItem !== item),
+                    )
+                  }
+                />
+                {!currentStepIsComplete && (
+                  <p className="text-sm leading-6 text-[#666666]">
+                    Select at least {activeStep.minSelections} to continue.
+                  </p>
+                )}
+              </fieldset>
+
+              <div className="mt-6">
+                <ProfileConsentCheckbox
+                  checked={hasProfileConsent}
+                  onChange={setHasProfileConsent}
+                />
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
+                <button
+                  className="inline-flex h-12 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:text-[#666666]"
+                  disabled={stepIndex === 0 || isGenerating}
+                  onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+                  type="button"
+                >
+                  Back
+                </button>
+                {isFinalStep ? (
+                  <button
+                    className={classNames(
+                      "inline-flex min-h-14 items-center justify-center gap-2 rounded-lg px-6 py-3 text-center",
+                      PRIMARY_CTA_CLASS,
+                      PRIMARY_CTA_SHADOW,
+                    )}
+                    disabled={!canGenerate || isGenerating}
+                    type="submit"
+                  >
+                    {isGenerating ? (
+                      <LoaderCircle className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    {isGenerating ? "Generating About Section..." : "Generate About Section"}
+                  </button>
+                ) : (
+                  <button
+                    className={classNames(
+                      "inline-flex h-12 items-center justify-center rounded-lg px-5 text-sm",
+                      PRIMARY_CTA_CLASS,
+                    )}
+                    disabled={!currentStepIsComplete || isGenerating}
+                    onClick={() =>
+                      setStepIndex((current) =>
+                        Math.min(current + 1, steps.length - 1),
+                      )
+                    }
+                    type="button"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
+              {error}
+            </p>
+          )}
+          {process.env.NODE_ENV === "development" && profileDebug && (
+            <section className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-xs leading-6 text-[#666666]">
+              <h3 className="text-sm font-semibold text-[#191919]">
+                User Profile Debug
+              </h3>
+              <div className="mt-2 grid gap-1 font-mono">
+                <p>User Found: {String(profileDebug.userFound)}</p>
+                <p>User Created: {String(profileDebug.userCreated)}</p>
+                <p>User Key Updated: {String(profileDebug.userKeyUpdated)}</p>
+                <p>Profile Found: {String(profileDebug.profileFound)}</p>
+                <p>Profile Created: {String(profileDebug.profileCreated)}</p>
+                <p>Profile Updated: {String(profileDebug.profileUpdated)}</p>
+                <p>
+                  Profile Merge Completed:{" "}
+                  {String(profileDebug.profileMergeCompleted)}
+                </p>
+                <p>
+                  Fields Updated: {profileDebug.fieldsUpdated.join(", ") || "None"}
+                </p>
+              </div>
+            </section>
+          )}
+        </form>
+
+        <section className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-7">
+          <div className="flex flex-col gap-3 border-b border-[#D9DDE3] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+                About Output
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+                Your LinkedIn About Section Options
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[#666666]">
+                Generated from your role, industry, expertise, business value,
+                professional identity, writing style, and call to action.
+              </p>
+            </div>
+            <button
+              className={classNames(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              disabled={!results || !canGenerate || isGenerating}
+              onClick={generateAboutSection}
+              type="button"
+            >
+              <RefreshCw className={classNames("h-4 w-4", isGenerating && "animate-spin")} />
+              Regenerate
+            </button>
+          </div>
+
+          {!shouldShowWizard ? (
+            <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
+              <p className="font-semibold text-[#191919]">
+                Add your name and email to begin.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                Your generated About section options will be stored with your
+                INConnect profile after generation.
+              </p>
+            </div>
+          ) : !results ? (
+            <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5">
+              <p className="font-semibold text-[#191919]">
+                Your About section options will appear here.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#666666]">
+                INConnect will generate 3-5 LinkedIn-ready About sections and
+                mark the strongest option.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              {results.versions.map((option, index) => {
+                const isRecommended = index === results.recommendedIndex;
+                return (
+                  <article
+                    className={classNames(
+                      "rounded-lg border bg-white p-4",
+                      isRecommended ? "border-[#0A66C2]/45" : "border-[#D9DDE3]",
+                    )}
+                    key={`${option.style}-${index}`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                            {option.style}
+                          </p>
+                          <span className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-2 py-1 text-xs font-semibold text-[#191919]">
+                            {option.toneScore.toFixed(1)}/10
+                          </span>
+                          {isRecommended && (
+                            <span className="rounded-lg border border-[#057642]/20 bg-[#EEF7F2] px-2 py-1 text-xs font-semibold text-[#057642]">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className={classNames(
+                            "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-sm",
+                            PRIMARY_CTA_CLASS,
+                          )}
+                          onClick={() => handleCopy(option.aboutSection, index)}
+                          type="button"
+                        >
+                          {copiedIndex === index ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                          {copiedIndex === index ? "Copied" : "Copy"}
+                        </button>
+                        <button
+                          className={classNames(
+                            "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-sm",
+                            PRIMARY_CTA_CLASS,
+                          )}
+                          disabled={!canGenerate || isGenerating}
+                          onClick={generateAboutSection}
+                          type="button"
+                        >
+                          <RefreshCw
+                            className={classNames("h-4 w-4", isGenerating && "animate-spin")}
+                          />
+                          Regenerate
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#191919]">
+                      {option.aboutSection}
+                    </p>
+                    <p className="mt-3 rounded-lg bg-[#F8F8F6] p-3 text-sm leading-6 text-[#191919]">
+                      <span className="font-semibold">Best use case: </span>
+                      {option.bestUseCase}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-[#666666]">
+                      {option.whyThisWorks}
+                    </p>
+                  </article>
+                );
+              })}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <button
+                  className={classNames(
+                    "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-sm",
+                    PRIMARY_CTA_CLASS,
+                  )}
+                  disabled={!canGenerate || isGenerating}
+                  onClick={generateAboutSection}
+                  type="button"
+                >
+                  Generate Again
+                </button>
+                <a
+                  className={classNames(
+                    "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-center text-sm",
+                    PRIMARY_CTA_CLASS,
+                  )}
+                  href="/headline-generator"
+                >
+                  Go to Headline Generator
+                </a>
+                <a
+                  className={classNames(
+                    "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-center text-sm",
+                    PRIMARY_CTA_CLASS,
+                  )}
+                  href="/assessment"
+                >
+                  Run Profile Assessment
+                </a>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function SelectedOrderList({
   draggedIndex,
   items,
@@ -1960,6 +2901,7 @@ function PlanLimits() {
   const comparisonRows = [
     ["Profile Intelligence Assessment", "1 per week", "Unlimited"],
     ["LinkedIn Headline Generator", "Included", "Included"],
+    ["LinkedIn About Generator", "Included", "Included"],
     ["Assessment History", "Latest profile history", "Expanded tracking"],
     ["Trend Radar", "Coming soon", "Included in future Pro"],
     ["Content Intelligence", "Coming soon", "Included in future Pro"],
@@ -1970,8 +2912,9 @@ function PlanLimits() {
     <section className="mt-6" id="pricing">
       <p className="rounded-lg border border-[#0A66C2]/20 bg-[#E8F1FB] p-4 text-sm leading-6 text-[#191919]">
         Your free plan includes one comprehensive LinkedIn profile assessment
-        per week and access to the LinkedIn Headline Generator. Future Pro tools
-        expand trend, content, profile, and brand intelligence.
+        per week plus access to the LinkedIn Headline Generator and About
+        Generator. Future Pro tools expand trend, content, profile, and brand
+        intelligence.
       </p>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <PlanCard
@@ -3192,7 +4135,6 @@ function FuturePlatformModules() {
       title: "Profile Optimization Suite",
       status: "Coming Soon",
       tools: [
-        "About Section Generator",
         "Experience Rewriter",
         "Skills Optimizer",
         "LinkedIn Profile Strength Check",
@@ -3719,6 +4661,19 @@ export function INConnectHeadlineGeneratorPage() {
   );
 }
 
+export function INConnectAboutGeneratorPage() {
+  const { returningIdentity, handleSwitchUser } = useHeadlineGeneratorIdentity();
+
+  return (
+    <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
+      <Header />
+      <AboutGenerator identity={returningIdentity} onSwitchUser={handleSwitchUser} />
+      <SponsoredContent />
+      <Footer />
+    </main>
+  );
+}
+
 export function INConnectPricingPage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
@@ -3732,8 +4687,9 @@ export function INConnectPricingPage() {
             Choose the right INConnect plan.
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666666]">
-            Start with free profile intelligence and headline generation. Pro
-            expands into trend, content, profile, and personal brand tools.
+            Start with free profile intelligence, headline generation, and About
+            section generation. Pro expands into trend, content, profile, and
+            personal brand tools.
           </p>
           <PlanLimits />
           <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-4 text-sm leading-6 text-[#666666]">
