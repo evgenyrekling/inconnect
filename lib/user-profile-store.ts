@@ -133,13 +133,27 @@ type ProfilePatch = {
 export class UserProfileStorageError extends Error {
   stage: string;
   details: string;
+  supabaseMessage: string;
+  supabaseDetails: string;
+  supabaseHint: string;
+  supabaseCode: string;
 
   constructor(stage: string, error: unknown) {
-    const message = getErrorSummary(error) || "Unknown user profile storage error";
-    super(message);
+    const supabaseMessage =
+      getSupabaseErrorField(error, "message") ||
+      getErrorSummary(error) ||
+      "Unknown user profile storage error";
+    const supabaseDetails = getSupabaseErrorField(error, "details");
+    const supabaseHint = getSupabaseErrorField(error, "hint");
+    const supabaseCode = getSupabaseErrorField(error, "code");
+    super(supabaseMessage);
     this.name = "UserProfileStorageError";
     this.stage = stage;
     this.details = getErrorDetails(error);
+    this.supabaseMessage = supabaseMessage;
+    this.supabaseDetails = supabaseDetails;
+    this.supabaseHint = supabaseHint;
+    this.supabaseCode = supabaseCode;
   }
 }
 
@@ -706,4 +720,32 @@ function getErrorDetails(error: unknown) {
   } catch {
     return String(error);
   }
+}
+
+function getSupabaseErrorField(
+  error: unknown,
+  field: "message" | "details" | "hint" | "code",
+) {
+  if (!error || typeof error !== "object") return "";
+
+  if (error instanceof UserProfileStorageError) {
+    const nestedField =
+      field === "message"
+        ? error.supabaseMessage
+        : field === "details"
+          ? error.supabaseDetails
+          : field === "hint"
+            ? error.supabaseHint
+            : error.supabaseCode;
+    return nestedField || "";
+  }
+
+  if (field === "message" && error instanceof Error) {
+    return error.message;
+  }
+
+  const value = (error as Record<string, unknown>)[field];
+  if (typeof value === "string") return value;
+  if (value === null || typeof value === "undefined") return "";
+  return String(value);
 }

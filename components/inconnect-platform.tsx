@@ -126,6 +126,14 @@ type AboutGeneratorResponse = {
   profileDebug?: UserProfileDebug;
   userKey?: string;
 };
+type AboutStorageDiagnostic = {
+  error: string;
+  stage: string;
+  supabaseMessage: string | null;
+  supabaseDetails: string | null;
+  supabaseHint: string | null;
+  supabaseCode: string | null;
+};
 type HeadlineInputs = {
   roles: string[];
   industries: string[];
@@ -763,6 +771,39 @@ function isAboutGeneratorResponse(value: unknown): value is AboutGeneratorRespon
         typeof version.whyThisWorks === "string",
     )
   );
+}
+
+function isAboutStorageDiagnostic(value: unknown): value is AboutStorageDiagnostic {
+  if (typeof value !== "object" || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.error === "string" &&
+    typeof record.stage === "string" &&
+    isNullableString(record.supabaseMessage) &&
+    isNullableString(record.supabaseDetails) &&
+    isNullableString(record.supabaseHint) &&
+    isNullableString(record.supabaseCode)
+  );
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
+
+function getAboutGeneratorErrorMessage(
+  errorMessage: string,
+  diagnostic: AboutStorageDiagnostic | null,
+) {
+  if (process.env.NODE_ENV === "development" && diagnostic?.supabaseMessage) {
+    return `${diagnostic.error}: ${diagnostic.supabaseMessage}`;
+  }
+
+  if (diagnostic?.error) {
+    return `${diagnostic.error}. Please try again.`;
+  }
+
+  return errorMessage || "About section generation failed.";
 }
 
 function storeHeadlineGeneration(record: HeadlineGenerationRecord) {
@@ -2102,6 +2143,8 @@ function AboutGenerator({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [hasProfileConsent, setHasProfileConsent] = useState(false);
   const [profileDebug, setProfileDebug] = useState<UserProfileDebug | null>(null);
+  const [aboutStorageDiagnostic, setAboutStorageDiagnostic] =
+    useState<AboutStorageDiagnostic | null>(null);
   const recognizedName = getIdentityDisplayName(identity);
   const recognizedEmail = identity?.email.trim() ?? "";
   const isRecognizedUser = Boolean(
@@ -2133,10 +2176,11 @@ function AboutGenerator({
     setEmail("");
     setHasStarted(false);
     setHasProfileConsent(false);
-    setResults(null);
-    setCopiedIndex(null);
-    setProfileDebug(null);
-    setError("");
+      setResults(null);
+      setCopiedIndex(null);
+      setProfileDebug(null);
+      setAboutStorageDiagnostic(null);
+      setError("");
   }, [identity, isRecognizedUser, recognizedEmail, recognizedName]);
 
   const inputs: AboutInputs = {
@@ -2249,6 +2293,7 @@ function AboutGenerator({
   const isFinalStep = stepIndex === steps.length - 1;
 
   function startGenerator() {
+    setAboutStorageDiagnostic(null);
     if (!identityIsValid) {
       setError("Add your name and a valid email address to continue.");
       return;
@@ -2284,6 +2329,7 @@ function AboutGenerator({
     setError("");
     setCopiedIndex(null);
     setProfileDebug(null);
+    setAboutStorageDiagnostic(null);
 
     try {
       const response = await fetch("/api/generate-about", {
@@ -2310,12 +2356,17 @@ function AboutGenerator({
         typeof payload.error === "string"
           ? payload.error
           : "";
+      const storageDiagnostic = isAboutStorageDiagnostic(payload) ? payload : null;
 
       if (!response.ok || !isAboutGeneratorResponse(payload)) {
-        throw new Error(errorMessage || "About section generation failed.");
+        setAboutStorageDiagnostic(storageDiagnostic);
+        throw new Error(
+          getAboutGeneratorErrorMessage(errorMessage, storageDiagnostic),
+        );
       }
 
       setResults(payload);
+      setAboutStorageDiagnostic(null);
       setProfileDebug(
         payload.profileDebug && isUserProfileDebug(payload.profileDebug)
           ? payload.profileDebug
@@ -2603,6 +2654,36 @@ function AboutGenerator({
             <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium leading-6 text-red-700">
               {error}
             </p>
+          )}
+          {process.env.NODE_ENV === "development" && aboutStorageDiagnostic && (
+            <section className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-xs leading-6 text-red-800">
+              <h3 className="text-sm font-semibold text-red-900">
+                About Storage Diagnostic
+              </h3>
+              <div className="mt-2 grid gap-2 font-mono">
+                <p>
+                  <span className="font-semibold">Storage stage: </span>
+                  {aboutStorageDiagnostic.stage}
+                </p>
+                <p>
+                  <span className="font-semibold">Error: </span>
+                  {aboutStorageDiagnostic.supabaseMessage ||
+                    aboutStorageDiagnostic.error}
+                </p>
+                <p>
+                  <span className="font-semibold">Details: </span>
+                  {aboutStorageDiagnostic.supabaseDetails || "No details returned"}
+                </p>
+                <p>
+                  <span className="font-semibold">Hint: </span>
+                  {aboutStorageDiagnostic.supabaseHint || "No hint returned"}
+                </p>
+                <p>
+                  <span className="font-semibold">Code: </span>
+                  {aboutStorageDiagnostic.supabaseCode || "No code returned"}
+                </p>
+              </div>
+            </section>
           )}
           {process.env.NODE_ENV === "development" && profileDebug && (
             <section className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-xs leading-6 text-[#666666]">

@@ -97,11 +97,26 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdminClient();
     const isAdminUser = getAdminEmails().includes(normalizeEmail(input.email));
-    const { user, debug: identityProfileDebug } = await upsertUserIdentity(supabase, {
-      email: input.email,
-      isAdminUser,
-      planType: isAdminUser ? "admin" : "free",
-    });
+    let identityResult: Awaited<ReturnType<typeof upsertUserIdentity>>;
+
+    try {
+      identityResult = await upsertUserIdentity(supabase, {
+        email: input.email,
+        isAdminUser,
+        planType: isAdminUser ? "admin" : "free",
+      });
+    } catch (usersError) {
+      console.error("ABOUT USERS ERROR", usersError);
+      return NextResponse.json(
+        createAboutStorageErrorResponse(
+          getAboutErrorStage(usersError, "users insert/update"),
+          usersError,
+        ),
+        { status: 500 },
+      );
+    }
+
+    const { user, debug: identityProfileDebug } = identityResult;
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.responses.parse({
@@ -168,24 +183,49 @@ export async function POST(request: NextRequest) {
       response.output_parsed as AboutProfileOutputs,
     );
     const inputs = getProfileInputs(input);
+    let generationRecord: Awaited<ReturnType<typeof createAboutGenerationRecord>>;
 
-    const generationRecord = await createAboutGenerationRecord(supabase, {
-      email: input.email,
-      inputs,
-      name: input.name,
-      outputs: normalizedResponse,
-      selectedVersion:
-        normalizedResponse.versions[normalizedResponse.recommendedIndex]?.style ?? null,
-      user,
-    });
+    try {
+      generationRecord = await createAboutGenerationRecord(supabase, {
+        email: input.email,
+        inputs,
+        name: input.name,
+        outputs: normalizedResponse,
+        selectedVersion:
+          normalizedResponse.versions[normalizedResponse.recommendedIndex]?.style ?? null,
+        user,
+      });
+    } catch (aboutGenerationError) {
+      console.error("ABOUT_GENERATIONS INSERT ERROR", aboutGenerationError);
+      return NextResponse.json(
+        createAboutStorageErrorResponse(
+          getAboutErrorStage(aboutGenerationError, "about_generations insert"),
+          aboutGenerationError,
+        ),
+        { status: 500 },
+      );
+    }
 
-    const profileDebug = await upsertProfileFromAboutGenerator(supabase, {
-      email: input.email,
-      inputs,
-      name: input.name,
-      outputs: normalizedResponse,
-      user,
-    });
+    let profileDebug: Awaited<ReturnType<typeof upsertProfileFromAboutGenerator>>;
+
+    try {
+      profileDebug = await upsertProfileFromAboutGenerator(supabase, {
+        email: input.email,
+        inputs,
+        name: input.name,
+        outputs: normalizedResponse,
+        user,
+      });
+    } catch (profileError) {
+      console.error("ABOUT USER_PROFILES ERROR", profileError);
+      return NextResponse.json(
+        createAboutStorageErrorResponse(
+          getAboutErrorStage(profileError, "user_profiles insert/update"),
+          profileError,
+        ),
+        { status: 500 },
+      );
+    }
     const mergedProfileDebug = mergeProfileDebug(identityProfileDebug, profileDebug);
 
     console.info("INConnect about profile save flow completed", {
@@ -211,36 +251,16 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (isUserProfileStorageError(error)) {
-      const isDevelopment = process.env.NODE_ENV === "development";
-      console.error("About profile storage failed", {
-        stage: error.stage,
-        error: error.message,
-        details: error.details,
-      });
+      console.error("About profile storage failed", getAboutSupabaseDiagnostic(error));
       return NextResponse.json(
-        {
-          error: isDevelopment
-            ? error.message
-            : "About profile could not be stored. Please try again.",
-          userMessage: "About profile could not be stored. Please try again.",
-          stage: error.stage,
-          details: isDevelopment ? error.details : "",
-        },
+        createAboutStorageErrorResponse(error.stage, error),
         { status: 500 },
       );
     }
     if (error instanceof Error && /supabase/i.test(error.message)) {
-      const isDevelopment = process.env.NODE_ENV === "development";
       console.error("About profile storage configuration failed", error);
       return NextResponse.json(
-        {
-          error: isDevelopment
-            ? error.message
-            : "About profile could not be stored. Please try again.",
-          userMessage: "About profile could not be stored. Please try again.",
-          stage: "Supabase configuration",
-          details: isDevelopment ? error.stack || error.message : "",
-        },
+        createAboutStorageErrorResponse("Supabase configuration", error),
         { status: 500 },
       );
     }
@@ -274,6 +294,7 @@ async function createAboutGenerationRecord(
     inputs: values.inputs,
     outputs: values.outputs,
     selected_version: values.selectedVersion,
+    created_at: new Date().toISOString(),
   };
 
   console.info("INConnect Supabase about_generations insert payload", payload);
@@ -285,6 +306,7 @@ async function createAboutGenerationRecord(
     .single<{ id: string }>();
 
   if (error) {
+    console.error("ABOUT_GENERATIONS INSERT ERROR", error);
     console.error("INConnect Supabase about_generations insert error", {
       payload,
       error,
@@ -293,6 +315,57 @@ async function createAboutGenerationRecord(
   }
 
   return data;
+}
+
+function createAboutStorageErrorResponse(stage: string, error: unknown) {
+  return {
+    error: "About profile could not be stored",
+    stage,
+    supabaseMessage: getAboutSupabaseMessage(error),
+    supabaseDetails: getAboutSupabaseErrorField(error, "details"),
+    supabaseHint: getAboutSupabaseErrorField(error, "hint"),
+    supabaseCode: getAboutSupabaseErrorField(error, "code"),
+  };
+}
+
+function getAboutErrorStage(error: unknown, fallbackStage: string) {
+  return isUserProfileStorageError(error) ? error.stage : fallbackStage;
+}
+
+function getAboutSupabaseDiagnostic(error: unknown) {
+  const stage = isUserProfileStorageError(error) ? error.stage : "unknown";
+  return createAboutStorageErrorResponse(stage, error);
+}
+
+function getAboutSupabaseMessage(error: unknown) {
+  return (
+    getAboutSupabaseErrorField(error, "message") ||
+    (error instanceof Error ? error.message : "") ||
+    "Unknown Supabase error"
+  );
+}
+
+function getAboutSupabaseErrorField(
+  error: unknown,
+  field: "message" | "details" | "hint" | "code",
+) {
+  if (!error || typeof error !== "object") return null;
+
+  if (isUserProfileStorageError(error)) {
+    if (field === "message") return error.supabaseMessage || null;
+    if (field === "details") return error.supabaseDetails || null;
+    if (field === "hint") return error.supabaseHint || null;
+    return error.supabaseCode || null;
+  }
+
+  if (field === "message" && error instanceof Error) {
+    return error.message;
+  }
+
+  const value = (error as Record<string, unknown>)[field];
+  if (typeof value === "string") return value;
+  if (value === null || typeof value === "undefined") return null;
+  return String(value);
 }
 
 function normalizeAboutRequest(value: unknown): AboutGeneratorRequest | null {
