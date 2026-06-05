@@ -13,7 +13,14 @@ export function normalizeLinkedInUrl(value: string) {
     .replace(/\/+$/, "");
 }
 
-export function createUserKey(email: string, linkedinUrl: string) {
+export function createUserKey(email: string, _linkedinUrl = "") {
+  return crypto
+    .createHash("sha256")
+    .update(normalizeEmail(email))
+    .digest("hex");
+}
+
+export function createLegacyLinkedInScopedUserKey(email: string, linkedinUrl: string) {
   return crypto
     .createHash("sha256")
     .update(`${normalizeEmail(email)}|${normalizeLinkedInUrl(linkedinUrl)}`)

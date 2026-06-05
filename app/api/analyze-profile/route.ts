@@ -5,7 +5,11 @@ import {
   normalizeProfileAssessment,
   type ProfileIntelligenceAssessment,
 } from "@/lib/authority-analysis";
-import { createUserKey, normalizeEmail } from "@/lib/identity";
+import {
+  createLegacyLinkedInScopedUserKey,
+  createUserKey,
+  normalizeEmail,
+} from "@/lib/identity";
 import { extractPdfTextFromBuffer } from "@/lib/pdf-extraction";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
@@ -259,7 +263,8 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  const userKey = createUserKey(email, linkedinUrl);
+  const userKey = createUserKey(email, "");
+  const linkedinScopedUserKey = createLegacyLinkedInScopedUserKey(email, linkedinUrl);
   // Temporary founder/admin testing logic. ADMIN_EMAILS is server-only and must
   // never be exposed to the frontend.
   const isAdminUser = getAdminEmails().includes(normalizedEmail);
@@ -283,19 +288,24 @@ export async function POST(request: NextRequest) {
       email: normalizedEmail,
       userKey,
     });
+    const userKeyCandidates = Array.from(
+      new Set(
+        [userKey, linkedinScopedUserKey, existingUser?.user_key].filter(Boolean) as string[],
+      ),
+    );
     const planType = isAdminUser ? "admin" : existingUser?.plan_type ?? "free";
 
     if (!isAdminUser && planType !== "pro") {
       const usage = await getUsageCountForKeys(
         supabase,
-        [userKey, existingUser?.user_key].filter(Boolean) as string[],
+        userKeyCandidates,
         periodStart,
         periodEnd,
       );
       if (usage >= 1) {
         const latestAssessment = await getLatestStoredAssessmentForKeys(
           supabase,
-          [userKey, existingUser?.user_key].filter(Boolean) as string[],
+          userKeyCandidates,
         );
         const nextFreeAssessmentDate = getNextFreeAssessmentDate(periodEnd);
         return NextResponse.json(
@@ -320,17 +330,18 @@ export async function POST(request: NextRequest) {
       planType,
       userKey,
     });
+    const resolvedUserKey = user.user_key;
     debug.profile = identityProfileDebug;
 
     const assessmentRecord = await createAssessmentRecord(supabase, {
       userId: user.id,
-      userKey,
+      userKey: resolvedUserKey,
       fileName: pdfFile.name,
       fileSize: pdfFile.size,
     });
     const assessmentId = assessmentRecord.id as string;
     debug.supabaseInsert = "SUCCESS";
-    const storageObjectPath = `${userKey}/${assessmentId}.pdf`;
+    const storageObjectPath = `${resolvedUserKey}/${assessmentId}.pdf`;
     const pdfStoragePath = `profile-pdfs/${storageObjectPath}`;
     const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer());
 
@@ -391,7 +402,7 @@ export async function POST(request: NextRequest) {
       extractionStatus,
       linkedinUrl,
       pdfText: extraction.fullText,
-      userKey,
+      userKey: resolvedUserKey,
       diagnostics,
       assessmentId,
     }).catch((error) => {
@@ -436,7 +447,7 @@ export async function POST(request: NextRequest) {
 
     if (!isAdminUser && planType !== "pro") {
       await incrementUsage(supabase, {
-        userKey,
+        userKey: resolvedUserKey,
         periodStart,
         periodEnd,
         planType,

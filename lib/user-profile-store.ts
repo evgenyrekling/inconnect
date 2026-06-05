@@ -253,7 +253,7 @@ export async function upsertUserIdentity(
   const normalizedEmail = normalizeEmail(values.email);
   const linkedinUrl = cleanText(values.linkedinUrl);
   const normalizedLinkedInUrl = linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : "";
-  const nextUserKey = values.userKey ?? createUserKey(normalizedEmail, normalizedLinkedInUrl);
+  const nextUserKey = values.userKey ?? createUserKey(normalizedEmail, "");
   const existingUser = await findUserByEmailOrKey(supabase, {
     email: normalizedEmail,
     userKey: nextUserKey,
@@ -279,11 +279,7 @@ export async function upsertUserIdentity(
   try {
     if (existingUser) {
       const previousUserKey = existingUser.user_key;
-      const shouldUpdateUserKey =
-        previousUserKey !== nextUserKey &&
-        Boolean(normalizedLinkedInUrl) &&
-        (!existingUser.normalized_linkedin_url ||
-          previousUserKey === createUserKey(normalizedEmail, ""));
+      const shouldUpdateUserKey = previousUserKey !== nextUserKey;
       const nextLinkedInUrl = linkedinUrl || existingUser.linkedin_url || null;
       const nextNormalizedLinkedInUrl =
         normalizedLinkedInUrl || existingUser.normalized_linkedin_url || null;
@@ -667,6 +663,11 @@ async function rekeyUserArtifacts(
       .update({ user_key: nextUserKey })
       .eq("user_key", previousUserKey),
     supabase.from("user_profiles").update({ user_key: nextUserKey }).eq("user_key", previousUserKey),
+    supabase.from("about_generations").update({ user_key: nextUserKey }).eq("user_key", previousUserKey),
+    supabase
+      .from("article_generations")
+      .update({ user_key: nextUserKey })
+      .eq("user_key", previousUserKey),
   ];
 
   const results = await Promise.allSettled(updates);

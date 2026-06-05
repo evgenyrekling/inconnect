@@ -5121,6 +5121,7 @@ function useHeadlineGeneratorIdentity() {
     async function hydrateIdentity(identity: StoredReturningIdentity) {
       try {
         const params = new URLSearchParams({ userKey: identity.userKey });
+        if (identity.email) params.set("email", identity.email);
         const response = await fetch(`/api/returning-user?${params.toString()}`);
         const payload = (await response.json().catch(() => null)) as unknown;
 
@@ -5198,6 +5199,7 @@ export function INConnectAssessmentPage() {
     setIsLoadingReturningUser(true);
     try {
       const params = new URLSearchParams({ userKey: identity.userKey });
+      if (identity.email) params.set("email", identity.email);
       if (options?.assessmentId) params.set("assessmentId", options.assessmentId);
       const response = await fetch(`/api/returning-user?${params.toString()}`);
       const payload = (await response.json().catch(() => null)) as unknown;

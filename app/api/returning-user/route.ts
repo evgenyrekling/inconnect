@@ -63,9 +63,9 @@ export async function GET(request: NextRequest) {
     .from("users")
     .select("user_key, email, linkedin_url, plan_type, is_admin")
     .limit(1);
-  const { data: user, error: userError } = await (userKey
-    ? userQuery.eq("user_key", userKey)
-    : userQuery.eq("normalized_email", normalizeEmail(email ?? "")))
+  const { data: user, error: userError } = await (email
+    ? userQuery.eq("normalized_email", normalizeEmail(email))
+    : userQuery.eq("user_key", userKey ?? ""))
     .maybeSingle<UserRow>();
 
   if (userError) {
