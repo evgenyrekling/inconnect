@@ -1025,22 +1025,22 @@ function getUsersCountMessage(usersCount: number) {
 function HeroSection() {
   return (
     <section
-      className="relative overflow-hidden bg-[#0A192F] bg-cover bg-center px-5 py-12 text-white sm:px-8 sm:py-16 lg:px-10"
+      className="relative flex min-h-[620px] items-center overflow-hidden bg-[#0A192F] bg-cover bg-center px-5 py-16 text-white sm:px-8 sm:py-20 lg:min-h-[680px] lg:px-10"
       style={{ backgroundImage: "url('/hero-professionals-collage.png')" }}
     >
       <div aria-hidden="true" className="absolute inset-0 bg-[#0A192F]/70" />
-      <div className="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-        <div>
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <div className="max-w-5xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
             INConnect
           </p>
           <p className="mt-3 text-lg font-semibold text-white/82">
             Your AI LinkedIn Intelligence Platform
           </p>
-          <h1 className="mt-5 max-w-4xl text-4xl font-semibold leading-tight sm:text-6xl">
+          <h1 className="mt-5 max-w-5xl text-4xl font-semibold leading-tight sm:text-6xl">
             Most professionals and companies are invisible on LinkedIn. INConnect helps change that.
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
+          <p className="mt-5 max-w-3xl text-base leading-7 text-white/72 sm:text-lg">
             Discover how the market sees you and build a stronger professional
             presence across positioning, visibility, authority, and growth
             opportunities.
@@ -1075,22 +1075,7 @@ function HeroSection() {
             </a>
           </div>
         </div>
-        <div className="grid gap-3">
-          {[
-            ["Positioning", "Understand how your profile communicates market value."],
-            ["Visibility", "Identify signals that make your expertise easier to recognize."],
-            ["Authority", "Track professional credibility and authority growth over time."],
-            ["Growth", "Turn profile intelligence into clearer LinkedIn opportunities."],
-          ].map(([label, description]) => (
-            <article
-              className="rounded-lg border border-white/10 bg-white/[0.06] p-4"
-              key={label}
-            >
-              <p className="text-sm font-semibold text-[#78B7F4]">{label}</p>
-              <p className="mt-2 text-sm leading-6 text-white/72">{description}</p>
-            </article>
-          ))}
-        </div>
+        <div aria-hidden="true" className="hidden lg:block" />
       </div>
     </section>
   );
