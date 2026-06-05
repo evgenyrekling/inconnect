@@ -1024,8 +1024,12 @@ function getUsersCountMessage(usersCount: number) {
 
 function HeroSection() {
   return (
-    <section className="bg-[#0A192F] px-5 py-12 text-white sm:px-8 sm:py-16 lg:px-10">
-      <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <section
+      className="relative overflow-hidden bg-[#0A192F] bg-cover bg-center px-5 py-12 text-white sm:px-8 sm:py-16 lg:px-10"
+      style={{ backgroundImage: "url('/hero-professionals-collage.png')" }}
+    >
+      <div aria-hidden="true" className="absolute inset-0 bg-[#0A192F]/70" />
+      <div className="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
             INConnect
