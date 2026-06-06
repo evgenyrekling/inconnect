@@ -100,7 +100,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       </article>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-3xl rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-8">
+        <div className="mx-auto max-w-[800px] rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-9">
           <MarkdownContent content={post.content} />
         </div>
       </section>
@@ -114,67 +114,190 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 }
 
 function MarkdownContent({ content }: { content: string }) {
-  const blocks = content.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  const blocks = parseMarkdownBlocks(content);
 
   return (
-    <div className="grid gap-5 text-base leading-7 text-[#444444]">
+    <div className="grid gap-5 text-[17px] leading-[1.8] text-[#444444]">
       {blocks.map((block, index) => renderMarkdownBlock(block, index))}
     </div>
   );
 }
 
-function renderMarkdownBlock(block: string, index: number) {
-  if (block.startsWith("### ")) {
-    return (
-      <h3 className="mt-4 text-xl font-semibold text-[#191919]" key={index}>
-        {renderInlineMarkdown(block.replace(/^###\s+/, ""))}
-      </h3>
-    );
-  }
+type MarkdownBlock =
+  | { content: string; type: "blockquote" | "h1" | "h2" | "h3" | "p" }
+  | { items: string[]; type: "ol" | "ul" };
 
-  if (block.startsWith("## ")) {
-    return (
-      <h2 className="mt-6 text-2xl font-semibold text-[#191919] first:mt-0" key={index}>
-        {renderInlineMarkdown(block.replace(/^##\s+/, ""))}
-      </h2>
-    );
+function renderMarkdownBlock(block: MarkdownBlock, index: number) {
+  switch (block.type) {
+    case "h1":
+      return (
+        <h1 className="mt-2 text-3xl font-semibold leading-tight text-[#191919] sm:text-4xl" key={index}>
+          {renderInlineMarkdown(block.content)}
+        </h1>
+      );
+    case "h2":
+      return (
+        <h2 className="mt-10 text-2xl font-semibold leading-snug text-[#191919] first:mt-0 sm:text-3xl" key={index}>
+          {renderInlineMarkdown(block.content)}
+        </h2>
+      );
+    case "h3":
+      return (
+        <h3 className="mt-6 text-xl font-semibold leading-snug text-[#191919]" key={index}>
+          {renderInlineMarkdown(block.content)}
+        </h3>
+      );
+    case "ul":
+      return (
+        <ul className="grid gap-2 pl-6 marker:text-[#0A66C2]" key={index}>
+          {block.items.map((item, itemIndex) => (
+            <li className="list-disc pl-1" key={`${item}-${itemIndex}`}>
+              {renderInlineMarkdown(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    case "ol":
+      return (
+        <ol className="grid gap-2 pl-6 marker:font-semibold marker:text-[#0A66C2]" key={index}>
+          {block.items.map((item, itemIndex) => (
+            <li className="list-decimal pl-1" key={`${item}-${itemIndex}`}>
+              {renderInlineMarkdown(item)}
+            </li>
+          ))}
+        </ol>
+      );
+    case "blockquote":
+      return (
+        <blockquote
+          className="rounded-r-lg border-l-4 border-[#0A66C2] bg-[#F3F7FD] px-5 py-4 text-[#2F3A4A]"
+          key={index}
+        >
+          {renderInlineMarkdown(block.content)}
+        </blockquote>
+      );
+    default:
+      return <p key={index}>{renderInlineMarkdown(block.content)}</p>;
   }
-
-  if (block.startsWith("- ")) {
-    return (
-      <ul className="grid gap-2 pl-5" key={index}>
-        {block.split("\n").map((line) => (
-          <li className="list-disc" key={line}>
-            {renderInlineMarkdown(line.replace(/^-\s+/, ""))}
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  return <p key={index}>{renderInlineMarkdown(block.replace(/\n/g, " "))}</p>;
 }
 
 function renderInlineMarkdown(value: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const inlinePattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = linkPattern.exec(value)) !== null) {
+  while ((match = inlinePattern.exec(value)) !== null) {
     if (match.index > lastIndex) nodes.push(value.slice(lastIndex, match.index));
-    nodes.push(
-      <Link
-        className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
-        href={match[2]}
-        key={`${match[1]}-${match.index}`}
-      >
-        {match[1]}
-      </Link>,
-    );
+
+    const token = match[0];
+    const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      nodes.push(
+        <Link
+          className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+          href={linkMatch[2]}
+          key={`${linkMatch[1]}-${match.index}`}
+        >
+          {linkMatch[1]}
+        </Link>,
+      );
+    } else {
+      nodes.push(
+        <strong className="font-semibold text-[#191919]" key={`${token}-${match.index}`}>
+          {token.replace(/^\*\*|\*\*$/g, "")}
+        </strong>,
+      );
+    }
+
     lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < value.length) nodes.push(value.slice(lastIndex));
   return nodes;
+}
+
+function parseMarkdownBlocks(content: string): MarkdownBlock[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    if (/^#\s+/.test(line)) {
+      blocks.push({ content: line.replace(/^#\s+/, ""), type: "h1" });
+      index += 1;
+      continue;
+    }
+
+    if (/^##\s+/.test(line)) {
+      blocks.push({ content: line.replace(/^##\s+/, ""), type: "h2" });
+      index += 1;
+      continue;
+    }
+
+    if (/^###\s+/.test(line)) {
+      blocks.push({ content: line.replace(/^###\s+/, ""), type: "h3" });
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push({ content: quoteLines.join(" "), type: "blockquote" });
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
+        index += 1;
+      }
+      blocks.push({ items, type: "ul" });
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
+        index += 1;
+      }
+      blocks.push({ items, type: "ol" });
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !isMarkdownBlockStart(lines[index].trim())
+    ) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push({ content: paragraphLines.join(" "), type: "p" });
+  }
+
+  return blocks;
+}
+
+function isMarkdownBlockStart(line: string) {
+  return (
+    /^#{1,3}\s+/.test(line) ||
+    /^>\s?/.test(line) ||
+    /^[-*]\s+/.test(line) ||
+    /^\d+\.\s+/.test(line)
+  );
 }
