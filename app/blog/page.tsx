@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
+  formatBlogDate,
   getFeaturedBlogPosts,
-  getLatestBlogPosts,
+  getPublishedBlogPosts,
   type BlogPost,
 } from "@/lib/blog-posts";
 
@@ -13,9 +14,11 @@ export const metadata: Metadata = {
     "LinkedIn growth, personal branding, AI, leadership, and professional positioning insights from INConnect.",
 };
 
-export default function BlogPage() {
-  const featuredPosts = getFeaturedBlogPosts();
-  const latestPosts = getLatestBlogPosts();
+export const revalidate = 300;
+
+export default async function BlogPage() {
+  const latestPosts = await getPublishedBlogPosts(30);
+  const featuredPosts = getFeaturedBlogPosts(latestPosts);
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
@@ -37,16 +40,12 @@ export default function BlogPage() {
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-                Featured Articles
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
-                Start with profile visibility and positioning.
-              </h2>
-            </div>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Featured Articles
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
+            Start with profile visibility and positioning.
+          </h2>
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
             {featuredPosts.map((post) => (
               <BlogPostCard isFeatured key={post.slug} post={post} />
@@ -92,7 +91,7 @@ function BlogPostCard({
       </h3>
       <p className="mt-3 flex-1 text-sm leading-6 text-[#666666]">{post.excerpt}</p>
       <div className="mt-5 flex items-center justify-between gap-4 border-t border-[#D9DDE3] pt-4 text-sm">
-        <span className="text-[#666666]">{post.date}</span>
+        <span className="text-[#666666]">{formatBlogDate(post.publishedAt)}</span>
         <Link
           className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
           href={`/blog/${post.slug}`}

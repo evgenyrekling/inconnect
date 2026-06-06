@@ -168,7 +168,9 @@ export async function getPublishedBlogPosts(limit = 30) {
     const posts = (data ?? []).map(mapBlogPostRow);
     return posts.length > 0 ? posts : demoBlogPosts;
   } catch (error) {
-    console.error("Blog published posts fallback used", error);
+    if (!isMissingSupabaseConfigError(error)) {
+      console.error("Blog published posts fallback used", error);
+    }
     return demoBlogPosts;
   }
 }
@@ -191,7 +193,9 @@ export async function getPublishedBlogPostBySlug(slug: string) {
 
     if (data) return mapBlogPostRow(data);
   } catch (error) {
-    console.error("Blog post fallback lookup used", { slug, error });
+    if (!isMissingSupabaseConfigError(error)) {
+      console.error("Blog post fallback lookup used", { slug, error });
+    }
   }
 
   return demoBlogPosts.find((post) => post.slug === slug) ?? null;
@@ -226,4 +230,8 @@ function mapBlogPostRow(row: BlogPostRow): BlogPost {
     slug: row.slug,
     title: row.title,
   };
+}
+
+function isMissingSupabaseConfigError(error: unknown) {
+  return error instanceof Error && error.message.includes("Supabase server configuration is missing");
 }

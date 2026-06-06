@@ -122,6 +122,22 @@ create table if not exists public.article_generations (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.blog_posts (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique,
+  title text,
+  excerpt text,
+  category text,
+  content text,
+  seo_title text,
+  seo_description text,
+  published boolean not null default false,
+  auto_generated boolean not null default true,
+  author_name text not null default 'INConnect Editorial',
+  created_at timestamptz not null default now(),
+  published_at timestamptz
+);
+
 create index if not exists users_user_key_idx on public.users (user_key);
 create index if not exists users_normalized_email_idx on public.users (normalized_email);
 create index if not exists assessments_user_key_created_at_idx
@@ -146,6 +162,12 @@ create index if not exists article_generations_user_key_created_at_idx
   on public.article_generations (user_key, created_at desc);
 create index if not exists article_generations_email_created_at_idx
   on public.article_generations (email, created_at desc);
+create unique index if not exists blog_posts_slug_idx
+  on public.blog_posts (slug);
+create index if not exists blog_posts_published_published_at_idx
+  on public.blog_posts (published, published_at desc);
+create index if not exists blog_posts_auto_generated_created_at_idx
+  on public.blog_posts (auto_generated, created_at desc);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
