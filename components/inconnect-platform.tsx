@@ -204,6 +204,7 @@ const navItems = [
   { label: "Assessment", href: "/assessment" },
   { label: "Headline Generator", href: "/headline-generator" },
   { label: "About Generator", href: "/about-generator" },
+  { label: "Blog", href: "/blog" },
   { label: "Pricing", href: "/pricing" },
 ];
 
@@ -924,7 +925,7 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function Header({ showSocialProof = false }: { showSocialProof?: boolean }) {
+export function Header({ showSocialProof = false }: { showSocialProof?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
@@ -5064,7 +5065,7 @@ function AdSenseSlot({ onEmpty }: { onEmpty: () => void }) {
   );
 }
 
-function Footer() {
+export function Footer() {
   const footerLinks = [
     { label: "About", href: "/about" },
     { label: "Privacy", href: "/privacy" },
