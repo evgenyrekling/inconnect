@@ -27,6 +27,16 @@ type StoredBlogPost = {
   created_at: string;
 };
 
+export class BlogGenerationError extends Error {
+  constructor(
+    public readonly stage: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BlogGenerationError";
+  }
+}
+
 const BLOG_TOPICS = [
   {
     category: "LinkedIn",
@@ -38,11 +48,15 @@ const BLOG_TOPICS = [
   },
   {
     category: "Personal Branding",
-    topic: "How to write a stronger LinkedIn About section without sounding generic",
+    topic: "LinkedIn About section writing for professionals who want a clearer positioning story",
   },
   {
     category: "Personal Branding",
     topic: "Personal branding for professionals who do not want to become influencers",
+  },
+  {
+    category: "Personal Branding",
+    topic: "Professional visibility on LinkedIn for experts who want better opportunities",
   },
   {
     category: "Leadership",
@@ -66,7 +80,19 @@ const BLOG_TOPICS = [
   },
   {
     category: "Leadership",
-    topic: "LinkedIn positioning for founders, consultants, engineers, and commercial leaders",
+    topic: "LinkedIn for managers who want stronger authority and clearer leadership positioning",
+  },
+  {
+    category: "Leadership",
+    topic: "LinkedIn for founders who need trust, visibility, and category authority",
+  },
+  {
+    category: "Career Growth",
+    topic: "LinkedIn for engineers who want to make technical expertise easier to understand",
+  },
+  {
+    category: "Career Growth",
+    topic: "LinkedIn for consultants who need sharper positioning and stronger credibility signals",
   },
 ];
 
@@ -93,25 +119,60 @@ const blogArticleSchema = {
   },
 } as const;
 
-export async function generateAndStoreBlogPost() {
+export async function generateAndStoreBlogPost(options?: {
+  publish?: boolean;
+  source?: "admin-manual" | "admin-api" | "cron";
+}) {
+  const source = options?.source ?? "cron";
+  const shouldPublish = options?.publish ?? true;
+
+  console.info("INConnect blog generation started", {
+    publish: shouldPublish,
+    source,
+  });
+
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OpenAI is not configured for blog generation.");
+    throw new BlogGenerationError(
+      "configuration",
+      "OpenAI is not configured for blog generation.",
+    );
   }
 
-  const supabase = getSupabaseAdminClient();
+  let supabase: ReturnType<typeof getSupabaseAdminClient>;
+  try {
+    supabase = getSupabaseAdminClient();
+  } catch (error) {
+    throw toBlogGenerationError("supabase_configuration", error);
+  }
+
   const existingPosts = await getExistingBlogPosts(supabase);
   const topic = chooseNextTopic(existingPosts);
-  const generatedPost = await generateBlogArticle(topic);
-  const slug = ensureUniqueSlug(generatedPost.slug || generatedPost.title, existingPosts);
+  console.info("INConnect blog topic selected", topic);
+
+  let generatedPost: GeneratedBlogPost;
+  try {
+    generatedPost = await generateBlogArticle(topic);
+    console.info("INConnect OpenAI blog generation success", {
+      category: generatedPost.category,
+      title: generatedPost.title,
+    });
+  } catch (error) {
+    console.error("INConnect OpenAI blog generation failure", error);
+    throw toBlogGenerationError("openai_generation", error);
+  }
+
+  const title = ensureUniqueTitle(cleanText(generatedPost.title, 180), existingPosts);
+  const slug = ensureUniqueSlug(generatedPost.slug || title, existingPosts);
   const now = new Date().toISOString();
-  const shouldPublish = process.env.AUTO_PUBLISH_BLOG === "true";
   const payload = {
     slug,
-    title: cleanText(generatedPost.title, 180),
+    title,
     excerpt: cleanText(generatedPost.excerpt, 320),
     category: cleanText(generatedPost.category || topic.category, 80),
-    content: ensureRequiredBlogSections(generatedPost.content),
-    seo_title: cleanText(generatedPost.seoTitle || generatedPost.title, 180),
+    content: ensureRequiredBlogSections(
+      stripLeadingTitleHeading(generatedPost.content, generatedPost.title),
+    ),
+    seo_title: cleanText(generatedPost.seoTitle || title, 180),
     seo_description: cleanText(
       generatedPost.seoDescription || generatedPost.excerpt,
       320,
@@ -135,13 +196,27 @@ export async function generateAndStoreBlogPost() {
     .single<StoredBlogPost>();
 
   if (error) {
-    console.error("BLOG_POSTS INSERT ERROR", { payload, error });
-    throw new Error(error.message || "Blog post insert failed.");
+    console.error("INConnect Supabase blog_posts insert failure", {
+      error,
+      slug,
+      title,
+    });
+    throw new BlogGenerationError(
+      "supabase_insert",
+      error.message || "Blog post insert failed.",
+    );
   }
 
+  console.info("INConnect Supabase blog_posts insert success", {
+    id: data.id,
+    published: data.published,
+    slug: data.slug,
+  });
+  console.info("INConnect blog published slug", { slug: data.slug });
+
   return {
-    autoPublished: shouldPublish,
     post: data,
+    published: shouldPublish,
     topic,
   };
 }
@@ -190,7 +265,7 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
           "Include a FAQ section with clear ### question headings.",
           "Include a final CTA section with a ## heading.",
           "Include internal links to /assessment, /headline-generator, and /about-generator.",
-          "End with this CTA sentence: Want to improve your LinkedIn presence? Try INConnect's free tools.",
+          "End with this exact CTA sentence: Want to improve your LinkedIn presence? Try INConnect’s free AI tools.",
         ].join(" "),
       },
       {
@@ -281,6 +356,16 @@ function ensureUniqueSlug(value: string, existingPosts: ExistingBlogPost[]) {
   return `${datedSlug}-${suffix}`;
 }
 
+function ensureUniqueTitle(value: string, existingPosts: ExistingBlogPost[]) {
+  const existingTitles = new Set(
+    existingPosts
+      .map((post) => post.title?.trim().toLowerCase())
+      .filter((title): title is string => Boolean(title)),
+  );
+  if (!existingTitles.has(value.trim().toLowerCase())) return value;
+  return `${value} (${getUtcDateSuffix()})`;
+}
+
 function ensureRequiredBlogSections(content: string) {
   const internalLinks = [
     { href: "/assessment", label: "Run a free LinkedIn assessment" },
@@ -299,12 +384,28 @@ function ensureRequiredBlogSections(content: string) {
     ].join("\n");
   }
 
-  const cta = "Want to improve your LinkedIn presence? Try INConnect's free tools.";
+  const cta = "Want to improve your LinkedIn presence? Try INConnect’s free AI tools.";
   if (!nextContent.includes(cta)) {
-    nextContent += `\n\n${cta}`;
+    nextContent += `\n\n## Improve Your LinkedIn Presence\n\n${cta}`;
   }
 
   return nextContent;
+}
+
+function stripLeadingTitleHeading(content: string, title: string) {
+  const trimmedContent = content.trim();
+  const lines = trimmedContent.split(/\r?\n/);
+  const firstLine = lines[0]?.trim() ?? "";
+
+  if (!firstLine.startsWith("# ")) return trimmedContent;
+
+  const heading = firstLine.replace(/^#\s+/, "").trim().toLowerCase();
+  const normalizedTitle = title.trim().toLowerCase();
+  if (heading === normalizedTitle || normalizedTitle.includes(heading)) {
+    return lines.slice(1).join("\n").trim();
+  }
+
+  return trimmedContent;
 }
 
 function slugify(value: string) {
@@ -323,4 +424,12 @@ function cleanText(value: string, maxLength: number) {
 
 function getUtcDateSuffix() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function toBlogGenerationError(stage: string, error: unknown) {
+  if (error instanceof BlogGenerationError) return error;
+  return new BlogGenerationError(
+    stage,
+    error instanceof Error ? error.message : String(error),
+  );
 }

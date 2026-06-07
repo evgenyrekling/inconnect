@@ -23,14 +23,23 @@ type BlogAdminResponse = {
   posts: AdminBlogPost[];
 };
 
+type ManualPublishResult = {
+  published: boolean;
+  slug: string;
+  title: string;
+};
+
 const ADMIN_EMAIL_STORAGE_KEY = "inconnect:admin-blog-email";
 
 export function AdminBlogDashboard() {
   const [adminEmail, setAdminEmail] = useState("");
   const [error, setError] = useState("");
   const [generatedToday, setGeneratedToday] = useState(false);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [manualPublishResult, setManualPublishResult] =
+    useState<ManualPublishResult | null>(null);
   const [posts, setPosts] = useState<AdminBlogPost[]>([]);
   const [success, setSuccess] = useState("");
 
@@ -54,6 +63,7 @@ export function AdminBlogDashboard() {
 
     setError("");
     setSuccess("");
+    setManualPublishResult(null);
     setIsLoading(true);
     window.localStorage.setItem(ADMIN_EMAIL_STORAGE_KEY, nextEmail.trim());
 
@@ -76,8 +86,10 @@ export function AdminBlogDashboard() {
       }
 
       setGeneratedToday(payload.generatedToday);
+      setHasAdminAccess(true);
       setPosts(payload.posts);
     } catch (loadError) {
+      setHasAdminAccess(false);
       setError(loadError instanceof Error ? loadError.message : "Blog posts could not be loaded.");
     } finally {
       setIsLoading(false);
@@ -89,32 +101,49 @@ export function AdminBlogDashboard() {
     await loadPosts();
   }
 
-  async function generateDraft() {
+  async function generateAndPublishArticleNow() {
     setError("");
     setSuccess("");
+    setManualPublishResult(null);
     setIsGenerating(true);
 
     try {
-      const response = await fetch("/api/admin/blog", {
+      const response = await fetch("/api/cron/generate-blog-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: adminEmail }),
       });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; details?: string; post?: { title?: string } }
+        | {
+            error?: string;
+            published?: boolean;
+            slug?: string;
+            stage?: string;
+            success?: boolean;
+            title?: string;
+          }
         | null;
 
-      if (!response.ok) {
-        throw new Error(payload?.details || payload?.error || "Blog draft could not be generated.");
+      if (!response.ok || !payload?.success || !payload.title || !payload.slug) {
+        throw new Error(
+          payload?.stage && payload?.error
+            ? `${payload.stage}: ${payload.error}`
+            : payload?.error || "Blog article could not be generated and published.",
+        );
       }
 
-      setSuccess(`Generated draft${payload?.post?.title ? `: ${payload.post.title}` : "."}`);
       await loadPosts();
+      setManualPublishResult({
+        published: payload.published === true,
+        slug: payload.slug,
+        title: payload.title,
+      });
+      setSuccess("Generated and published article.");
     } catch (generateError) {
       setError(
         generateError instanceof Error
           ? generateError.message
-          : "Blog draft could not be generated.",
+          : "Blog article could not be generated and published.",
       );
     } finally {
       setIsGenerating(false);
@@ -187,11 +216,11 @@ export function AdminBlogDashboard() {
           Admin Blog CMS
         </p>
         <h1 className="mt-3 text-3xl font-semibold text-[#191919]">
-          Review AI-generated blog drafts.
+          Manage auto-published AI blog articles.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-[#666666]">
-          Daily generation creates drafts by default. Publish only after review, or
-          enable automatic publishing later with AUTO_PUBLISH_BLOG=true.
+          The daily cron publishes one INConnect-relevant SEO article at 07:00 UTC.
+          Use the manual trigger to test the same publishing flow immediately.
         </p>
 
         <form
@@ -215,14 +244,16 @@ export function AdminBlogDashboard() {
           >
             {isLoading ? "Loading..." : "Load Posts"}
           </button>
-          <button
-            className="rounded-lg bg-[#4A6FD0] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:bg-[#D9DDE3] disabled:text-[#666666]"
-            disabled={isGenerating || !adminEmail.trim()}
-            onClick={generateDraft}
-            type="button"
-          >
-            {isGenerating ? "Generating..." : "Regenerate"}
-          </button>
+          {hasAdminAccess && (
+            <button
+              className="rounded-lg bg-[#4A6FD0] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:bg-[#D9DDE3] disabled:text-[#666666]"
+              disabled={isGenerating || !adminEmail.trim()}
+              onClick={generateAndPublishArticleNow}
+              type="button"
+            >
+              {isGenerating ? "Generating..." : "Generate & Publish Article Now"}
+            </button>
+          )}
         </form>
 
         {(error || success) && (
@@ -233,7 +264,18 @@ export function AdminBlogDashboard() {
                 : "border-[#B9D8F5] bg-[#F3F7FD] text-[#0A66C2]"
             }`}
           >
-            {error || success}
+            <p>{error || success}</p>
+            {manualPublishResult && (
+              <p className="mt-2">
+                {manualPublishResult.title}{" "}
+                <a
+                  className="underline decoration-[#0A66C2]/40 underline-offset-4"
+                  href={`/blog/${manualPublishResult.slug}`}
+                >
+                  /blog/{manualPublishResult.slug}
+                </a>
+              </p>
+            )}
           </div>
         )}
 

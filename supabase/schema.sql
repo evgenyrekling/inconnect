@@ -131,7 +131,7 @@ create table if not exists public.blog_posts (
   content text,
   seo_title text,
   seo_description text,
-  published boolean not null default false,
+  published boolean not null default true,
   auto_generated boolean not null default true,
   author_name text not null default 'INConnect Editorial',
   created_at timestamptz not null default now(),

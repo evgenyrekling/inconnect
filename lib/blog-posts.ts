@@ -146,26 +146,30 @@ export const demoBlogPosts: BlogPost[] = [
   },
 ];
 
-export async function getPublishedBlogPosts(limit = 30) {
+export async function getPublishedBlogPosts(limit?: number) {
   try {
     const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("blog_posts")
       .select(
         "id, slug, title, excerpt, category, content, seo_title, seo_description, published, auto_generated, author_name, created_at, published_at",
       )
       .eq("published", true)
       .order("published_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      .limit(limit)
-      .returns<BlogPostRow[]>();
+      .order("created_at", { ascending: false });
+
+    if (typeof limit === "number") {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query.returns<BlogPostRow[]>();
 
     if (error) {
       console.error("Blog published posts lookup failed", error);
       return demoBlogPosts;
     }
 
-    const posts = (data ?? []).map(mapBlogPostRow);
+    const posts = (data ?? []).map(mapBlogPostRow).sort(sortBlogPostsByDateDesc);
     return posts.length > 0 ? posts : demoBlogPosts;
   } catch (error) {
     if (!isMissingSupabaseConfigError(error)) {
@@ -201,16 +205,20 @@ export async function getPublishedBlogPostBySlug(slug: string) {
   return demoBlogPosts.find((post) => post.slug === slug) ?? null;
 }
 
-export function getFeaturedBlogPosts(posts: BlogPost[]) {
-  return posts.slice(0, 2).map((post) => ({ ...post, featured: true }));
-}
-
 export function formatBlogDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function sortBlogPostsByDateDesc(left: BlogPost, right: BlogPost) {
+  return getBlogPostTime(right) - getBlogPostTime(left);
+}
+
+function getBlogPostTime(post: BlogPost) {
+  return new Date(post.publishedAt || post.createdAt || 0).getTime();
 }
 
 function mapBlogPostRow(row: BlogPostRow): BlogPost {

@@ -77,10 +77,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await generateAndStoreBlogPost();
+    const result = await generateAndStoreBlogPost({
+      publish: true,
+      source: "admin-api",
+    });
     return NextResponse.json({
-      ok: true,
-      autoPublished: result.autoPublished,
+      success: true,
+      published: result.post.published,
+      slug: result.post.slug,
+      title: result.post.title,
       post: result.post,
       topic: result.topic,
     });
@@ -88,7 +93,7 @@ export async function POST(request: NextRequest) {
     console.error("ADMIN BLOG REGENERATE FAILED", error);
     return NextResponse.json(
       {
-        error: "Blog draft could not be generated.",
+        error: "Blog article could not be generated and published.",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
