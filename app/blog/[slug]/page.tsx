@@ -217,7 +217,7 @@ function renderInlineMarkdown(value: string): ReactNode[] {
     if (linkMatch) {
       nodes.push(
         <Link
-          className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+          className="font-semibold text-[#0A66C2] underline-offset-4 transition hover:text-[#004182] hover:underline"
           href={linkMatch[2]}
           key={`${linkMatch[1]}-${match.index}`}
         >

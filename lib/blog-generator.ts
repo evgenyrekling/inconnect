@@ -285,8 +285,14 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
           "The article must be 900 to 1,500 words.",
           "Include a FAQ section with clear ### question headings.",
           "Include a final CTA section with a ## heading.",
-          "Include internal links to /assessment, /headline-generator, and /about-generator.",
-          "End with this exact CTA sentence: Want to improve your LinkedIn presence? Try INConnect’s free AI tools.",
+          "Never write raw URLs as plain text.",
+          "Always use Markdown links for internal INConnect tools.",
+          "Use this exact final CTA section:",
+          "## Improve Your LinkedIn Presence",
+          "Want to improve your LinkedIn presence? Try INConnect’s free AI tools:",
+          "- [Run Free Assessment](/assessment)",
+          "- [Generate LinkedIn Headline](/headline-generator)",
+          "- [Generate LinkedIn About Section](/about-generator)",
         ].join(" "),
       },
       {
@@ -305,8 +311,8 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
           "- practical examples or checklists",
           "- a FAQ section using ### question headings",
           "- a CTA section at the end",
-          "- the required internal links",
-          "- the required CTA at the end",
+          "- the required internal links as Markdown links, never raw URLs",
+          "- the required CTA section at the end",
           "",
           "Do not include a leading # title in content. The title is rendered separately on the page.",
         ].join("\n"),
@@ -547,29 +553,30 @@ function ensureUniqueTitle(value: string, existingPosts: ExistingBlogPost[]) {
 }
 
 function ensureRequiredBlogSections(content: string) {
-  const internalLinks = [
-    { href: "/assessment", label: "Run a free LinkedIn assessment" },
-    { href: "/headline-generator", label: "Generate LinkedIn headlines" },
-    { href: "/about-generator", label: "Generate a LinkedIn About section" },
-  ];
-  let nextContent = content.trim();
+  const canonicalCta = [
+    "## Improve Your LinkedIn Presence",
+    "",
+    "Want to improve your LinkedIn presence? Try INConnect’s free AI tools:",
+    "",
+    "- [Run Free Assessment](/assessment)",
+    "- [Generate LinkedIn Headline](/headline-generator)",
+    "- [Generate LinkedIn About Section](/about-generator)",
+  ].join("\n");
+  const contentWithoutOldCta = removeExistingToolCta(content.trim());
+  return `${contentWithoutOldCta}\n\n${canonicalCta}`;
+}
 
-  const missingLinks = internalLinks.filter((link) => !nextContent.includes(link.href));
-  if (missingLinks.length > 0) {
-    nextContent += [
+function removeExistingToolCta(content: string) {
+  return content
+    .replace(
+      /\n*##\s+(?:Improve Your LinkedIn Presence|Try INConnect['’]s Free Tools)[\s\S]*$/i,
       "",
-      "## Try INConnect's Free Tools",
+    )
+    .replace(
+      /\n*Want to improve your LinkedIn presence\? Try INConnect['’]s free AI tools(?:\s+at\s+\/assessment,\s+\/headline-generator,\s+and\s+\/about-generator)?\.?[\s\S]*$/i,
       "",
-      ...missingLinks.map((link) => `- [${link.label}](${link.href})`),
-    ].join("\n");
-  }
-
-  const cta = "Want to improve your LinkedIn presence? Try INConnect’s free AI tools.";
-  if (!nextContent.includes(cta)) {
-    nextContent += `\n\n## Improve Your LinkedIn Presence\n\n${cta}`;
-  }
-
-  return nextContent;
+    )
+    .trim();
 }
 
 function stripLeadingTitleHeading(content: string, title: string) {
