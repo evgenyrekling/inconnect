@@ -3,9 +3,9 @@ import { BusinessPage } from "@/components/business-page";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Contact | INConnect",
+  title: "Contact INConnect",
   description:
-    "Contact INConnect for product questions, support, privacy requests, and partnership inquiries.",
+    "Contact INConnect for questions, feedback, partnership opportunities, privacy requests, and data deletion requests.",
   path: "/contact",
 });
 
@@ -13,26 +13,25 @@ export default function ContactPage() {
   return (
     <BusinessPage
       eyebrow="Contact"
-      title="Get in touch with INConnect."
-      intro="For product questions, support, privacy requests, and professional partnership inquiries, contact the INConnect team."
+      title="Contact INConnect"
+      intro="For questions, feedback, partnership inquiries, or data deletion requests, contact INConnect directly."
       sections={[
         {
-          title: "Email",
+          title: "General Questions",
           body: [
-            "The best way to reach INConnect is by email at hello@in-connect.app. Please include a short description of your request so we can route it appropriately.",
+            "For product questions, feedback, support, or general INConnect inquiries, email evgeny.rekling@gmail.com.",
           ],
         },
         {
-          title: "Support topics",
+          title: "Partnership Opportunities",
           body: [
-            "We can help with assessment access, uploaded PDF issues, returning-user history, account questions, and general product feedback.",
-            "For privacy or data requests, include the email address and LinkedIn profile URL used for the assessment so we can identify the relevant record.",
+            "For professional partnerships, platform collaborations, business development, or future Pro feature discussions, email evgeny.rekling@gmail.com.",
           ],
         },
         {
-          title: "Business inquiries",
+          title: "Privacy / Data Deletion Requests",
           body: [
-            "INConnect is built for professionals and teams who care about authority, market positioning, and profile intelligence. We welcome thoughtful product, partnership, and early customer conversations.",
+            "For privacy questions or deletion requests, email evgeny.rekling@gmail.com and include the email address used with INConnect so the relevant records can be located.",
           ],
         },
       ]}

@@ -3,9 +3,9 @@ import { BusinessPage } from "@/components/business-page";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "About | INConnect",
+  title: "About INConnect | AI LinkedIn Intelligence Platform",
   description:
-    "Learn about INConnect, a professional profile intelligence platform for LinkedIn positioning and authority tracking.",
+    "Learn how INConnect helps professionals and companies improve LinkedIn visibility, positioning, authority, and growth.",
   path: "/about",
 });
 
@@ -13,28 +13,35 @@ export default function AboutPage() {
   return (
     <BusinessPage
       eyebrow="About INConnect"
-      title="Profile intelligence for modern professionals."
-      intro="INConnect helps professionals understand how their LinkedIn profile communicates authority, expertise, and market positioning."
+      title="About INConnect"
+      intro="INConnect helps professionals and companies improve their visibility, positioning, authority, and growth on LinkedIn."
       sections={[
         {
           title: "What INConnect does",
           body: [
-            "INConnect analyzes a LinkedIn Profile PDF to produce a structured profile intelligence assessment. The platform focuses on positioning clarity, authority signals, expertise domains, and practical profile improvement opportunities.",
-            "The experience is designed for professionals, founders, consultants, executives, and growth-minded teams who want a clearer picture of how they are represented in the market.",
+            "INConnect is a LinkedIn intelligence platform for understanding how professional profiles communicate expertise, credibility, and market value.",
+            "The platform combines profile assessment, AI-generated professional insights, profile memory, and practical content tools so users can communicate value more clearly.",
+          ],
+          items: [
+            "Analyzes LinkedIn profile positioning",
+            "Generates stronger LinkedIn headlines",
+            "Creates clearer LinkedIn About sections",
+            "Helps professionals communicate value clearly",
+            "Supports future content and opportunity intelligence",
           ],
         },
         {
-          title: "Our approach",
+          title: "Current platform modules",
           body: [
-            "INConnect uses uploaded profile data provided by the user. It does not scrape LinkedIn, post on behalf of users, or require access to a LinkedIn account.",
-            "The product is being built as a professional system of record for profile assessments, authority scoring, and long-term positioning progress.",
+            "INConnect currently includes the Profile Intelligence Assessment, LinkedIn Headline Generator, LinkedIn About Generator, INConnect Blog, AI-generated professional insights, professional profile memory, and early foundations for future Pro tools.",
+            "Each module is designed to make professional positioning more practical, measurable, and useful for real career and business decisions.",
           ],
         },
         {
-          title: "Platform direction",
+          title: "Long-term vision",
           body: [
-            "The current assessment experience is the foundation for future Pro capabilities, including trend radar, content intelligence, and ongoing authority tracking.",
-            "Our goal is to help users make better professional positioning decisions with clear, respectful, and actionable intelligence.",
+            "INConnect is evolving from a LinkedIn optimization tool into a professional intelligence platform.",
+            "The long-term direction includes deeper visibility and authority intelligence, a professional profile graph, business opportunity matching, and partner discovery for professionals and companies.",
           ],
         },
       ]}

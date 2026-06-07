@@ -5071,6 +5071,8 @@ export function Footer() {
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
     { label: "Contact", href: "/contact" },
+    { label: "Vision", href: "/vision" },
+    { label: "Blog", href: "/blog" },
   ];
 
   return (
@@ -5082,7 +5084,7 @@ export function Footer() {
         <Logo markSize={38} />
         <div className="flex flex-col gap-3 sm:items-end">
           <div>
-            <p className="font-semibold text-[#191919]">© INConnect</p>
+            <p className="font-semibold text-[#191919]">&copy; INConnect</p>
             <p className="mt-1 text-sm">Profile Intelligence Platform</p>
           </div>
           <nav className="flex flex-wrap gap-4 text-sm font-semibold">

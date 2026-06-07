@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
 type BusinessPageSection = {
-  title: string;
   body: string[];
+  items?: string[];
+  title: string;
 };
 
 type BusinessPageProps = {
@@ -18,6 +19,8 @@ const footerLinks = [
   { label: "Privacy", href: "/privacy" },
   { label: "Terms", href: "/terms" },
   { label: "Contact", href: "/contact" },
+  { label: "Vision", href: "/vision" },
+  { label: "Blog", href: "/blog" },
 ];
 
 const primaryCtaClass =
@@ -33,7 +36,7 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
           </Link>
           <Link
             className={primaryCtaClass}
-            href="/"
+            href="/assessment"
           >
             Back to Assessment
           </Link>
@@ -65,6 +68,15 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
                   {section.body.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
+                  {section.items && (
+                    <ul className="grid gap-2 pl-5">
+                      {section.items.map((item) => (
+                        <li className="list-disc pl-1 marker:text-[#0A66C2]" key={item}>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </section>
             ))}
@@ -75,7 +87,7 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
       <footer className="border-t border-[#D9DDE3] bg-white px-5 py-8 text-[#666666] sm:px-8 lg:px-10">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-semibold text-[#191919]">© INConnect</p>
+            <p className="font-semibold text-[#191919]">&copy; INConnect</p>
             <p className="mt-1 text-sm">Profile Intelligence Platform</p>
           </div>
           <nav className="flex flex-wrap gap-4 text-sm font-semibold">
