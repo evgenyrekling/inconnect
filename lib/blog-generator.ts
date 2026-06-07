@@ -14,6 +14,7 @@ export type GeneratedBlogPost = {
 type ExistingBlogPost = {
   category: string | null;
   created_at: string;
+  hero_image_prompt: string | null;
   slug: string | null;
   title: string | null;
 };
@@ -31,6 +32,18 @@ type StoredBlogPost = {
 type BlogHeroImageResult = {
   prompt: string;
   url: string;
+};
+
+type BlogImageVisualCandidate = {
+  camera: string;
+  composition: string;
+  hook: string;
+  keywords: string[];
+  lighting: string;
+  profession: string;
+  sceneType: string;
+  setting: string;
+  subject: string;
 };
 
 export class BlogGenerationError extends Error {
@@ -177,6 +190,7 @@ export async function generateAndStoreBlogPost(options?: {
   const now = new Date().toISOString();
   const heroImage = await generateAndUploadBlogHeroImage({
     category: generatedPost.category || topic.category,
+    recentPosts: existingPosts.slice(0, 10),
     slug,
     supabase,
     title,
@@ -247,7 +261,7 @@ async function getExistingBlogPosts(
 ) {
   const { data, error } = await supabase
     .from("blog_posts")
-    .select("slug, title, category, created_at")
+    .select("slug, title, category, created_at, hero_image_prompt")
     .order("created_at", { ascending: false })
     .limit(200)
     .returns<ExistingBlogPost[]>();
@@ -342,18 +356,20 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
 
 async function generateAndUploadBlogHeroImage({
   category,
+  recentPosts,
   slug,
   supabase,
   title,
   topic,
 }: {
   category: string;
+  recentPosts: ExistingBlogPost[];
   slug: string;
   supabase: ReturnType<typeof getSupabaseAdminClient>;
   title: string;
   topic: string;
 }): Promise<BlogHeroImageResult> {
-  const prompt = createBlogHeroImagePrompt({ category, title, topic });
+  const prompt = createBlogHeroImagePrompt({ category, recentPosts, slug, title, topic });
 
   try {
     console.info("INConnect blog hero image generation started", {
@@ -442,54 +458,548 @@ async function ensureBlogImagesBucket(
 
 function createBlogHeroImagePrompt({
   category,
+  recentPosts,
+  slug,
   title,
   topic,
 }: {
   category: string;
+  recentPosts: ExistingBlogPost[];
+  slug: string;
   title: string;
   topic: string;
 }) {
+  const visual = chooseBlogImageVisual({
+    category,
+    recentPosts,
+    title,
+    topic,
+  });
+  const recentPatternSummary = describeRecentVisualPatterns(recentPosts);
+
   return [
     `Create a ${OPENAI_BLOG_IMAGE_SIZE} professional blog banner image for the INConnect article "${title}".`,
     `Article topic: ${topic}.`,
     `Category: ${category}.`,
-    getTopicVisualDirection(`${title} ${topic} ${category}`),
-    "Premium corporate editorial photography style, LinkedIn-inspired, modern blue technology palette, realistic diverse professionals, business atmosphere, professional lighting, polished magazine-cover composition, subtle depth, no stock-photo feeling.",
+    `Article-specific uniqueness key: ${slug}. Use this only to vary the scene, camera angle, setting, cast, wardrobe, and lighting; do not render the key as text.`,
+    `Visual concept: ${visual.hook}.`,
+    `Composition: ${visual.composition}.`,
+    `Scene type: ${visual.sceneType}.`,
+    `Profession focus: ${visual.profession}.`,
+    `Main subject: ${visual.subject}.`,
+    `Setting: ${visual.setting}.`,
+    `Camera: ${visual.camera}.`,
+    `Lighting: ${visual.lighting}.`,
+    recentPatternSummary
+      ? `Avoid repeating these recent INConnect image patterns: ${recentPatternSummary}.`
+      : "Create a distinct image that does not look like a generic office meeting or a repeated blue corporate stock scene.",
+    "Make the image curiosity-driven and editorial, with a specific professional moment rather than a generic group of professionals.",
+    "Use a fresh cast, varied age range, different pose language, and a clearly different location from recent articles.",
+    "Premium corporate editorial photography style, LinkedIn-inspired, modern and trustworthy, realistic diverse professionals, polished business atmosphere, professional lighting, subtle blue brand accents balanced with neutral materials and natural skin tones.",
     "No text, no letters, no logos, no watermarks, no cartoon style, no mascot style, no gaming or esports look.",
   ].join(" ");
 }
 
-function getTopicVisualDirection(value: string) {
-  const normalizedValue = value.toLowerCase();
+function chooseBlogImageVisual({
+  category,
+  recentPosts,
+  title,
+  topic,
+}: {
+  category: string;
+  recentPosts: ExistingBlogPost[];
+  title: string;
+  topic: string;
+}) {
+  const candidates = getBlogImageVisualCandidates(category, `${title} ${topic}`);
+  const offset = hashString(`${category} ${title} ${topic}`) % candidates.length;
+  const rotatedCandidates = [
+    ...candidates.slice(offset),
+    ...candidates.slice(0, offset),
+  ];
 
-  if (normalizedValue.includes("headline")) {
-    return "Visual direction: professional manager reviewing a modern digital profile dashboard, business profile visualization, confident workplace scene.";
+  return rotatedCandidates
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: scoreVisualCandidate(candidate, recentPosts),
+    }))
+    .sort((left, right) => left.score - right.score || left.index - right.index)[0]
+    .candidate;
+}
+
+function getBlogImageVisualCandidates(category: string, context: string) {
+  const visualGroup = getBlogImageVisualGroup(category, context);
+
+  const candidatesByGroup: Record<string, BlogImageVisualCandidate[]> = {
+    ai: [
+      {
+        camera: "over-the-shoulder view with the AI assistant interface reflected on glass",
+        composition: "single professional action shot",
+        hook: "marketing leader collaborating with a calm AI assistant interface to improve a professional profile",
+        keywords: ["ai assistant", "human ai collaboration", "glass interface", "profile intelligence"],
+        lighting: "cool blue interface glow balanced with warm office lighting",
+        profession: "marketing leader",
+        sceneType: "human and AI collaboration",
+        setting: "future workplace studio with transparent displays and real desk materials",
+        subject: "professional using AI recommendations on a laptop and wall display",
+      },
+      {
+        camera: "wide cinematic angle with layered screens and a visible human decision maker",
+        composition: "wide scene",
+        hook: "senior professional reviewing digital intelligence signals before updating LinkedIn positioning",
+        keywords: ["digital intelligence", "future workplace", "decision maker", "signals"],
+        lighting: "soft natural daylight with precise blue accent reflections",
+        profession: "senior professional",
+        sceneType: "digital intelligence review",
+        setting: "modern strategy room with data screens and notebooks",
+        subject: "professional comparing AI insights with handwritten positioning notes",
+      },
+      {
+        camera: "tight three-quarter portrait with shallow depth of field",
+        composition: "close-up portrait",
+        hook: "founder studying AI-generated audience insights with a focused expression",
+        keywords: ["founder", "audience insights", "ai workspace", "portrait"],
+        lighting: "directional side light with subtle blue screen reflections",
+        profession: "founder",
+        sceneType: "AI insight review",
+        setting: "minimal private office with laptop and abstract intelligence display",
+        subject: "founder leaning toward a laptop with AI insight cards visible as abstract shapes",
+      },
+      {
+        camera: "medium shot from table height with hands, tablet, and collaborative screen in frame",
+        composition: "team scene",
+        hook: "small team using AI to map professional visibility opportunities",
+        keywords: ["team", "ai workshop", "visibility map", "collaboration"],
+        lighting: "balanced conference lighting with crisp blue UI accents",
+        profession: "cross-functional strategy team",
+        sceneType: "AI planning workshop",
+        setting: "glass meeting room with tablet, laptop, and clean visual network graphics",
+        subject: "three professionals discussing AI-generated visibility recommendations",
+      },
+      {
+        camera: "dynamic angle from the side of a workstation",
+        composition: "workspace shot",
+        hook: "technical professional testing AI profile recommendations in a quiet late-afternoon workspace",
+        keywords: ["technical professional", "ai recommendations", "workspace", "late afternoon"],
+        lighting: "late-afternoon window light with restrained blue monitor glow",
+        profession: "technical professional",
+        sceneType: "AI recommendation testing",
+        setting: "focused workstation with laptop, tablet, and clean desk details",
+        subject: "professional reviewing AI suggestions beside a digital network visualization",
+      },
+    ],
+    b2bSales: [
+      {
+        camera: "medium-wide angle across the table with dashboard reflections",
+        composition: "sales meeting",
+        hook: "B2B director reviewing a growth dashboard before an investor or customer meeting",
+        keywords: ["b2b director", "growth dashboard", "investor meeting", "sales"],
+        lighting: "morning boardroom light with polished navy and steel accents",
+        profession: "B2B director",
+        sceneType: "growth dashboard review",
+        setting: "executive boardroom with laptop, printed notes, and city view",
+        subject: "commercial leader studying growth signals before a high-stakes meeting",
+      },
+      {
+        camera: "close side angle focused on expressions and hands rather than a staged handshake",
+        composition: "negotiation scene",
+        hook: "two business leaders finalizing a partnership conversation after reviewing market data",
+        keywords: ["negotiation", "partnership", "business leaders", "market data"],
+        lighting: "soft professional lighting with natural highlights",
+        profession: "partnership leaders",
+        sceneType: "partnership negotiation",
+        setting: "private meeting room with market charts on a screen",
+        subject: "leaders discussing terms with laptops open and confident body language",
+      },
+      {
+        camera: "overhead editorial shot of people, notes, and account maps",
+        composition: "team scene",
+        hook: "sales team mapping strategic accounts and relationship pathways",
+        keywords: ["sales team", "account map", "relationship pathways", "strategy"],
+        lighting: "bright but controlled workshop lighting",
+        profession: "enterprise sales team",
+        sceneType: "account strategy workshop",
+        setting: "collaborative workspace with table maps, tablets, and blue marker accents",
+        subject: "team arranging account strategy notes around a central dashboard",
+      },
+      {
+        camera: "wide shot with foreground dashboard and background client conversation",
+        composition: "wide scene",
+        hook: "commercial leader connecting customer conversations with business growth signals",
+        keywords: ["commercial leader", "customer conversation", "business growth", "dashboard"],
+        lighting: "premium event lighting with restrained blue highlights",
+        profession: "commercial leader",
+        sceneType: "client growth discussion",
+        setting: "industry event lounge with screens and professional networking energy",
+        subject: "leader explaining growth insights to a client while dashboard visuals glow nearby",
+      },
+      {
+        camera: "cinematic action shot from behind a laptop screen",
+        composition: "action shot",
+        hook: "sales executive preparing a personalized LinkedIn credibility pitch before outreach",
+        keywords: ["sales executive", "credibility pitch", "outreach", "linkedin"],
+        lighting: "focused desk lamp with clean blue technology accents",
+        profession: "sales executive",
+        sceneType: "outreach preparation",
+        setting: "quiet executive workspace with CRM-like dashboard shapes and profile cards",
+        subject: "executive tailoring a credibility narrative before a client call",
+      },
+    ],
+    careerGrowth: [
+      {
+        camera: "low-angle wide shot emphasizing movement and professional confidence",
+        composition: "wide scene",
+        hook: "professional climbing clean architectural steps toward a brighter leadership floor",
+        keywords: ["climbing steps", "leadership journey", "promotion", "career path"],
+        lighting: "optimistic morning light with subtle navy shadows",
+        profession: "rising professional",
+        sceneType: "leadership journey",
+        setting: "modern business atrium with steps and glass architecture",
+        subject: "professional walking upward with laptop bag and focused posture",
+      },
+      {
+        camera: "over-the-shoulder shot of a career path visualization",
+        composition: "workspace shot",
+        hook: "manager mapping the next career move through skills, visibility, and authority signals",
+        keywords: ["career map", "skills", "visibility", "authority"],
+        lighting: "calm daylight with blue pen and dashboard accents",
+        profession: "manager",
+        sceneType: "career path visualization",
+        setting: "desk with tablet, notebook, and clean career path graphic",
+        subject: "professional drawing connections between expertise and future roles",
+      },
+      {
+        camera: "medium portrait through glass with boardroom visible behind",
+        composition: "close-up portrait",
+        hook: "new leader preparing to enter a senior meeting with clear professional confidence",
+        keywords: ["new leader", "senior meeting", "confidence", "promotion"],
+        lighting: "clean directional light with premium navy background depth",
+        profession: "new leader",
+        sceneType: "promotion moment",
+        setting: "corridor outside a boardroom with understated executive atmosphere",
+        subject: "professional pausing before a leadership meeting",
+      },
+      {
+        camera: "warm medium shot across a small table",
+        composition: "two-person mentoring scene",
+        hook: "mentor and professional reviewing a positioning plan for the next career chapter",
+        keywords: ["mentor", "career chapter", "positioning plan", "growth"],
+        lighting: "warm human light with understated blue brand details",
+        profession: "mentor and ambitious professional",
+        sceneType: "career coaching",
+        setting: "quiet cafe-style business lounge with laptop and notebook",
+        subject: "two professionals discussing a career positioning roadmap",
+      },
+      {
+        camera: "dynamic side angle with motion blur kept subtle and realistic",
+        composition: "action shot",
+        hook: "professional moving through a business campus while reviewing opportunity signals",
+        keywords: ["business campus", "opportunity signals", "movement", "career growth"],
+        lighting: "late morning outdoor light with modern glass reflections",
+        profession: "career-focused specialist",
+        sceneType: "opportunity transition",
+        setting: "modern business campus walkway",
+        subject: "professional walking with tablet showing abstract opportunity indicators",
+      },
+    ],
+    industrial: [
+      {
+        camera: "wide industrial scene with a clear human subject in the foreground",
+        composition: "wide scene",
+        hook: "automation engineer reviewing a smart factory digital twin beside a production line",
+        keywords: ["automation engineer", "smart factory", "digital twin", "production line"],
+        lighting: "clean industrial light with blue sensor indicators and realistic factory ambience",
+        profession: "automation engineer",
+        sceneType: "factory automation",
+        setting: "smart factory floor with robots, sensors, and safety markings",
+        subject: "engineer holding a tablet while machines operate in the background",
+      },
+      {
+        camera: "cinematic control-room angle with runway or terminal screens in the distance",
+        composition: "workspace shot",
+        hook: "airport operations leader analyzing live infrastructure and mobility data",
+        keywords: ["airport operations", "infrastructure data", "mobility", "control room"],
+        lighting: "dim control room lighting with crisp blue operational displays",
+        profession: "airport operations leader",
+        sceneType: "airport operations",
+        setting: "airport operations control room with maps and logistics screens",
+        subject: "operations leader studying a tablet in front of live airport dashboards",
+      },
+      {
+        camera: "high-angle logistics scene with one planner sharply in focus",
+        composition: "team scene",
+        hook: "logistics professional coordinating supply chain visibility in a modern distribution center",
+        keywords: ["logistics professional", "supply chain", "distribution center", "visibility"],
+        lighting: "bright warehouse daylight with blue digital route overlays",
+        profession: "logistics professional",
+        sceneType: "logistics center",
+        setting: "modern logistics center with conveyors, pallets, and route planning screens",
+        subject: "planner coordinating warehouse movement with a handheld device",
+      },
+      {
+        camera: "close-up portrait with industrial background softly blurred",
+        composition: "close-up portrait",
+        hook: "technical sales specialist translating complex industrial technology into customer value",
+        keywords: ["technical sales", "industrial technology", "customer value", "portrait"],
+        lighting: "controlled industrial lighting with warm skin tones and blue equipment accents",
+        profession: "technical sales specialist",
+        sceneType: "industrial customer conversation",
+        setting: "industrial site walkway near automation equipment",
+        subject: "specialist speaking with confidence while holding safety glasses and tablet",
+      },
+      {
+        camera: "action shot from beside an infrastructure display",
+        composition: "action shot",
+        hook: "infrastructure expert inspecting sensor data for a connected transport system",
+        keywords: ["infrastructure expert", "sensor data", "transport system", "inspection"],
+        lighting: "natural field lighting with subtle digital blue highlights",
+        profession: "infrastructure expert",
+        sceneType: "smart infrastructure inspection",
+        setting: "transport infrastructure site with control tablet and equipment",
+        subject: "expert reviewing sensor intelligence while standing near modern infrastructure",
+      },
+    ],
+    linkedin: [
+      {
+        camera: "close laptop-level angle with the professional's focused expression visible",
+        composition: "close-up portrait",
+        hook: "senior specialist improving a LinkedIn profile while profile analytics glow on a nearby screen",
+        keywords: ["linkedin profile", "profile analytics", "senior specialist", "laptop"],
+        lighting: "bright professional workspace light with controlled blue screen reflections",
+        profession: "senior specialist",
+        sceneType: "profile optimization",
+        setting: "modern workspace with laptop, tablet, and abstract social network graphics",
+        subject: "professional refining profile positioning on a laptop",
+      },
+      {
+        camera: "wide editorial view with a profile dashboard wall behind the subject",
+        composition: "wide scene",
+        hook: "senior executive studying digital profile analytics on a wall display",
+        keywords: ["executive", "digital profile analytics", "wall display", "linkedin"],
+        lighting: "premium boardroom lighting with navy and white contrast",
+        profession: "senior executive",
+        sceneType: "profile analytics review",
+        setting: "executive strategy room with large abstract profile dashboard",
+        subject: "executive reviewing profile visibility and authority signals",
+      },
+      {
+        camera: "over-the-shoulder action shot with hands, laptop, and profile cards in view",
+        composition: "action shot",
+        hook: "manager comparing headline options and profile sections across laptop and tablet",
+        keywords: ["headline options", "profile sections", "manager", "tablet"],
+        lighting: "clean desk lighting with subtle blue interface accents",
+        profession: "manager",
+        sceneType: "headline and profile review",
+        setting: "focused desk setup with laptop, tablet, and profile card visuals",
+        subject: "manager choosing the strongest profile positioning option",
+      },
+      {
+        camera: "medium-wide shot from behind a glass board",
+        composition: "team scene",
+        hook: "small team mapping LinkedIn visibility signals and professional network paths",
+        keywords: ["team", "visibility signals", "professional network", "glass board"],
+        lighting: "soft collaborative workspace lighting with blue marker accents",
+        profession: "positioning team",
+        sceneType: "social network strategy",
+        setting: "meeting room with glass board, laptops, and network graphics",
+        subject: "team connecting profile, content, and audience signals",
+      },
+      {
+        camera: "single-person remote-work shot with depth from window and screen reflections",
+        composition: "single professional",
+        hook: "consultant optimizing a professional profile before an important discovery call",
+        keywords: ["consultant", "profile optimization", "discovery call", "remote workspace"],
+        lighting: "natural window light with restrained blue laptop glow",
+        profession: "consultant",
+        sceneType: "pre-call profile refinement",
+        setting: "premium home office or studio workspace",
+        subject: "consultant preparing profile positioning before a video meeting",
+      },
+    ],
+    personalBranding: [
+      {
+        camera: "wide conference angle with the speaker framed by stage light",
+        composition: "conference shot",
+        hook: "thought leader speaking on stage while the audience listens closely",
+        keywords: ["speaker", "stage", "thought leadership", "conference"],
+        lighting: "professional stage lighting with subtle blue rim light",
+        profession: "thought leader",
+        sceneType: "conference keynote",
+        setting: "premium business conference stage with audience silhouettes",
+        subject: "speaker presenting an industry insight without visible text",
+      },
+      {
+        camera: "tight editorial portrait with confident eye line",
+        composition: "close-up portrait",
+        hook: "executive portrait that communicates trust, authority, and clear market positioning",
+        keywords: ["executive portrait", "authority", "market positioning", "personal brand"],
+        lighting: "soft directional portrait light with navy background depth",
+        profession: "executive",
+        sceneType: "authority portrait",
+        setting: "modern glass atrium or premium office corridor",
+        subject: "executive facing the camera with understated confidence",
+      },
+      {
+        camera: "medium shot with microphone and audience context visible",
+        composition: "action shot",
+        hook: "industry expert answering a question during a panel discussion",
+        keywords: ["industry expert", "panel discussion", "q and a", "audience"],
+        lighting: "conference lighting with crisp blue accent reflections",
+        profession: "industry expert",
+        sceneType: "panel discussion",
+        setting: "conference environment with chairs, microphones, and audience depth",
+        subject: "professional responding thoughtfully during a live discussion",
+      },
+      {
+        camera: "side-angle editorial shot through studio glass",
+        composition: "workspace shot",
+        hook: "founder recording a professional insight in a podcast studio",
+        keywords: ["founder", "podcast studio", "professional insight", "personal branding"],
+        lighting: "warm studio key light with restrained blue equipment accents",
+        profession: "founder",
+        sceneType: "thought leadership recording",
+        setting: "premium podcast or media studio with microphones and acoustic panels",
+        subject: "founder speaking into a microphone with notes nearby",
+      },
+      {
+        camera: "dramatic but realistic spotlight portrait from a slight low angle",
+        composition: "single professional",
+        hook: "professional stepping into a spotlight before presenting a strong point of view",
+        keywords: ["spotlight", "point of view", "leadership", "professional"],
+        lighting: "single soft spotlight with dark navy background and natural skin tones",
+        profession: "senior professional",
+        sceneType: "professional spotlight",
+        setting: "minimal presentation space with abstract audience presence",
+        subject: "professional holding notes and preparing to speak",
+      },
+    ],
+  };
+
+  return candidatesByGroup[visualGroup] ?? candidatesByGroup.linkedin;
+}
+
+function getBlogImageVisualGroup(category: string, context: string) {
+  const normalizedValue = `${category} ${context}`.toLowerCase();
+
+  if (
+    normalizedValue.includes("industrial") ||
+    normalizedValue.includes("engineer") ||
+    normalizedValue.includes("automation") ||
+    normalizedValue.includes("airport") ||
+    normalizedValue.includes("logistics") ||
+    normalizedValue.includes("infrastructure")
+  ) {
+    return "industrial";
   }
 
-  if (normalizedValue.includes("about section") || normalizedValue.includes("story")) {
-    return "Visual direction: executive portrait and professional storytelling atmosphere, personal brand narrative, modern office with subtle digital profile elements.";
+  if (normalizedValue.includes("ai") || normalizedValue.includes("artificial intelligence")) {
+    return "ai";
+  }
+
+  if (
+    normalizedValue.includes("sales") ||
+    normalizedValue.includes("b2b") ||
+    normalizedValue.includes("customer") ||
+    normalizedValue.includes("partnership")
+  ) {
+    return "b2bSales";
+  }
+
+  if (
+    normalizedValue.includes("career") ||
+    normalizedValue.includes("growth") ||
+    normalizedValue.includes("promotion") ||
+    normalizedValue.includes("consultant")
+  ) {
+    return "careerGrowth";
   }
 
   if (
     normalizedValue.includes("personal brand") ||
-    normalizedValue.includes("thought leadership")
+    normalizedValue.includes("about section") ||
+    normalizedValue.includes("thought leadership") ||
+    normalizedValue.includes("leadership") ||
+    normalizedValue.includes("founder")
   ) {
-    return "Visual direction: thought leader, speaker, or industry expert in a premium business environment with a professional audience or subtle network presence.";
+    return "personalBranding";
   }
 
-  if (normalizedValue.includes("ai")) {
-    return "Visual direction: professional using an AI interface, digital network patterns, clean technology workspace, blue intelligent systems atmosphere.";
-  }
+  return "linkedin";
+}
 
-  if (normalizedValue.includes("career") || normalizedValue.includes("growth")) {
-    return "Visual direction: promotion, leadership, business success, confident professional moving into a senior opportunity.";
-  }
+function scoreVisualCandidate(
+  candidate: BlogImageVisualCandidate,
+  recentPosts: ExistingBlogPost[],
+) {
+  return recentPosts.reduce((score, post, index) => {
+    const recencyWeight = Math.max(1, 10 - index);
+    const recentText = [
+      post.category,
+      post.title,
+      post.hero_image_prompt,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
-  if (normalizedValue.includes("visibility") || normalizedValue.includes("authority")) {
-    return "Visual direction: professional spotlight, visible network influence, authority signals, premium blue-lit business environment.";
-  }
+    let nextScore = score;
+    nextScore += includesVisualTerm(recentText, candidate.composition) ? 7 * recencyWeight : 0;
+    nextScore += includesVisualTerm(recentText, candidate.sceneType) ? 7 * recencyWeight : 0;
+    nextScore += includesVisualTerm(recentText, candidate.profession) ? 5 * recencyWeight : 0;
+    nextScore += includesVisualTerm(recentText, candidate.setting) ? 4 * recencyWeight : 0;
+    nextScore += includesVisualTerm(recentText, candidate.hook) ? 4 * recencyWeight : 0;
 
-  return "Visual direction: diverse professionals in a premium modern business setting, digital network and LinkedIn-style profile intelligence atmosphere.";
+    candidate.keywords.forEach((keyword) => {
+      if (includesVisualTerm(recentText, keyword)) {
+        nextScore += 2 * recencyWeight;
+      }
+    });
+
+    return nextScore;
+  }, 0);
+}
+
+function describeRecentVisualPatterns(recentPosts: ExistingBlogPost[]) {
+  return recentPosts
+    .slice(0, 10)
+    .map((post) => extractPromptVisualSummary(post.hero_image_prompt))
+    .filter(Boolean)
+    .slice(0, 6)
+    .join("; ");
+}
+
+function extractPromptVisualSummary(prompt: string | null) {
+  if (!prompt) return "";
+
+  const labels = [
+    "Composition",
+    "Scene type",
+    "Profession focus",
+    "Setting",
+  ];
+
+  return labels
+    .map((label) => {
+      const match = prompt.match(new RegExp(`${label}:\\s*([^\\.]+)`, "i"));
+      return match ? `${label.toLowerCase()} ${match[1].trim()}` : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function includesVisualTerm(value: string, term: string) {
+  const normalizedTerm = term.toLowerCase().trim();
+  if (normalizedTerm.length < 4) return false;
+  return value.includes(normalizedTerm);
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
 function createBlogImageObjectPath(slug: string) {
