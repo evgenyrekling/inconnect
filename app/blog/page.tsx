@@ -60,7 +60,15 @@ function BlogPostCard({
 }) {
   return (
     <article className="flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+      <div className="aspect-video overflow-hidden rounded-lg bg-[#E8F1FB]">
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          src={post.heroImageUrl}
+        />
+      </div>
+      <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
         <span>{post.category}</span>
       </div>
       <h3 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">

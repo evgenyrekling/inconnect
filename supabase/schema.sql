@@ -129,6 +129,8 @@ create table if not exists public.blog_posts (
   excerpt text,
   category text,
   content text,
+  hero_image_prompt text,
+  hero_image_url text,
   seo_title text,
   seo_description text,
   published boolean not null default true,
@@ -172,3 +174,8 @@ create index if not exists blog_posts_auto_generated_created_at_idx
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
 on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+values ('blog-images', 'blog-images', true)
+on conflict (id) do update
+set public = true;

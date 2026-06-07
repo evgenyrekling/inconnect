@@ -43,10 +43,24 @@ export async function generateMetadata({
     openGraph: {
       title: post.seoTitle,
       description: post.seoDescription,
+      images: [
+        {
+          alt: post.title,
+          height: 900,
+          url: post.heroImageUrl,
+          width: 1600,
+        },
+      ],
       type: "article",
       publishedTime: post.publishedAt,
       authors: [post.authorName],
       url: `/blog/${post.slug}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      description: post.seoDescription,
+      images: [post.heroImageUrl],
+      title: post.seoTitle,
     },
   };
 }
@@ -67,6 +81,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     datePublished: post.publishedAt,
     description: post.seoDescription,
     headline: post.title,
+    image: post.heroImageUrl,
     mainEntityOfPage: `https://inconnect.app/blog/${post.slug}`,
     publisher: {
       "@type": "Organization",
@@ -95,6 +110,13 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatBlogDate(post.publishedAt)}</span>
             <span>{post.authorName}</span>
+          </div>
+          <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
+            <img
+              alt=""
+              className="h-full w-full object-cover"
+              src={post.heroImageUrl}
+            />
           </div>
         </div>
       </article>

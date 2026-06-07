@@ -8,6 +8,8 @@ export type BlogPost = {
   createdAt?: string;
   excerpt: string;
   featured: boolean;
+  heroImagePrompt?: string;
+  heroImageUrl: string;
   id?: string;
   published?: boolean;
   publishedAt: string;
@@ -24,6 +26,8 @@ type BlogPostRow = {
   excerpt: string;
   category: string;
   content: string;
+  hero_image_prompt: string | null;
+  hero_image_url: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published: boolean;
@@ -34,6 +38,7 @@ type BlogPostRow = {
 };
 
 const demoPublishedAt = "2026-06-06T07:00:00.000Z";
+const DEFAULT_BLOG_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 
 export const demoBlogPosts: BlogPost[] = [
   {
@@ -65,6 +70,7 @@ export const demoBlogPosts: BlogPost[] = [
     excerpt:
       "A practical starting point for writing a LinkedIn headline that communicates role, expertise, and market value without keyword stuffing.",
     featured: true,
+    heroImageUrl: DEFAULT_BLOG_HERO_IMAGE_URL,
     publishedAt: demoPublishedAt,
     seoDescription:
       "Learn how to write a clearer LinkedIn headline with role, expertise, market value, and professional positioning.",
@@ -101,6 +107,7 @@ export const demoBlogPosts: BlogPost[] = [
     excerpt:
       "Industrial professionals can use LinkedIn to make operational expertise, technical credibility, and market knowledge easier to recognize.",
     featured: true,
+    heroImageUrl: DEFAULT_BLOG_HERO_IMAGE_URL,
     publishedAt: demoPublishedAt,
     seoDescription:
       "A practical guide to personal branding and LinkedIn positioning for industrial professionals.",
@@ -137,6 +144,7 @@ export const demoBlogPosts: BlogPost[] = [
     excerpt:
       "Authority on LinkedIn grows when your profile, content, and professional signals consistently reinforce a clear market position.",
     featured: false,
+    heroImageUrl: DEFAULT_BLOG_HERO_IMAGE_URL,
     publishedAt: demoPublishedAt,
     seoDescription:
       "Learn how to build authority on LinkedIn through profile clarity, professional positioning, and consistent expertise signals.",
@@ -152,7 +160,7 @@ export async function getPublishedBlogPosts(limit?: number) {
     let query = supabase
       .from("blog_posts")
       .select(
-        "id, slug, title, excerpt, category, content, seo_title, seo_description, published, auto_generated, author_name, created_at, published_at",
+        "id, slug, title, excerpt, category, content, hero_image_prompt, hero_image_url, seo_title, seo_description, published, auto_generated, author_name, created_at, published_at",
       )
       .eq("published", true)
       .order("published_at", { ascending: false, nullsFirst: false })
@@ -185,7 +193,7 @@ export async function getPublishedBlogPostBySlug(slug: string) {
     const { data, error } = await supabase
       .from("blog_posts")
       .select(
-        "id, slug, title, excerpt, category, content, seo_title, seo_description, published, auto_generated, author_name, created_at, published_at",
+        "id, slug, title, excerpt, category, content, hero_image_prompt, hero_image_url, seo_title, seo_description, published, auto_generated, author_name, created_at, published_at",
       )
       .eq("slug", slug)
       .eq("published", true)
@@ -230,6 +238,8 @@ function mapBlogPostRow(row: BlogPostRow): BlogPost {
     createdAt: row.created_at,
     excerpt: row.excerpt,
     featured: false,
+    heroImagePrompt: row.hero_image_prompt ?? undefined,
+    heroImageUrl: row.hero_image_url || DEFAULT_BLOG_HERO_IMAGE_URL,
     id: row.id,
     published: row.published,
     publishedAt: row.published_at || row.created_at,

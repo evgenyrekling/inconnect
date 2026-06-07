@@ -25,6 +25,12 @@ type StoredBlogPost = {
   published: boolean;
   published_at: string | null;
   created_at: string;
+  hero_image_url: string | null;
+};
+
+type BlogHeroImageResult = {
+  prompt: string;
+  url: string;
 };
 
 export class BlogGenerationError extends Error {
@@ -96,6 +102,11 @@ const BLOG_TOPICS = [
   },
 ];
 
+const BLOG_IMAGE_BUCKET = "blog-images";
+const DEFAULT_BLOG_HERO_IMAGE_URL = "/hero-professionals-collage.png";
+const OPENAI_IMAGE_MODEL = "gpt-image-2";
+const OPENAI_BLOG_IMAGE_SIZE = "1600x900";
+
 const blogArticleSchema = {
   type: "object",
   additionalProperties: false,
@@ -164,6 +175,13 @@ export async function generateAndStoreBlogPost(options?: {
   const title = ensureUniqueTitle(cleanText(generatedPost.title, 180), existingPosts);
   const slug = ensureUniqueSlug(generatedPost.slug || title, existingPosts);
   const now = new Date().toISOString();
+  const heroImage = await generateAndUploadBlogHeroImage({
+    category: generatedPost.category || topic.category,
+    slug,
+    supabase,
+    title,
+    topic: topic.topic,
+  });
   const payload = {
     slug,
     title,
@@ -177,6 +195,8 @@ export async function generateAndStoreBlogPost(options?: {
       generatedPost.seoDescription || generatedPost.excerpt,
       320,
     ),
+    hero_image_prompt: heroImage.prompt,
+    hero_image_url: heroImage.url,
     published: shouldPublish,
     auto_generated: true,
     author_name: "INConnect Editorial",
@@ -192,7 +212,7 @@ export async function generateAndStoreBlogPost(options?: {
   const { data, error } = await supabase
     .from("blog_posts")
     .insert(payload)
-    .select("id, slug, title, published, published_at, created_at")
+    .select("id, slug, title, published, published_at, created_at, hero_image_url")
     .single<StoredBlogPost>();
 
   if (error) {
@@ -208,6 +228,7 @@ export async function generateAndStoreBlogPost(options?: {
   }
 
   console.info("INConnect Supabase blog_posts insert success", {
+    heroImageUrl: data.hero_image_url,
     id: data.id,
     published: data.published,
     slug: data.slug,
@@ -311,6 +332,165 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
   }
 
   return parsed;
+}
+
+async function generateAndUploadBlogHeroImage({
+  category,
+  slug,
+  supabase,
+  title,
+  topic,
+}: {
+  category: string;
+  slug: string;
+  supabase: ReturnType<typeof getSupabaseAdminClient>;
+  title: string;
+  topic: string;
+}): Promise<BlogHeroImageResult> {
+  const prompt = createBlogHeroImagePrompt({ category, title, topic });
+
+  try {
+    console.info("INConnect blog hero image generation started", {
+      slug,
+      title,
+    });
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const imagesResponse = await openai.images.generate({
+      model: OPENAI_IMAGE_MODEL,
+      n: 1,
+      output_format: "webp",
+      prompt,
+      quality: "medium",
+      size: OPENAI_BLOG_IMAGE_SIZE,
+      stream: false,
+    });
+    const imageBase64 = imagesResponse.data?.[0]?.b64_json;
+
+    if (!imageBase64) {
+      throw new Error("OpenAI image response did not include base64 image data.");
+    }
+
+    console.info("INConnect blog hero image generation success", { slug });
+    await ensureBlogImagesBucket(supabase);
+
+    const objectPath = createBlogImageObjectPath(slug);
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    const { error: uploadError } = await supabase.storage
+      .from(BLOG_IMAGE_BUCKET)
+      .upload(objectPath, imageBuffer, {
+        contentType: "image/webp",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("INConnect blog hero image upload failure", {
+        error: uploadError,
+        objectPath,
+        slug,
+      });
+      throw new Error(uploadError.message || "Blog hero image upload failed.");
+    }
+
+    const { data } = supabase.storage.from(BLOG_IMAGE_BUCKET).getPublicUrl(objectPath);
+    console.info("INConnect blog hero image upload success", {
+      slug,
+      url: data.publicUrl,
+    });
+
+    return {
+      prompt,
+      url: data.publicUrl || DEFAULT_BLOG_HERO_IMAGE_URL,
+    };
+  } catch (error) {
+    console.error("INConnect blog hero image fallback used", {
+      error: error instanceof Error ? error.message : String(error),
+      slug,
+    });
+    return {
+      prompt,
+      url: DEFAULT_BLOG_HERO_IMAGE_URL,
+    };
+  }
+}
+
+async function ensureBlogImagesBucket(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+) {
+  const { error: getBucketError } = await supabase.storage.getBucket(BLOG_IMAGE_BUCKET);
+  if (!getBucketError) return;
+
+  const { error: createBucketError } = await supabase.storage.createBucket(
+    BLOG_IMAGE_BUCKET,
+    {
+      allowedMimeTypes: ["image/webp"],
+      fileSizeLimit: 10 * 1024 * 1024,
+      public: true,
+    },
+  );
+
+  if (createBucketError) {
+    throw new Error(createBucketError.message || "Blog images bucket could not be created.");
+  }
+}
+
+function createBlogHeroImagePrompt({
+  category,
+  title,
+  topic,
+}: {
+  category: string;
+  title: string;
+  topic: string;
+}) {
+  return [
+    `Create a ${OPENAI_BLOG_IMAGE_SIZE} professional blog banner image for the INConnect article "${title}".`,
+    `Article topic: ${topic}.`,
+    `Category: ${category}.`,
+    getTopicVisualDirection(`${title} ${topic} ${category}`),
+    "Premium corporate editorial photography style, LinkedIn-inspired, modern blue technology palette, realistic diverse professionals, business atmosphere, professional lighting, polished magazine-cover composition, subtle depth, no stock-photo feeling.",
+    "No text, no letters, no logos, no watermarks, no cartoon style, no mascot style, no gaming or esports look.",
+  ].join(" ");
+}
+
+function getTopicVisualDirection(value: string) {
+  const normalizedValue = value.toLowerCase();
+
+  if (normalizedValue.includes("headline")) {
+    return "Visual direction: professional manager reviewing a modern digital profile dashboard, business profile visualization, confident workplace scene.";
+  }
+
+  if (normalizedValue.includes("about section") || normalizedValue.includes("story")) {
+    return "Visual direction: executive portrait and professional storytelling atmosphere, personal brand narrative, modern office with subtle digital profile elements.";
+  }
+
+  if (
+    normalizedValue.includes("personal brand") ||
+    normalizedValue.includes("thought leadership")
+  ) {
+    return "Visual direction: thought leader, speaker, or industry expert in a premium business environment with a professional audience or subtle network presence.";
+  }
+
+  if (normalizedValue.includes("ai")) {
+    return "Visual direction: professional using an AI interface, digital network patterns, clean technology workspace, blue intelligent systems atmosphere.";
+  }
+
+  if (normalizedValue.includes("career") || normalizedValue.includes("growth")) {
+    return "Visual direction: promotion, leadership, business success, confident professional moving into a senior opportunity.";
+  }
+
+  if (normalizedValue.includes("visibility") || normalizedValue.includes("authority")) {
+    return "Visual direction: professional spotlight, visible network influence, authority signals, premium blue-lit business environment.";
+  }
+
+  return "Visual direction: diverse professionals in a premium modern business setting, digital network and LinkedIn-style profile intelligence atmosphere.";
+}
+
+function createBlogImageObjectPath(slug: string) {
+  const now = new Date();
+  const year = String(now.getUTCFullYear());
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}/${month}/${slug}.webp`;
 }
 
 function chooseNextTopic(existingPosts: ExistingBlogPost[]) {
