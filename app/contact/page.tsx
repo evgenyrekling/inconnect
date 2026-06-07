@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { BusinessPage } from "@/components/business-page";
+import { createSeoMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createSeoMetadata({
   title: "Contact | INConnect",
   description:
     "Contact INConnect for product questions, support, privacy requests, and partnership inquiries.",
-};
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (

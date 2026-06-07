@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Footer, Header } from "@/components/inconnect-platform";
 import { getPublishedBlogPosts } from "@/lib/blog-posts";
+import { createSeoMetadata } from "@/lib/seo";
 import { BlogArticlesList } from "./blog-articles-list";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createSeoMetadata({
   title: "INConnect Blog | LinkedIn Growth and Professional Positioning",
   description:
     "LinkedIn growth, personal branding, AI, leadership, and professional positioning insights from INConnect.",
-};
+  path: "/blog",
+});
 
 export const dynamic = "force-dynamic";
 

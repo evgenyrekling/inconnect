@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 const ADSENSE_PUBLISHER_ID = "ca-pub-6306589054094473";
 const ADSENSE_SCRIPT_SRC = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_PUBLISHER_ID}`;
 const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
+const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 const NETWORK_BLOCKER_SCRIPT = `
 (function () {
   if (window.__inconnectNetworkGuard) return;
@@ -100,12 +102,15 @@ const NETWORK_BLOCKER_SCRIPT = `
 `;
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://inconnect.app"),
+  metadataBase: new URL(SITE_URL),
   title: "INConnect | Your AI LinkedIn Intelligence Platform",
   description:
     "Improve LinkedIn positioning, visibility, authority, and growth opportunities with AI-powered profile intelligence and headline generation.",
   other: {
     "google-adsense-account": ADSENSE_PUBLISHER_ID,
+    ...(GOOGLE_SITE_VERIFICATION
+      ? { "google-site-verification": GOOGLE_SITE_VERIFICATION }
+      : {}),
   },
   icons: {
     icon: "/favicon.svg",
@@ -114,11 +119,11 @@ export const metadata: Metadata = {
     title: "INConnect | Your AI LinkedIn Intelligence Platform",
     description:
       "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
-    url: "https://inconnect.app",
+    url: SITE_URL,
     siteName: "INConnect",
     images: [
       {
-        url: "/og-image.svg",
+        url: DEFAULT_OG_IMAGE,
         width: 1200,
         height: 630,
         alt: "INConnect LinkedIn intelligence platform preview",
@@ -131,7 +136,7 @@ export const metadata: Metadata = {
     title: "INConnect | Your AI LinkedIn Intelligence Platform",
     description:
       "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
-    images: ["/og-image.svg"],
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 

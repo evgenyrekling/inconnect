@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { BusinessPage } from "@/components/business-page";
+import { createSeoMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createSeoMetadata({
   title: "About | INConnect",
   description:
     "Learn about INConnect, a professional profile intelligence platform for LinkedIn positioning and authority tracking.",
-};
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (

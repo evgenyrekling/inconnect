@@ -1,10 +1,9 @@
 import type { MetadataRoute } from "next";
 import { getPublishedBlogPosts } from "@/lib/blog-posts";
-
-const SITE_URL = "https://inconnect.app";
+import { SITE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const posts = await getPublishedBlogPosts(200);
+  const posts = await getPublishedBlogPosts();
   const staticRoutes = [
     "",
     "/assessment",

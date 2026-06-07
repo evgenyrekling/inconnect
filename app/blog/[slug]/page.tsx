@@ -8,6 +8,7 @@ import {
   formatBlogDate,
   getPublishedBlogPostBySlug,
 } from "@/lib/blog-posts";
+import { SITE_URL } from "@/lib/seo";
 
 type BlogArticlePageProps = {
   params: Promise<{
@@ -71,6 +72,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
   if (!post) notFound();
 
+  const articleContent = ensureArticleInternalLinks(post.content);
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -82,11 +84,11 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     description: post.seoDescription,
     headline: post.title,
     image: post.heroImageUrl,
-    mainEntityOfPage: `https://inconnect.app/blog/${post.slug}`,
+    mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
     publisher: {
       "@type": "Organization",
       name: "INConnect",
-      url: "https://inconnect.app",
+      url: SITE_URL,
     },
   };
 
@@ -123,7 +125,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[800px] rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-9">
-          <MarkdownContent content={post.content} />
+          <MarkdownContent content={articleContent} />
         </div>
       </section>
       <script
@@ -133,6 +135,26 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       <Footer />
     </main>
   );
+}
+
+const REQUIRED_ARTICLE_CTA = [
+  "## Improve Your LinkedIn Presence",
+  "",
+  "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
+  "",
+  "- [Run Free Assessment](/assessment)",
+  "- [Generate LinkedIn Headline](/headline-generator)",
+  "- [Generate LinkedIn About Section](/about-generator)",
+].join("\n");
+
+function ensureArticleInternalLinks(content: string) {
+  const requiredRoutes = ["/assessment", "/headline-generator", "/about-generator"];
+
+  if (requiredRoutes.every((route) => content.includes(route))) {
+    return content;
+  }
+
+  return `${content.trim()}\n\n${REQUIRED_ARTICLE_CTA}`;
 }
 
 function MarkdownContent({ content }: { content: string }) {
