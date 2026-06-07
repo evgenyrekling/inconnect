@@ -46,9 +46,9 @@ export async function generateMetadata({
       images: [
         {
           alt: post.title,
-          height: 900,
+          height: 864,
           url: post.heroImageUrl,
-          width: 1600,
+          width: 1536,
         },
       ],
       type: "article",

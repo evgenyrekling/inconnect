@@ -174,14 +174,14 @@ export async function getPublishedBlogPosts(limit?: number) {
 
     if (error) {
       console.error("Blog published posts lookup failed", error);
-      return demoBlogPosts;
+      return [];
     }
 
-    const posts = (data ?? []).map(mapBlogPostRow).sort(sortBlogPostsByDateDesc);
-    return posts.length > 0 ? posts : demoBlogPosts;
+    return (data ?? []).map(mapBlogPostRow);
   } catch (error) {
     if (!isMissingSupabaseConfigError(error)) {
       console.error("Blog published posts fallback used", error);
+      return [];
     }
     return demoBlogPosts;
   }
@@ -219,14 +219,6 @@ export function formatBlogDate(value: string) {
     month: "long",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function sortBlogPostsByDateDesc(left: BlogPost, right: BlogPost) {
-  return getBlogPostTime(right) - getBlogPostTime(left);
-}
-
-function getBlogPostTime(post: BlogPost) {
-  return new Date(post.publishedAt || post.createdAt || 0).getTime();
 }
 
 function mapBlogPostRow(row: BlogPostRow): BlogPost {

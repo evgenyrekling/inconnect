@@ -105,7 +105,7 @@ const BLOG_TOPICS = [
 const BLOG_IMAGE_BUCKET = "blog-images";
 const DEFAULT_BLOG_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
-const OPENAI_BLOG_IMAGE_SIZE = "1600x900";
+const OPENAI_BLOG_IMAGE_SIZE = "1536x864";
 
 const blogArticleSchema = {
   type: "object",
