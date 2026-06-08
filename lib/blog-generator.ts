@@ -1,4 +1,10 @@
 import OpenAI from "openai";
+import {
+  buildFurtherReadingSection,
+  researchBlogTopic,
+  validateResearchBackedArticle,
+  type BlogResearchResult,
+} from "@/lib/blog-research";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 export type GeneratedBlogPost = {
@@ -12,6 +18,7 @@ export type GeneratedBlogPost = {
 };
 
 type ExistingBlogPost = {
+  article_angle: string | null;
   category: string | null;
   created_at: string;
   hero_image_prompt: string | null;
@@ -173,11 +180,20 @@ export async function generateAndStoreBlogPost(options?: {
   const topic = chooseNextTopic(existingPosts);
   console.info("INConnect blog topic selected", topic);
 
+  let research: BlogResearchResult;
+  try {
+    research = await researchBlogTopic(topic, existingPosts);
+  } catch (error) {
+    console.error("INConnect blog web research failure", error);
+    throw toBlogGenerationError("web_research", error);
+  }
+
   let generatedPost: GeneratedBlogPost;
   try {
-    generatedPost = await generateBlogArticle(topic);
+    generatedPost = await generateBlogArticle(topic, research);
     console.info("INConnect OpenAI blog generation success", {
       category: generatedPost.category,
+      researchSourceCount: research.researchSources.length,
       title: generatedPost.title,
     });
   } catch (error) {
@@ -188,6 +204,26 @@ export async function generateAndStoreBlogPost(options?: {
   const title = ensureUniqueTitle(cleanText(generatedPost.title, 180), existingPosts);
   const slug = ensureUniqueSlug(generatedPost.slug || title, existingPosts);
   const now = new Date().toISOString();
+  const content = ensureRequiredBlogSections(
+    stripLeadingTitleHeading(generatedPost.content, generatedPost.title),
+    research,
+  );
+  const qualityIssues = validateResearchBackedArticle(
+    content,
+    research.researchSources,
+  );
+
+  if (qualityIssues.length > 0) {
+    console.error("INConnect blog quality check failed", {
+      issues: qualityIssues,
+      title,
+    });
+    throw new BlogGenerationError(
+      "quality_check",
+      `Blog article failed quality checks: ${qualityIssues.join(" ")}`,
+    );
+  }
+
   const heroImage = await generateAndUploadBlogHeroImage({
     category: generatedPost.category || topic.category,
     recentPosts: existingPosts.slice(0, 10),
@@ -201,9 +237,7 @@ export async function generateAndStoreBlogPost(options?: {
     title,
     excerpt: cleanText(generatedPost.excerpt, 320),
     category: cleanText(generatedPost.category || topic.category, 80),
-    content: ensureRequiredBlogSections(
-      stripLeadingTitleHeading(generatedPost.content, generatedPost.title),
-    ),
+    content,
     seo_title: cleanText(generatedPost.seoTitle || title, 180),
     seo_description: cleanText(
       generatedPost.seoDescription || generatedPost.excerpt,
@@ -211,6 +245,9 @@ export async function generateAndStoreBlogPost(options?: {
     ),
     hero_image_prompt: heroImage.prompt,
     hero_image_url: heroImage.url,
+    research_sources: research.researchSources,
+    research_summary: research.researchSummary,
+    article_angle: research.articleAngle,
     published: shouldPublish,
     auto_generated: true,
     author_name: "INConnect Editorial",
@@ -261,7 +298,7 @@ async function getExistingBlogPosts(
 ) {
   const { data, error } = await supabase
     .from("blog_posts")
-    .select("slug, title, category, created_at, hero_image_prompt")
+    .select("slug, title, category, created_at, hero_image_prompt, article_angle")
     .order("created_at", { ascending: false })
     .limit(200)
     .returns<ExistingBlogPost[]>();
@@ -274,7 +311,10 @@ async function getExistingBlogPosts(
   return data ?? [];
 }
 
-async function generateBlogArticle(topic: { category: string; topic: string }) {
+async function generateBlogArticle(
+  topic: { category: string; topic: string },
+  research: BlogResearchResult,
+) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.responses.parse({
     model: "gpt-4o-mini",
@@ -286,7 +326,12 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
         content: [
           "You are INConnect Editorial, writing SEO blog drafts for an AI LinkedIn Intelligence Platform.",
           "Write practical, useful articles for professionals, managers, directors, founders, consultants, engineers, industrial professionals, and B2B teams.",
+          "Use the provided web research as context for original INConnect analysis.",
+          "Synthesize across multiple sources; do not rewrite one source, do not copy source structure, and do not copy source wording.",
+          "Do not quote source text unless a very short quote is necessary, and avoid quotes by default.",
           "Avoid generic filler, keyword stuffing, fake expert claims, fake statistics, spammy language, and hype.",
+          "Do not invent statistics, dates, survey findings, product claims, or platform changes that are not supported by the research context.",
+          "Include a current trend or problem, why it matters, practical steps, examples, and a clear INConnect point of view.",
           "Use clean markdown only for the article body.",
           "Do not repeat the title as a leading # heading inside content.",
           "Use ## for main sections and ### for FAQ questions or short subsections.",
@@ -297,13 +342,16 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
           "Use **bold** sparingly to emphasize key ideas.",
           "Use blockquotes only when they add clarity.",
           "The article must be 900 to 1,500 words.",
+          "Include a section with this exact heading: ## INConnect Point of View.",
+          "Include at least three practical recommendation bullet points.",
           "Include a FAQ section with clear ### question headings.",
-          "Include a final CTA section with a ## heading.",
+          "Do not include a Further Reading section; the publishing system appends the canonical source section.",
+          "Do not include source URLs in the article body.",
           "Never write raw URLs as plain text.",
           "Always use Markdown links for internal INConnect tools.",
-          "Use this exact final CTA section:",
+          "Use this exact CTA section near the end:",
           "## Improve Your LinkedIn Presence",
-          "Want to improve your LinkedIn presence? Try INConnect’s free AI tools:",
+          "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
           "- [Run Free Assessment](/assessment)",
           "- [Generate LinkedIn Headline](/headline-generator)",
           "- [Generate LinkedIn About Section](/about-generator)",
@@ -314,11 +362,26 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
         content: [
           `Topic: ${topic.topic}`,
           `Preferred category: ${topic.category}`,
+          `Article angle: ${research.articleAngle}`,
+          "",
+          "Web research context:",
+          research.researchSummary,
+          "",
+          "Source references to use as context only:",
+          ...research.researchSources.map(
+            (source, index) =>
+              `${index + 1}. ${source.title} | ${source.domain} | ${source.url} | ${source.excerpt}`,
+          ),
           "",
           "Return structured JSON only.",
           "The content field must be a complete markdown article with:",
           "- an introduction",
           "- clear H2 sections",
+          "- a current trend or problem",
+          "- why it matters",
+          "- a section titled 'INConnect Point of View'",
+          "- practical steps with at least three bullet recommendations",
+          "- concrete examples for professionals",
           "- short paragraphs",
           "- bullet lists where useful",
           "- numbered lists only for true sequences",
@@ -326,9 +389,10 @@ async function generateBlogArticle(topic: { category: string; topic: string }) {
           "- a FAQ section using ### question headings",
           "- a CTA section at the end",
           "- the required internal links as Markdown links, never raw URLs",
-          "- the required CTA section at the end",
+          "- no Further Reading section, because the publishing system appends it",
           "",
           "Do not include a leading # title in content. The title is rendered separately on the page.",
+          "Do not copy or closely paraphrase any source wording.",
         ].join("\n"),
       },
     ],
@@ -1062,28 +1126,39 @@ function ensureUniqueTitle(value: string, existingPosts: ExistingBlogPost[]) {
   return `${value} (${getUtcDateSuffix()})`;
 }
 
-function ensureRequiredBlogSections(content: string) {
+function ensureRequiredBlogSections(
+  content: string,
+  research: BlogResearchResult,
+) {
   const canonicalCta = [
     "## Improve Your LinkedIn Presence",
     "",
-    "Want to improve your LinkedIn presence? Try INConnect’s free AI tools:",
+    "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
     "",
     "- [Run Free Assessment](/assessment)",
     "- [Generate LinkedIn Headline](/headline-generator)",
     "- [Generate LinkedIn About Section](/about-generator)",
   ].join("\n");
-  const contentWithoutOldCta = removeExistingToolCta(content.trim());
-  return `${contentWithoutOldCta}\n\n${canonicalCta}`;
+  const contentWithoutManagedSections = removeManagedBlogSections(content.trim());
+  return [
+    contentWithoutManagedSections,
+    canonicalCta,
+    buildFurtherReadingSection(research.researchSources),
+  ].join("\n\n");
 }
 
-function removeExistingToolCta(content: string) {
+function removeManagedBlogSections(content: string) {
   return content
     .replace(
-      /\n*##\s+(?:Improve Your LinkedIn Presence|Try INConnect['’]s Free Tools)[\s\S]*$/i,
+      /\n*##\s+Further Reading[\s\S]*$/i,
       "",
     )
     .replace(
-      /\n*Want to improve your LinkedIn presence\? Try INConnect['’]s free AI tools(?:\s+at\s+\/assessment,\s+\/headline-generator,\s+and\s+\/about-generator)?\.?[\s\S]*$/i,
+      /\n*##\s+(?:Improve Your LinkedIn Presence|Try INConnect's Free Tools)[\s\S]*$/i,
+      "",
+    )
+    .replace(
+      /\n*Want to improve your LinkedIn presence\? Try INConnect's free AI tools(?:\s+at\s+\/assessment,\s+\/headline-generator,\s+and\s+\/about-generator)?\.?[\s\S]*$/i,
       "",
     )
     .trim();
