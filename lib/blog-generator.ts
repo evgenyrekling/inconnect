@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import {
   buildFurtherReadingSection,
+  getResearchBackedArticleQuality,
   researchBlogTopic,
-  validateResearchBackedArticle,
   type BlogResearchResult,
 } from "@/lib/blog-research";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
@@ -150,6 +150,15 @@ const blogArticleSchema = {
   },
 } as const;
 
+const blogArticleExpansionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["content"],
+  properties: {
+    content: { type: "string" },
+  },
+} as const;
+
 export async function generateAndStoreBlogPost(options?: {
   publish?: boolean;
   source?: "admin-manual" | "admin-api" | "cron";
@@ -204,25 +213,12 @@ export async function generateAndStoreBlogPost(options?: {
   const title = ensureUniqueTitle(cleanText(generatedPost.title, 180), existingPosts);
   const slug = ensureUniqueSlug(generatedPost.slug || title, existingPosts);
   const now = new Date().toISOString();
-  const content = ensureRequiredBlogSections(
-    stripLeadingTitleHeading(generatedPost.content, generatedPost.title),
+  const { content, quality } = await prepareQualityCheckedBlogContent({
+    generatedPost,
     research,
-  );
-  const qualityIssues = validateResearchBackedArticle(
-    content,
-    research.researchSources,
-  );
-
-  if (qualityIssues.length > 0) {
-    console.error("INConnect blog quality check failed", {
-      issues: qualityIssues,
-      title,
-    });
-    throw new BlogGenerationError(
-      "quality_check",
-      `Blog article failed quality checks: ${qualityIssues.join(" ")}`,
-    );
-  }
+    title,
+    topic,
+  });
 
   const heroImage = await generateAndUploadBlogHeroImage({
     category: generatedPost.category || topic.category,
@@ -258,6 +254,7 @@ export async function generateAndStoreBlogPost(options?: {
   console.info("INConnect blog_posts insert payload", {
     ...payload,
     content: `${payload.content.slice(0, 220)}...`,
+    quality,
   });
 
   const { data, error } = await supabase
@@ -341,7 +338,9 @@ async function generateBlogArticle(
           "Avoid inline list paragraphs such as 'Practical Steps: 1... 2... 3...'; use actual markdown lists instead.",
           "Use **bold** sparingly to emphasize key ideas.",
           "Use blockquotes only when they add clarity.",
-          "The article must be 900 to 1,500 words.",
+          "Generate a practical, detailed article between 1,100 and 1,500 words.",
+          "Do not produce short summaries.",
+          "Each main section should include an explanation, a concrete example, and a practical action step.",
           "Include a section with this exact heading: ## INConnect Point of View.",
           "Include at least three practical recommendation bullet points.",
           "Include a FAQ section with clear ### question headings.",
@@ -377,6 +376,7 @@ async function generateBlogArticle(
           "The content field must be a complete markdown article with:",
           "- an introduction",
           "- clear H2 sections",
+          "- each main section must include explanation, example, and practical action step",
           "- a current trend or problem",
           "- why it matters",
           "- a section titled 'INConnect Point of View'",
@@ -411,11 +411,181 @@ async function generateBlogArticle(
   }
 
   const parsed = response.output_parsed as GeneratedBlogPost;
-  if (!parsed.title || !parsed.content || parsed.content.length < 1800) {
-    throw new Error("Generated blog article was too short or incomplete.");
+  if (!parsed.title || !parsed.content || parsed.content.trim().length < 400) {
+    throw new Error("Generated blog article was empty or incomplete.");
   }
 
   return parsed;
+}
+
+async function prepareQualityCheckedBlogContent({
+  generatedPost,
+  research,
+  title,
+  topic,
+}: {
+  generatedPost: GeneratedBlogPost;
+  research: BlogResearchResult;
+  title: string;
+  topic: { category: string; topic: string };
+}) {
+  let articleCoreContent = stripLeadingTitleHeading(
+    generatedPost.content,
+    generatedPost.title,
+  );
+  let content = ensureRequiredBlogSections(articleCoreContent, research);
+  let quality = getResearchBackedArticleQuality(content, research.researchSources);
+
+  console.info("INConnect blog initial quality check", {
+    issues: quality.issues,
+    practicalRecommendationCount: quality.practicalRecommendationCount,
+    sectionCount: quality.sectionCount,
+    title,
+    wordCount: quality.wordCount,
+  });
+
+  for (
+    let expansionAttempt = 1;
+    quality.wordCount < 900 && expansionAttempt <= 2;
+    expansionAttempt += 1
+  ) {
+    console.info("INConnect blog expansion started", {
+      expansionAttempt,
+      title,
+      wordCount: quality.wordCount,
+    });
+
+    try {
+      articleCoreContent = await expandBlogArticle({
+        articleCoreContent,
+        expansionAttempt,
+        research,
+        title,
+        topic,
+      });
+    } catch (error) {
+      console.error("INConnect blog expansion failure", {
+        error: error instanceof Error ? error.message : String(error),
+        expansionAttempt,
+        title,
+      });
+      throw toBlogGenerationError("openai_expansion", error);
+    }
+
+    content = ensureRequiredBlogSections(articleCoreContent, research);
+    quality = getResearchBackedArticleQuality(content, research.researchSources);
+
+    console.info("INConnect blog expansion quality check", {
+      expansionAttempt,
+      issues: quality.issues,
+      practicalRecommendationCount: quality.practicalRecommendationCount,
+      sectionCount: quality.sectionCount,
+      title,
+      wordCount: quality.wordCount,
+    });
+  }
+
+  console.info("INConnect blog final quality check result", {
+    issues: quality.issues,
+    passed: quality.issues.length === 0,
+    practicalRecommendationCount: quality.practicalRecommendationCount,
+    sectionCount: quality.sectionCount,
+    title,
+    wordCount: quality.wordCount,
+  });
+
+  if (quality.issues.length > 0) {
+    console.error("INConnect blog quality check failed", {
+      finalWordCount: quality.wordCount,
+      issues: quality.issues,
+      title,
+    });
+    throw new BlogGenerationError(
+      "quality_check",
+      `Blog article failed quality checks: ${quality.issues.join(" ")}`,
+    );
+  }
+
+  return {
+    content,
+    quality,
+  };
+}
+
+async function expandBlogArticle({
+  articleCoreContent,
+  expansionAttempt,
+  research,
+  title,
+  topic,
+}: {
+  articleCoreContent: string;
+  expansionAttempt: number;
+  research: BlogResearchResult;
+  title: string;
+  topic: { category: string; topic: string };
+}) {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const response = await openai.responses.parse({
+    model: "gpt-4o-mini",
+    temperature: 0.58,
+    max_output_tokens: 5600,
+    input: [
+      {
+        role: "system",
+        content: [
+          "You are INConnect Editorial expanding a researched LinkedIn intelligence article that was too short.",
+          "Preserve the original structure, headings, argument, and INConnect point of view.",
+          "Expand the article to 1,000-1,300 words.",
+          "Do not add filler text, generic repetition, invented statistics, fake claims, or unsupported trends.",
+          "Add more practical examples, industry context, and actionable steps.",
+          "Every main section should include explanation, example, and practical action step.",
+          "Use the research context only as background; do not copy source wording and do not quote unless short and necessary.",
+          "Use clean Markdown only.",
+          "Do not include raw source URLs.",
+          "Do not include a Further Reading section; the publishing system appends it.",
+          "Keep the CTA section if present, but do not add source links.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: [
+          `Expansion attempt: ${expansionAttempt}`,
+          `Title: ${title}`,
+          `Topic: ${topic.topic}`,
+          `Category: ${topic.category}`,
+          `Article angle: ${research.articleAngle}`,
+          "",
+          "Research context:",
+          research.researchSummary,
+          "",
+          "Current article markdown to expand:",
+          articleCoreContent,
+          "",
+          "Return structured JSON only with the expanded markdown in the content field.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "inconnect_blog_article_expansion",
+        strict: true,
+        schema: blogArticleExpansionSchema,
+      },
+    },
+  });
+
+  if (!response.output_parsed) {
+    throw new Error("Expanded blog article response format error.");
+  }
+
+  const parsed = response.output_parsed as { content: string };
+  if (!parsed.content || parsed.content.trim().length < 400) {
+    throw new Error("Expanded blog article was empty or incomplete.");
+  }
+
+  return stripLeadingTitleHeading(parsed.content, title);
 }
 
 async function generateAndUploadBlogHeroImage({

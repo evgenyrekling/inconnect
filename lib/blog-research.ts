@@ -24,6 +24,13 @@ export type BlogResearchExistingPost = {
   title: string | null;
 };
 
+export type BlogArticleQualityResult = {
+  issues: string[];
+  practicalRecommendationCount: number;
+  sectionCount: number;
+  wordCount: number;
+};
+
 const MIN_RESEARCH_SOURCES = 3;
 const MAX_RESEARCH_SOURCES = 5;
 const RESEARCH_TIMEOUT_MS = 8000;
@@ -112,6 +119,13 @@ export function validateResearchBackedArticle(
   content: string,
   sources: BlogResearchSource[],
 ) {
+  return getResearchBackedArticleQuality(content, sources).issues;
+}
+
+export function getResearchBackedArticleQuality(
+  content: string,
+  sources: BlogResearchSource[],
+): BlogArticleQualityResult {
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const sectionCount = countNonUtilitySections(content);
@@ -151,7 +165,12 @@ export function validateResearchBackedArticle(
     issues.push("Article is missing an INConnect Point of View section.");
   }
 
-  return issues;
+  return {
+    issues,
+    practicalRecommendationCount,
+    sectionCount,
+    wordCount,
+  };
 }
 
 function createResearchQueries(topic: BlogResearchTopic) {
