@@ -154,7 +154,8 @@ type ProfilePatch = {
     | "assessment"
     | "headline_generator"
     | "about_generator"
-    | "article_generator";
+    | "article_generator"
+    | "intelligence_subscription";
 };
 
 export class UserProfileStorageError extends Error {
@@ -512,6 +513,27 @@ export async function upsertProfileFromArticleGenerator(
   return upsertUserProfile(supabase, patch);
 }
 
+export async function upsertProfileFromIntelligenceSubscription(
+  supabase: SupabaseAdminClient,
+  values: {
+    email: string;
+    interests: string[];
+    name?: string;
+    user: UserRow;
+  },
+) {
+  const patch: ProfilePatch = {
+    user_id: values.user.id,
+    user_key: values.user.user_key,
+    name: cleanProfileText(values.name),
+    email: normalizeEmail(values.email),
+    interests: values.interests,
+    profile_source: "intelligence_subscription",
+  };
+
+  return upsertUserProfile(supabase, patch);
+}
+
 async function upsertUserProfile(supabase: SupabaseAdminClient, patch: ProfilePatch) {
   const existingProfile = await getExistingUserProfile(supabase, patch.email);
   const debug = createProfileDebug(null);
@@ -667,6 +689,10 @@ async function rekeyUserArtifacts(
     supabase
       .from("article_generations")
       .update({ user_key: nextUserKey })
+      .eq("user_key", previousUserKey),
+    supabase
+      .from("intelligence_subscriptions")
+      .update({ user_key: nextUserKey, updated_at: new Date().toISOString() })
       .eq("user_key", previousUserKey),
   ];
 

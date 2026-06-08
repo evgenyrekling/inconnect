@@ -143,6 +143,18 @@ create table if not exists public.blog_posts (
   published_at timestamptz
 );
 
+create table if not exists public.intelligence_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete cascade,
+  user_key text,
+  name text,
+  email text,
+  intelligence_type text,
+  is_active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create index if not exists users_user_key_idx on public.users (user_key);
 create index if not exists users_normalized_email_idx on public.users (normalized_email);
 create index if not exists assessments_user_key_created_at_idx
@@ -173,6 +185,12 @@ create index if not exists blog_posts_published_published_at_idx
   on public.blog_posts (published, published_at desc);
 create index if not exists blog_posts_auto_generated_created_at_idx
   on public.blog_posts (auto_generated, created_at desc);
+create index if not exists intelligence_subscriptions_email_idx
+  on public.intelligence_subscriptions (email);
+create index if not exists intelligence_subscriptions_user_key_idx
+  on public.intelligence_subscriptions (user_key);
+create index if not exists intelligence_subscriptions_type_idx
+  on public.intelligence_subscriptions (intelligence_type);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
