@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
+  type BlogPost,
   demoBlogPosts,
   formatBlogDate,
   getPublishedBlogPostBySlug,
+  getPublishedBlogPosts,
 } from "@/lib/blog-posts";
 import { SITE_URL } from "@/lib/seo";
 
@@ -72,7 +74,11 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
   if (!post) notFound();
 
-  const articleContent = ensureArticleInternalLinks(post.content);
+  const articleContent = prepareArticleContent(post.content);
+  const relatedArticles = selectRelatedArticles(
+    post,
+    await getPublishedBlogPosts(),
+  );
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -128,6 +134,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
           <MarkdownContent content={articleContent} />
         </div>
       </section>
+      <RelatedArticles articles={relatedArticles} />
       <script
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
         type="application/ld+json"
@@ -137,24 +144,85 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
   );
 }
 
-const REQUIRED_ARTICLE_CTA = [
-  "## Improve Your LinkedIn Presence",
-  "",
-  "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
+const ARTICLE_NEXT_STEPS = [
+  "## Next Steps",
   "",
   "- [Run Free Assessment](/assessment)",
   "- [Generate LinkedIn Headline](/headline-generator)",
   "- [Generate LinkedIn About Section](/about-generator)",
 ].join("\n");
 
-function ensureArticleInternalLinks(content: string) {
-  const requiredRoutes = ["/assessment", "/headline-generator", "/about-generator"];
+function prepareArticleContent(content: string) {
+  const contentWithoutManagedSections = removeManagedArticleSections(content.trim());
+  return `${contentWithoutManagedSections}\n\n${ARTICLE_NEXT_STEPS}`;
+}
 
-  if (requiredRoutes.every((route) => content.includes(route))) {
-    return content;
-  }
+function removeManagedArticleSections(content: string) {
+  return content
+    .replace(/\n*##\s+Further Reading[\s\S]*$/i, "")
+    .replace(
+      /\n*##\s+(?:Improve Your LinkedIn Presence|Next Steps|Try INConnect's Free Tools)[\s\S]*$/i,
+      "",
+    )
+    .replace(
+      /\n*Want to improve your LinkedIn presence\? Try INConnect's free AI tools(?:\s+at\s+\/assessment,\s+\/headline-generator,\s+and\s+\/about-generator)?\.?[\s\S]*$/i,
+      "",
+    )
+    .trim();
+}
 
-  return `${content.trim()}\n\n${REQUIRED_ARTICLE_CTA}`;
+function selectRelatedArticles(currentPost: BlogPost, posts: BlogPost[]) {
+  const candidates = posts.filter((post) => post.slug !== currentPost.slug);
+  const sameCategoryPosts = candidates.filter(
+    (post) => post.category === currentPost.category,
+  );
+
+  return [
+    ...sameCategoryPosts,
+    ...candidates.filter((post) => post.category !== currentPost.category),
+  ].slice(0, 3);
+}
+
+function RelatedArticles({ articles }: { articles: BlogPost[] }) {
+  if (articles.length === 0) return null;
+
+  return (
+    <section className="px-5 pb-12 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-5xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+          Related Articles
+        </p>
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {articles.map((article) => (
+            <Link
+              className="group overflow-hidden rounded-lg border border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition hover:-translate-y-0.5 hover:border-[#0A66C2]/40 hover:shadow-[0_14px_32px_rgba(10,25,47,0.09)]"
+              href={`/blog/${article.slug}`}
+              key={article.slug}
+            >
+              <div className="aspect-[16/9] bg-[#E8F1FB]">
+                <img
+                  alt=""
+                  className="h-full w-full object-cover"
+                  src={article.heroImageUrl}
+                />
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+                  {article.category}
+                </p>
+                <h2 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
+                  {article.title}
+                </h2>
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#666666]">
+                  {article.excerpt}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function MarkdownContent({ content }: { content: string }) {
@@ -237,6 +305,12 @@ function renderInlineMarkdown(value: string): ReactNode[] {
     const token = match[0];
     const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
+      if (!linkMatch[2].startsWith("/")) {
+        nodes.push(linkMatch[1]);
+        lastIndex = match.index + match[0].length;
+        continue;
+      }
+
       nodes.push(
         <Link
           className="font-semibold text-[#0A66C2] underline-offset-4 transition hover:text-[#004182] hover:underline"

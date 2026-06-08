@@ -104,17 +104,6 @@ export async function researchBlogTopic(
   };
 }
 
-export function buildFurtherReadingSection(sources: BlogResearchSource[]) {
-  return [
-    "## Further Reading",
-    "",
-    ...sources.slice(0, MAX_RESEARCH_SOURCES).map((source) => {
-      const title = source.title.replace(/\]/g, ")");
-      return `- ${title}, ${source.domain}, [read source](${source.url})`;
-    }),
-  ].join("\n");
-}
-
 export function validateResearchBackedArticle(
   content: string,
   sources: BlogResearchSource[],
@@ -149,12 +138,12 @@ export function getResearchBackedArticleQuality(
     issues.push("Article includes a raw URL inside a paragraph.");
   }
 
-  if (!hasRequiredInternalCtaLinks(content)) {
-    issues.push("Article is missing required internal CTA links.");
+  if (hasExternalMarkdownLinks(content)) {
+    issues.push("Article includes external Markdown links.");
   }
 
-  if (!/##\s+Further Reading/i.test(content)) {
-    issues.push("Article is missing the Further Reading source section.");
+  if (!hasRequiredInternalNextSteps(content)) {
+    issues.push("Article is missing the required Next Steps internal links.");
   }
 
   if (sources.length < MIN_RESEARCH_SOURCES) {
@@ -681,7 +670,9 @@ function countNonUtilitySections(content: string) {
 }
 
 function countPracticalRecommendations(content: string) {
-  const beforeCta = content.split(/^##\s+Improve Your LinkedIn Presence/im)[0] ?? content;
+  const beforeCta =
+    content.split(/^##\s+(?:Improve Your LinkedIn Presence|Next Steps)/im)[0] ??
+    content;
   return (beforeCta.match(/^[-*]\s+/gm) ?? []).length;
 }
 
@@ -700,10 +691,27 @@ function hasRawUrlInsideParagraph(content: string) {
   });
 }
 
-function hasRequiredInternalCtaLinks(content: string) {
-  return ["/assessment", "/headline-generator", "/about-generator"].every((path) =>
-    content.includes(`](${path})`),
-  );
+function hasExternalMarkdownLinks(content: string) {
+  const linkMatches = content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g);
+
+  for (const match of linkMatches) {
+    const href = match[1].trim();
+    if (href.startsWith("/") || href.startsWith("#") || href.startsWith("mailto:")) {
+      continue;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function hasRequiredInternalNextSteps(content: string) {
+  if (!/##\s+Next Steps/i.test(content)) return false;
+  return [
+    "[Run Free Assessment](/assessment)",
+    "[Generate LinkedIn Headline](/headline-generator)",
+    "[Generate LinkedIn About Section](/about-generator)",
+  ].every((link) => content.includes(link));
 }
 
 function getUtcDateSuffix() {

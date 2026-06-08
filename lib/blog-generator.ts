@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import {
-  buildFurtherReadingSection,
   getResearchBackedArticleQuality,
   researchBlogTopic,
   type BlogResearchResult,
@@ -344,13 +343,14 @@ async function generateBlogArticle(
           "Include a section with this exact heading: ## INConnect Point of View.",
           "Include at least three practical recommendation bullet points.",
           "Include a FAQ section with clear ### question headings.",
-          "Do not include a Further Reading section; the publishing system appends the canonical source section.",
+          "Do not include a Further Reading section.",
+          "Do not include external source lists.",
           "Do not include source URLs in the article body.",
+          "Do not include external Markdown links.",
           "Never write raw URLs as plain text.",
           "Always use Markdown links for internal INConnect tools.",
-          "Use this exact CTA section near the end:",
-          "## Improve Your LinkedIn Presence",
-          "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
+          "Use this exact conversion section at the end:",
+          "## Next Steps",
           "- [Run Free Assessment](/assessment)",
           "- [Generate LinkedIn Headline](/headline-generator)",
           "- [Generate LinkedIn About Section](/about-generator)",
@@ -387,9 +387,11 @@ async function generateBlogArticle(
           "- numbered lists only for true sequences",
           "- practical examples or checklists",
           "- a FAQ section using ### question headings",
-          "- a CTA section at the end",
+          "- a Next Steps section at the end",
           "- the required internal links as Markdown links, never raw URLs",
-          "- no Further Reading section, because the publishing system appends it",
+          "- no Further Reading section",
+          "- no external source list",
+          "- no external Markdown links",
           "",
           "Do not include a leading # title in content. The title is rendered separately on the page.",
           "Do not copy or closely paraphrase any source wording.",
@@ -433,7 +435,7 @@ async function prepareQualityCheckedBlogContent({
     generatedPost.content,
     generatedPost.title,
   );
-  let content = ensureRequiredBlogSections(articleCoreContent, research);
+  let content = ensureRequiredBlogSections(articleCoreContent);
   let quality = getResearchBackedArticleQuality(content, research.researchSources);
 
   console.info("INConnect blog initial quality check", {
@@ -472,7 +474,7 @@ async function prepareQualityCheckedBlogContent({
       throw toBlogGenerationError("openai_expansion", error);
     }
 
-    content = ensureRequiredBlogSections(articleCoreContent, research);
+    content = ensureRequiredBlogSections(articleCoreContent);
     quality = getResearchBackedArticleQuality(content, research.researchSources);
 
     console.info("INConnect blog expansion quality check", {
@@ -543,8 +545,10 @@ async function expandBlogArticle({
           "Use the research context only as background; do not copy source wording and do not quote unless short and necessary.",
           "Use clean Markdown only.",
           "Do not include raw source URLs.",
-          "Do not include a Further Reading section; the publishing system appends it.",
-          "Keep the CTA section if present, but do not add source links.",
+          "Do not include a Further Reading section.",
+          "Do not include external source lists.",
+          "Do not include external Markdown links.",
+          "Keep the Next Steps section if present, but do not add source links.",
         ].join(" "),
       },
       {
@@ -1296,14 +1300,9 @@ function ensureUniqueTitle(value: string, existingPosts: ExistingBlogPost[]) {
   return `${value} (${getUtcDateSuffix()})`;
 }
 
-function ensureRequiredBlogSections(
-  content: string,
-  research: BlogResearchResult,
-) {
+function ensureRequiredBlogSections(content: string) {
   const canonicalCta = [
-    "## Improve Your LinkedIn Presence",
-    "",
-    "Want to improve your LinkedIn presence? Try INConnect's free AI tools:",
+    "## Next Steps",
     "",
     "- [Run Free Assessment](/assessment)",
     "- [Generate LinkedIn Headline](/headline-generator)",
@@ -1313,7 +1312,6 @@ function ensureRequiredBlogSections(
   return [
     contentWithoutManagedSections,
     canonicalCta,
-    buildFurtherReadingSection(research.researchSources),
   ].join("\n\n");
 }
 
@@ -1324,7 +1322,7 @@ function removeManagedBlogSections(content: string) {
       "",
     )
     .replace(
-      /\n*##\s+(?:Improve Your LinkedIn Presence|Try INConnect's Free Tools)[\s\S]*$/i,
+      /\n*##\s+(?:Improve Your LinkedIn Presence|Next Steps|Try INConnect's Free Tools)[\s\S]*$/i,
       "",
     )
     .replace(
