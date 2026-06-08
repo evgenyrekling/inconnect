@@ -14,8 +14,8 @@ export function BlogArticlesList({ posts }: { posts: BlogPost[] }) {
   if (posts.length === 0) {
     return (
       <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-white p-6 text-sm leading-6 text-[#666666]">
-        No published articles yet. New INConnect articles will appear here after
-        publication.
+        No published briefings yet. New INConnect intelligence updates will
+        appear here after publication.
       </div>
     );
   }
@@ -70,7 +70,7 @@ function BlogPostCard({ post }: { post: BlogPost }) {
           className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
           href={`/blog/${post.slug}`}
         >
-          Read article
+          Read briefing
         </Link>
       </div>
     </article>

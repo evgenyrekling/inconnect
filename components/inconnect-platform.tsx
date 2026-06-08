@@ -213,7 +213,6 @@ const navItems = [
   { label: "Headline Generator", href: "/headline-generator" },
   { label: "About Generator", href: "/about-generator" },
   { label: "Intelligence", href: "/intelligence" },
-  { label: "Blog", href: "/blog" },
   { label: "Pricing", href: "/pricing" },
 ];
 
@@ -5094,7 +5093,7 @@ export function Footer() {
     { label: "Terms", href: "/terms" },
     { label: "Contact", href: "/contact" },
     { label: "Vision", href: "/vision" },
-    { label: "Blog", href: "/blog" },
+    { label: "B2B Sales & LinkedIn Daily", href: "/blog" },
   ];
 
   return (
@@ -5802,9 +5801,9 @@ export function INConnectIntelligencePage({
               <FileText className="h-8 w-8 text-[#0A66C2]" />
             </div>
             <p className="mt-4 text-sm leading-6 text-[#666666]">
-              Daily insights from INConnect's blog covering LinkedIn growth,
-              profile optimization, B2B visibility, personal branding, AI tools,
-              and professional authority.
+              Daily insights from INConnect's B2B Sales & LinkedIn Daily stream
+              covering LinkedIn growth, profile optimization, B2B visibility,
+              personal branding, AI tools, and professional authority.
             </p>
             <div className="mt-5 grid gap-3">
               {latestInsightPosts.length > 0 ? (
@@ -5827,8 +5826,8 @@ export function INConnectIntelligencePage({
                 ))
               ) : (
                 <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
-                  INConnect blog insights will appear here as soon as published
-                  articles are available.
+                  INConnect intelligence insights will appear here as soon as
+                  published briefings are available.
                 </p>
               )}
             </div>

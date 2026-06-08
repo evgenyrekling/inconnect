@@ -5,9 +5,9 @@ import { createSeoMetadata } from "@/lib/seo";
 import { BlogArticlesList } from "./blog-articles-list";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "INConnect Blog | LinkedIn Growth and Professional Positioning",
+  title: "B2B Sales & LinkedIn Daily | INConnect",
   description:
-    "LinkedIn growth, personal branding, AI, leadership, and professional positioning insights from INConnect.",
+    "Daily INConnect briefings on LinkedIn growth, profile optimization, B2B visibility, personal branding, AI tools, and professional authority.",
   path: "/blog",
 });
 
@@ -22,14 +22,15 @@ export default async function BlogPage() {
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Insights
+            Intelligence Stream
           </p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
-            INConnect Blog
+            B2B Sales & LinkedIn Daily
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            LinkedIn growth, personal branding, AI, leadership, and professional
-            positioning insights.
+            Daily insights from INConnect covering LinkedIn growth, profile
+            optimization, B2B visibility, personal branding, AI tools, and
+            professional authority.
           </p>
         </div>
       </section>
@@ -37,7 +38,7 @@ export default async function BlogPage() {
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Latest Articles
+            Latest Briefings
           </p>
           <BlogArticlesList posts={latestPosts} />
         </div>

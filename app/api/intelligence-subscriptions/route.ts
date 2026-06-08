@@ -31,6 +31,15 @@ const INTELLIGENCE_TYPES = {
       "Aviation Technology",
     ],
   },
+  b2b_sales: {
+    label: "B2B Sales & LinkedIn Daily",
+    profileInterests: [
+      "B2B Sales",
+      "LinkedIn Growth",
+      "Professional Visibility",
+      "Personal Branding",
+    ],
+  },
 } as const;
 
 export async function POST(request: NextRequest) {

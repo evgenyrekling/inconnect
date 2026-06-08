@@ -236,7 +236,7 @@ function mapBlogPostRow(row: BlogPostRow): BlogPost {
     published: row.published,
     publishedAt: row.published_at || row.created_at,
     seoDescription: row.seo_description || row.excerpt,
-    seoTitle: row.seo_title || `${row.title} | INConnect Blog`,
+    seoTitle: row.seo_title || `${row.title} | B2B Sales & LinkedIn Daily`,
     slug: row.slug,
     title: row.title,
   };

@@ -33,7 +33,7 @@ export default function AboutPage() {
         {
           title: "Current platform modules",
           body: [
-            "INConnect currently includes the Profile Intelligence Assessment, LinkedIn Headline Generator, LinkedIn About Generator, INConnect Blog, AI-generated professional insights, professional profile memory, and early foundations for future Pro tools.",
+            "INConnect currently includes the Profile Intelligence Assessment, LinkedIn Headline Generator, LinkedIn About Generator, B2B Sales & LinkedIn Daily intelligence stream, AI-generated professional insights, professional profile memory, and early foundations for future Pro tools.",
             "Each module is designed to make professional positioning more practical, measurable, and useful for real career and business decisions.",
           ],
         },

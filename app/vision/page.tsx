@@ -25,7 +25,7 @@ export default function VisionPage() {
             "Profile Intelligence Assessment",
             "Headline Generator",
             "About Generator",
-            "Blog",
+            "B2B Sales & LinkedIn Daily",
             "Professional profile database",
           ],
         },
