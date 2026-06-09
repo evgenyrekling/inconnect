@@ -20,7 +20,7 @@ const footerLinks = [
   { label: "Terms", href: "/terms" },
   { label: "Contact", href: "/contact" },
   { label: "Vision", href: "/vision" },
-  { label: "B2B Sales & LinkedIn Daily", href: "/blog" },
+  { label: "B2B Sales & LinkedIn Daily", href: "/intelligence/b2b-sales" },
 ];
 
 const primaryCtaClass =

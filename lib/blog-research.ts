@@ -49,6 +49,15 @@ const PREFERRED_SOURCE_DOMAINS = [
   "mckinsey.com",
   "deloitte.com",
   "contentmarketinginstitute.com",
+  "airport-technology.com",
+  "internationalairportreview.com",
+  "futuretravelexperience.com",
+  "aci.aero",
+  "iata.org",
+  "sita.aero",
+  "aviationweek.com",
+  "airportsinternational.com",
+  "passengerterminaltoday.com",
 ];
 
 export async function researchBlogTopic(
@@ -166,6 +175,22 @@ function createResearchQueries(topic: BlogResearchTopic) {
   const currentYear = new Date().getUTCFullYear();
   const baseTopic = topic.topic;
   const preferredDomains = getPreferredDomainsForTopic(topic);
+  const normalizedValue = `${topic.category} ${topic.topic}`.toLowerCase();
+
+  if (
+    normalizedValue.includes("airport") ||
+    normalizedValue.includes("aviation") ||
+    normalizedValue.includes("baggage")
+  ) {
+    return [
+      `${baseTopic} latest ${currentYear}`,
+      `${baseTopic} current developments ${currentYear}`,
+      `airport automation news ${currentYear} RFID baggage biometrics AI robotics`,
+      `smart airport infrastructure technology trends ${currentYear}`,
+      ...preferredDomains.map((domain) => `site:${domain} ${baseTopic} ${currentYear}`),
+    ].slice(0, 10);
+  }
+
   const baseQueries = [
     `${baseTopic} latest ${currentYear} LinkedIn professional visibility`,
     `${baseTopic} current trends ${currentYear} professionals`,
@@ -180,6 +205,24 @@ function createResearchQueries(topic: BlogResearchTopic) {
 
 function getPreferredDomainsForTopic(topic: BlogResearchTopic) {
   const normalizedValue = `${topic.category} ${topic.topic}`.toLowerCase();
+
+  if (
+    normalizedValue.includes("airport") ||
+    normalizedValue.includes("aviation") ||
+    normalizedValue.includes("baggage")
+  ) {
+    return [
+      "airport-technology.com",
+      "internationalairportreview.com",
+      "futuretravelexperience.com",
+      "aci.aero",
+      "iata.org",
+      "sita.aero",
+      "aviationweek.com",
+      "airportsinternational.com",
+      "passengerterminaltoday.com",
+    ];
+  }
 
   if (normalizedValue.includes("ai")) {
     return [

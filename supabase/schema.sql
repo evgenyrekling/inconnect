@@ -143,6 +143,21 @@ create table if not exists public.blog_posts (
   published_at timestamptz
 );
 
+create table if not exists public.airport_briefings (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique,
+  title text,
+  excerpt text,
+  content text,
+  hero_image_url text,
+  hero_image_prompt text,
+  seo_title text,
+  seo_description text,
+  published boolean default true,
+  generated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
 create table if not exists public.intelligence_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id) on delete cascade,
@@ -185,6 +200,10 @@ create index if not exists blog_posts_published_published_at_idx
   on public.blog_posts (published, published_at desc);
 create index if not exists blog_posts_auto_generated_created_at_idx
   on public.blog_posts (auto_generated, created_at desc);
+create unique index if not exists airport_briefings_slug_idx
+  on public.airport_briefings (slug);
+create index if not exists airport_briefings_published_generated_at_idx
+  on public.airport_briefings (published, generated_at desc);
 create index if not exists intelligence_subscriptions_email_idx
   on public.intelligence_subscriptions (email);
 create index if not exists intelligence_subscriptions_user_key_idx
@@ -198,5 +217,10 @@ on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)
 values ('blog-images', 'blog-images', true)
+on conflict (id) do update
+set public = true;
+
+insert into storage.buckets (id, name, public)
+values ('airport-briefing-images', 'airport-briefing-images', true)
 on conflict (id) do update
 set public = true;

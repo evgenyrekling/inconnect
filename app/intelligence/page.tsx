@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { INConnectIntelligencePage } from "@/components/inconnect-platform";
+import { getPublishedAirportBriefings } from "@/lib/airport-briefings";
 import { type BlogPost, getPublishedBlogPosts } from "@/lib/blog-posts";
 import { createSeoMetadata } from "@/lib/seo";
 
@@ -27,9 +28,24 @@ const INTELLIGENCE_BLOG_TERMS = [
 ];
 
 export default async function IntelligencePage() {
+  const [latestAirportBriefing] = await getPublishedAirportBriefings(1);
   const latestInsightPosts = getLatestIntelligencePosts(await getPublishedBlogPosts());
 
-  return <INConnectIntelligencePage latestInsightPosts={latestInsightPosts} />;
+  return (
+    <INConnectIntelligencePage
+      latestAirportBriefing={
+        latestAirportBriefing
+          ? {
+              excerpt: latestAirportBriefing.excerpt,
+              generatedAt: latestAirportBriefing.generatedAt,
+              slug: latestAirportBriefing.slug,
+              title: latestAirportBriefing.title,
+            }
+          : null
+      }
+      latestInsightPosts={latestInsightPosts}
+    />
+  );
 }
 
 function getLatestIntelligencePosts(posts: BlogPost[]) {

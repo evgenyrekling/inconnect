@@ -39,7 +39,7 @@ export function Logo({
       {!iconOnly && (
         <span className="sr-only">
           INConnect
-          {showSubtitle ? " - Your AI LinkedIn Intelligence Platform" : ""}
+          {showSubtitle ? " - Professional Intelligence Platform" : ""}
         </span>
       )}
     </span>

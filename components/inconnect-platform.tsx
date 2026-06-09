@@ -1057,15 +1057,15 @@ function HeroSection() {
             INConnect
           </p>
           <p className="mt-3 text-lg font-semibold text-white/82">
-            Your AI LinkedIn Intelligence Platform
+            Professional Intelligence Platform
           </p>
           <h1 className="mt-5 max-w-5xl text-4xl font-semibold leading-tight sm:text-6xl">
-            Most professionals and companies are invisible on LinkedIn. INConnect helps change that.
+            Discover opportunities, stay informed, and connect with the right professionals.
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/72 sm:text-lg">
-            Discover how the market sees you and build a stronger professional
-            presence across positioning, visibility, authority, and growth
-            opportunities.
+            INConnect combines professional profile intelligence, industry
+            insights, and future networking opportunities to help professionals
+            and companies grow.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <a
@@ -1217,16 +1217,16 @@ function ModuleGrid() {
       <div className="mx-auto max-w-7xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            LinkedIn Intelligence Platform
+            Professional Intelligence Platform
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-[#191919]">
-            One platform for positioning, visibility, authority, and growth.
+            One platform for intelligence, insight, authority, and opportunity.
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
-            Assessment is the entry point. Headline and About generators help
-            turn profile intelligence into stronger LinkedIn positioning. Future
-            Pro modules expand trend, content, profile, and personal brand
-            intelligence.
+            LinkedIn tools remain a practical entry point. INConnect is growing
+            into a broader professional intelligence platform for industry
+            insights, authority building, future business matching, and
+            professional opportunity discovery.
           </p>
         </div>
         <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -5093,7 +5093,7 @@ export function Footer() {
     { label: "Terms", href: "/terms" },
     { label: "Contact", href: "/contact" },
     { label: "Vision", href: "/vision" },
-    { label: "B2B Sales & LinkedIn Daily", href: "/blog" },
+    { label: "B2B Sales & LinkedIn Daily", href: "/intelligence/b2b-sales" },
   ];
 
   return (
@@ -5520,112 +5520,17 @@ export function INConnectArticleGeneratorPage() {
 }
 
 export function INConnectIntelligencePage({
+  latestAirportBriefing,
   latestInsightPosts,
 }: {
+  latestAirportBriefing?: {
+    excerpt: string;
+    generatedAt: string;
+    slug: string;
+    title: string;
+  } | null;
   latestInsightPosts: BlogPost[];
 }) {
-  const { returningIdentity, handleSwitchUser } = useHeadlineGeneratorIdentity();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [hasConsent, setHasConsent] = useState(false);
-  const [showLeadForm, setShowLeadForm] = useState(false);
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const displayName = getIdentityDisplayName(returningIdentity);
-  const knownUserFirstName = displayName ? getFirstNameFromDisplayName(displayName) : "";
-  const isKnownUser = Boolean(returningIdentity?.userKey && returningIdentity.email);
-  const canSubmitLeadForm = name.trim().length >= 2 && isValidEmail(email) && hasConsent;
-
-  useEffect(() => {
-    if (!returningIdentity) return;
-    setName((currentName) => currentName || getIdentityDisplayName(returningIdentity));
-    setEmail((currentEmail) => currentEmail || returningIdentity.email);
-  }, [returningIdentity]);
-
-  async function subscribeToAirportAutomation(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-
-    const subscriptionName =
-      isKnownUser && returningIdentity
-        ? getIdentityDisplayName(returningIdentity)
-        : name.trim();
-    const subscriptionEmail =
-      isKnownUser && returningIdentity ? returningIdentity.email : email.trim();
-
-    if (!subscriptionEmail || !isValidEmail(subscriptionEmail)) {
-      setError("A valid email address is required.");
-      return;
-    }
-
-    if (!isKnownUser && (!subscriptionName || !hasConsent)) {
-      setError("Name and consent are required to unlock this briefing.");
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setIsSubscribing(true);
-
-    try {
-      const response = await fetch("/api/intelligence-subscriptions", {
-        body: JSON.stringify({
-          email: subscriptionEmail,
-          intelligenceType: "airportAutomation",
-          name: subscriptionName,
-          profileConsent: isKnownUser || hasConsent,
-          userKey: returningIdentity?.userKey,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as unknown;
-
-      if (!response.ok || !isIntelligenceSubscriptionResponse(payload)) {
-        const errorMessage =
-          typeof payload === "object" &&
-          payload !== null &&
-          "error" in payload &&
-          typeof payload.error === "string"
-            ? payload.error
-            : "Airport Automation Daily could not be unlocked.";
-        throw new Error(errorMessage);
-      }
-
-      storeReturningIdentity({
-        email: payload.email,
-        latestAssessmentId: returningIdentity?.latestAssessmentId,
-        linkedinUrl: returningIdentity?.linkedinUrl ?? "",
-        name: subscriptionName,
-        userKey: payload.userKey,
-      });
-      setMessage(payload.message);
-      setShowLeadForm(false);
-      setHasConsent(false);
-    } catch (subscriptionError) {
-      setError(
-        subscriptionError instanceof Error
-          ? subscriptionError.message
-          : "Airport Automation Daily could not be unlocked.",
-      );
-    } finally {
-      setIsSubscribing(false);
-    }
-  }
-
-  function handleUnlockAirportAutomation() {
-    if (isKnownUser) {
-      void subscribeToAirportAutomation();
-      return;
-    }
-
-    setShowLeadForm(true);
-    setMessage("");
-    setError("");
-  }
-
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
       <Header showSocialProof />
@@ -5677,115 +5582,31 @@ export function INConnectIntelligencePage({
                 </li>
               ))}
             </ul>
-
-            {isKnownUser && (
-              <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
-                <p className="font-semibold text-[#191919]">
-                  Welcome back{knownUserFirstName ? `, ${knownUserFirstName}` : ""}.
+            {latestAirportBriefing && (
+              <a
+                className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
+                href={`/intelligence/airport-automation/${latestAirportBriefing.slug}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Latest briefing
                 </p>
-                <p>We can unlock this briefing for {returningIdentity?.email}.</p>
-                <button
-                  className="mt-2 text-sm font-semibold text-[#0A66C2] hover:text-[#004182]"
-                  onClick={handleSwitchUser}
-                  type="button"
-                >
-                  Not you?
-                </button>
-              </div>
+                <h3 className="mt-2 text-base font-semibold leading-snug text-[#191919]">
+                  {latestAirportBriefing.title}
+                </h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#666666]">
+                  {latestAirportBriefing.excerpt}
+                </p>
+              </a>
             )}
-
-            {showLeadForm && !isKnownUser && (
-              <form
-                className="mt-5 grid gap-4 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-                onSubmit={subscribeToAirportAutomation}
-              >
-                <div className="grid gap-2">
-                  <label className="text-sm font-semibold text-[#191919]" htmlFor="intelligence-name">
-                    Name
-                  </label>
-                  <input
-                    className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                    id="intelligence-name"
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Your name"
-                    value={name}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm font-semibold text-[#191919]" htmlFor="intelligence-email">
-                    Email
-                  </label>
-                  <input
-                    className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/15"
-                    id="intelligence-email"
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    type="email"
-                    value={email}
-                  />
-                </div>
-                <label className="flex items-start gap-3 text-sm leading-6 text-[#666666]">
-                  <input
-                    checked={hasConsent}
-                    className="mt-1 h-4 w-4 rounded border-[#D9DDE3] text-[#0A66C2] focus:ring-[#0A66C2]"
-                    onChange={(event) => setHasConsent(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>
-                    I agree that INConnect may store my information and send me
-                    relevant intelligence updates.
-                  </span>
-                </label>
-                <button
-                  className={classNames(
-                    "inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
-                    PRIMARY_CTA_CLASS,
-                  )}
-                  disabled={!canSubmitLeadForm || isSubscribing}
-                  type="submit"
-                >
-                  {isSubscribing ? (
-                    <span className="inline-flex items-center gap-2">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Unlocking...
-                    </span>
-                  ) : (
-                    "Unlock Briefing"
-                  )}
-                </button>
-              </form>
-            )}
-
-            {message && (
-              <p className="mt-5 rounded-lg border border-[#057642]/20 bg-[#EEF7F2] px-4 py-3 text-sm font-semibold text-[#057642]">
-                {message}
-              </p>
-            )}
-            {error && (
-              <p className="mt-5 rounded-lg border border-[#B42318]/20 bg-[#FEF3F2] px-4 py-3 text-sm font-semibold text-[#B42318]">
-                {error}
-              </p>
-            )}
-            {!showLeadForm && (
-              <button
-                className={classNames(
-                  "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
-                  PRIMARY_CTA_CLASS,
-                )}
-                disabled={isSubscribing}
-                onClick={handleUnlockAirportAutomation}
-                type="button"
-              >
-                {isSubscribing ? (
-                  <span className="inline-flex items-center gap-2">
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Unlocking...
-                  </span>
-                ) : (
-                  "Unlock Briefing"
-                )}
-              </button>
-            )}
+            <a
+              className={classNames(
+                "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              href="/intelligence/airport-automation"
+            >
+              Unlock Briefing
+            </a>
           </article>
 
           <article className="flex min-h-full flex-col rounded-lg border border-[#0A66C2]/25 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-6">
@@ -5836,7 +5657,7 @@ export function INConnectIntelligencePage({
                 "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
                 PRIMARY_CTA_CLASS,
               )}
-              href="/blog"
+              href="/intelligence/b2b-sales"
             >
               Read Latest Insights
             </a>
@@ -5846,11 +5667,13 @@ export function INConnectIntelligencePage({
             {
               description:
                 "Daily signals across connected transport, urban mobility, fleets, logistics, and autonomous systems.",
+              href: "/intelligence/smart-mobility",
               title: "Smart Mobility Daily",
             },
             {
               description:
                 "Daily developments in factory automation, robotics, industrial AI, sensors, controls, and smart infrastructure.",
+              href: "/intelligence/industrial-automation",
               title: "Industrial Automation Daily",
             },
           ].map((stream) => (
@@ -5872,9 +5695,12 @@ export function INConnectIntelligencePage({
               <p className="mt-4 text-sm leading-6 text-[#666666]">
                 {stream.description}
               </p>
-              <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666]">
+              <a
+                className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666] transition hover:border-[#0A66C2]/40 hover:text-[#0A66C2]"
+                href={stream.href}
+              >
                 Coming Soon
-              </p>
+              </a>
             </article>
           ))}
         </div>

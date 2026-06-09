@@ -103,9 +103,9 @@ const NETWORK_BLOCKER_SCRIPT = `
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "INConnect | Your AI LinkedIn Intelligence Platform",
+  title: "INConnect | Professional Intelligence Platform",
   description:
-    "Improve LinkedIn positioning, visibility, authority, and growth opportunities with AI-powered profile intelligence and headline generation.",
+    "Discover opportunities, stay informed, and connect with the right professionals through profile intelligence, industry insights, and future networking opportunities.",
   other: {
     "google-adsense-account": ADSENSE_PUBLISHER_ID,
     ...(GOOGLE_SITE_VERIFICATION
@@ -116,9 +116,9 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "INConnect | Your AI LinkedIn Intelligence Platform",
+    title: "INConnect | Professional Intelligence Platform",
     description:
-      "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
+      "Discover opportunities, stay informed, and connect with the right professionals through INConnect.",
     url: SITE_URL,
     siteName: "INConnect",
     images: [
@@ -126,16 +126,16 @@ export const metadata: Metadata = {
         url: DEFAULT_OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "INConnect LinkedIn intelligence platform preview",
+        alt: "INConnect professional intelligence platform preview",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "INConnect | Your AI LinkedIn Intelligence Platform",
+    title: "INConnect | Professional Intelligence Platform",
     description:
-      "Improve LinkedIn positioning, visibility, authority, and growth opportunities.",
+      "Discover opportunities, stay informed, and connect with the right professionals through INConnect.",
     images: [DEFAULT_OG_IMAGE],
   },
 };

@@ -1,15 +1,23 @@
 import type { MetadataRoute } from "next";
+import { getPublishedAirportBriefings } from "@/lib/airport-briefings";
 import { getPublishedBlogPosts } from "@/lib/blog-posts";
 import { SITE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const posts = await getPublishedBlogPosts();
+  const [posts, airportBriefings] = await Promise.all([
+    getPublishedBlogPosts(),
+    getPublishedAirportBriefings(),
+  ]);
   const staticRoutes = [
     "",
     "/assessment",
     "/headline-generator",
     "/about-generator",
     "/intelligence",
+    "/intelligence/airport-automation",
+    "/intelligence/b2b-sales",
+    "/intelligence/smart-mobility",
+    "/intelligence/industrial-automation",
     "/blog",
     "/pricing",
     "/about",
@@ -31,6 +39,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(post.publishedAt),
       priority: 0.8,
       url: `${SITE_URL}/blog/${post.slug}`,
+    })),
+    ...airportBriefings.map((briefing) => ({
+      changeFrequency: "daily" as const,
+      lastModified: new Date(briefing.generatedAt),
+      priority: 0.8,
+      url: `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`,
     })),
   ];
 }

@@ -31,6 +31,14 @@ const INTELLIGENCE_TYPES = {
       "Aviation Technology",
     ],
   },
+  airport_automation: {
+    label: "Airport Automation Daily",
+    profileInterests: [
+      "Airport Automation",
+      "Smart Airports",
+      "Aviation Technology",
+    ],
+  },
   b2b_sales: {
     label: "B2B Sales & LinkedIn Daily",
     profileInterests: [
@@ -38,6 +46,19 @@ const INTELLIGENCE_TYPES = {
       "LinkedIn Growth",
       "Professional Visibility",
       "Personal Branding",
+    ],
+  },
+  smart_mobility: {
+    label: "Smart Mobility Daily",
+    profileInterests: ["Smart Mobility", "Transportation Technology", "Mobility Trends"],
+  },
+  industrial_automation: {
+    label: "Industrial Automation Daily",
+    profileInterests: [
+      "Industrial Automation",
+      "Robotics",
+      "Industrial AI",
+      "Smart Infrastructure",
     ],
   },
 } as const;
