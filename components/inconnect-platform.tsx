@@ -5554,8 +5554,8 @@ export function INConnectIntelligencePage({
           <article className="flex min-h-full flex-col rounded-lg border border-[#0A66C2]/25 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A66C2]">
-                  Active Preview
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#057642]">
+                  Active
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
                   Airport Automation Daily
@@ -5582,7 +5582,7 @@ export function INConnectIntelligencePage({
                 </li>
               ))}
             </ul>
-            {latestAirportBriefing && (
+            {latestAirportBriefing ? (
               <a
                 className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
                 href={`/intelligence/airport-automation/${latestAirportBriefing.slug}`}
@@ -5597,6 +5597,11 @@ export function INConnectIntelligencePage({
                   {latestAirportBriefing.excerpt}
                 </p>
               </a>
+            ) : (
+              <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+                Airport Automation Daily briefings will appear here after the
+                first scheduled generation run.
+              </p>
             )}
             <a
               className={classNames(
@@ -5626,32 +5631,41 @@ export function INConnectIntelligencePage({
               covering LinkedIn growth, profile optimization, B2B visibility,
               personal branding, AI tools, and professional authority.
             </p>
-            <div className="mt-5 grid gap-3">
-              {latestInsightPosts.length > 0 ? (
-                latestInsightPosts.map((post) => (
-                  <a
-                    className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
-                    href={`/blog/${post.slug}`}
-                    key={post.slug}
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
-                      {post.category}
-                    </p>
-                    <h3 className="mt-2 text-base font-semibold leading-snug text-[#191919]">
-                      {post.title}
-                    </h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#666666]">
-                      {post.excerpt}
-                    </p>
-                  </a>
-                ))
-              ) : (
-                <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
-                  INConnect intelligence insights will appear here as soon as
-                  published briefings are available.
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-[#444444]">
+              {[
+                "Latest LinkedIn growth insights",
+                "B2B visibility signals",
+                "Profile optimization ideas",
+                "Authority-building themes",
+                "Practical next steps",
+              ].map((item) => (
+                <li className="flex gap-2" key={item}>
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            {latestInsightPosts[0] ? (
+              <a
+                className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
+                href={`/blog/${latestInsightPosts[0].slug}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Latest briefing
                 </p>
-              )}
-            </div>
+                <h3 className="mt-2 text-base font-semibold leading-snug text-[#191919]">
+                  {latestInsightPosts[0].title}
+                </h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#666666]">
+                  {latestInsightPosts[0].excerpt}
+                </p>
+              </a>
+            ) : (
+              <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+                INConnect intelligence insights will appear here as soon as
+                published briefings are available.
+              </p>
+            )}
             <a
               className={classNames(
                 "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
@@ -5659,7 +5673,7 @@ export function INConnectIntelligencePage({
               )}
               href="/intelligence/b2b-sales"
             >
-              Read Latest Insights
+              Unlock Latest Insights
             </a>
           </article>
 

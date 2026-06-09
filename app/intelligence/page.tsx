@@ -54,5 +54,5 @@ function getLatestIntelligencePosts(posts: BlogPost[]) {
     return INTELLIGENCE_BLOG_TERMS.some((term) => value.includes(term));
   });
 
-  return (relevantPosts.length > 0 ? relevantPosts : posts).slice(0, 3);
+  return (relevantPosts.length > 0 ? relevantPosts : posts).slice(0, 1);
 }
