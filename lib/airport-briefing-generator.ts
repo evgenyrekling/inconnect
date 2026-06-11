@@ -780,7 +780,7 @@ async function prepareQualityCheckedAirportContent({
     wordCount: quality.wordCount,
   });
 
-  for (let revisionAttempt = 1; quality.issues.length > 0 && revisionAttempt <= 2; revisionAttempt += 1) {
+  for (let revisionAttempt = 1; quality.issues.length > 0 && revisionAttempt <= 3; revisionAttempt += 1) {
     console.info("INConnect airport digest revision started", {
       issues: quality.issues,
       revisionAttempt,
@@ -789,6 +789,7 @@ async function prepareQualityCheckedAirportContent({
     });
     content = await reviseAirportDigest({
       content,
+      issues: quality.issues,
       research,
       revisionAttempt,
       title,
@@ -823,11 +824,13 @@ async function prepareQualityCheckedAirportContent({
 
 async function reviseAirportDigest({
   content,
+  issues,
   research,
   revisionAttempt,
   title,
 }: {
   content: string;
+  issues: string[];
   research: BlogResearchResult;
   revisionAttempt: number;
   title: string;
@@ -842,8 +845,9 @@ async function reviseAirportDigest({
         role: "system",
         content: [
           "You are revising an INConnect 1-Minute Daily Digest for airport professionals.",
-          "Return exactly three developments and keep the total digest between 250 and 450 words.",
-          "Each development must be no more than 100 words.",
+          "Fix the listed quality issues exactly.",
+          "Return exactly three developments and keep the total digest between 300 and 360 words, safely inside the allowed 250-450 word range.",
+          "Each development should be 80-95 words and must never exceed 100 words.",
           "Each development must include exactly these labels: Headline:, Summary:, Why it matters:, Source URL:.",
           "Use section headings only: ## Development A, ## Development B, ## Development C.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
@@ -857,6 +861,9 @@ async function reviseAirportDigest({
         content: [
           `Title: ${title}`,
           `Revision attempt: ${revisionAttempt}`,
+          "",
+          "Quality issues to fix:",
+          ...issues.map((issue) => `- ${issue}`),
           "",
           "Research summary:",
           research.researchSummary,

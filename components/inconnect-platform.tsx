@@ -1254,31 +1254,34 @@ function PillarSection({
 function NetworkSummarySection() {
   return (
     <section className="px-5 py-12 sm:px-8 lg:px-10">
-      <div className="mx-auto max-w-7xl">
-        <div className="max-w-3xl">
-          <h2 className="text-3xl font-semibold text-[#191919] sm:text-4xl">
-            Professional Network
-          </h2>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
-            Coming soon: business matching, partner discovery, supplier
-            discovery, expert discovery, and opportunity matching.
-          </p>
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+        <div>
+          <div className="max-w-3xl">
+            <h2 className="text-3xl font-semibold text-[#191919] sm:text-4xl">
+              Professional Network
+            </h2>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
+              Coming soon: business matching, partner discovery, supplier
+              discovery, expert discovery, and opportunity matching.
+            </p>
+          </div>
+          <div className="mt-7 grid gap-4 sm:grid-cols-2">
+            {[
+              "Business Match",
+              "Supplier Discovery",
+              "Expert Discovery",
+              "Industry Communities",
+            ].map((item) => (
+              <article
+                className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+                key={item}
+              >
+                <h3 className="text-lg font-semibold text-[#191919]">{item}</h3>
+              </article>
+            ))}
+          </div>
         </div>
-        <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[
-            "Business Match",
-            "Supplier Discovery",
-            "Expert Discovery",
-            "Industry Communities",
-          ].map((item) => (
-            <article
-              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
-              key={item}
-            >
-              <h3 className="text-lg font-semibold text-[#191919]">{item}</h3>
-            </article>
-          ))}
-        </div>
+        <NetworkEarlyAccessForm />
       </div>
     </section>
   );
