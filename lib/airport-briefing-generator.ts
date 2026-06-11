@@ -272,11 +272,10 @@ export async function generateAndStoreAirportBriefing(options?: {
     quality,
   });
 
-  const { data, error } = await supabase
-    .from("airport_briefings")
-    .insert(payload)
-    .select("id, slug, title, published, generated_at, created_at, hero_image_url, published_at")
-    .single<StoredAirportBriefing>();
+  const { data, error } = await insertAirportBriefingWithSchemaFallback(
+    supabase,
+    payload,
+  );
 
   if (error) {
     console.error("INConnect Supabase airport_briefings insert failure", {
@@ -287,6 +286,13 @@ export async function generateAndStoreAirportBriefing(options?: {
     throw new AirportBriefingGenerationError(
       "supabase_insert",
       error.message || "Airport briefing insert failed.",
+    );
+  }
+
+  if (!data) {
+    throw new AirportBriefingGenerationError(
+      "supabase_insert",
+      "Airport briefing insert did not return a stored briefing.",
     );
   }
 
@@ -309,17 +315,60 @@ async function getExistingAirportBriefings(
 ) {
   const { data, error } = await supabase
     .from("airport_briefings")
-    .select("slug, title, content, created_at, generated_at, hero_image_prompt, research_summary")
+    .select("slug, title, content, created_at, generated_at, hero_image_prompt")
     .order("created_at", { ascending: false })
     .limit(200)
-    .returns<ExistingAirportBriefing[]>();
+    .returns<
+      Omit<ExistingAirportBriefing, "research_summary">[]
+    >();
 
   if (error) {
     console.error("AIRPORT_BRIEFINGS EXISTING LOOKUP ERROR", error);
     return [];
   }
 
-  return data ?? [];
+  return (data ?? []).map((briefing) => ({
+    ...briefing,
+    research_summary: null,
+  }));
+}
+
+async function insertAirportBriefingWithSchemaFallback(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  payload: Record<string, unknown>,
+) {
+  const insertResult = await supabase
+    .from("airport_briefings")
+    .insert(payload)
+    .select("id, slug, title, published, generated_at, created_at, hero_image_url, published_at")
+    .single<StoredAirportBriefing>();
+
+  if (!isMissingColumnError(insertResult.error)) return insertResult;
+
+  console.warn("INConnect airport_briefings insert retrying without new research columns", {
+    error: insertResult.error,
+  });
+
+  const fallbackPayload = { ...payload };
+  delete fallbackPayload.research_sources;
+  delete fallbackPayload.research_summary;
+  delete fallbackPayload.published_at;
+
+  const fallbackResult = await supabase
+    .from("airport_briefings")
+    .insert(fallbackPayload)
+    .select("id, slug, title, published, generated_at, created_at, hero_image_url")
+    .single<Omit<StoredAirportBriefing, "published_at">>();
+
+  return {
+    data: fallbackResult.data
+      ? {
+          ...fallbackResult.data,
+          published_at: null,
+        }
+      : null,
+    error: fallbackResult.error,
+  };
 }
 
 async function researchAirportAutomationTopic(
@@ -1140,6 +1189,14 @@ function hashString(value: string) {
 
 function getUtcDateSuffix() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isMissingColumnError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "42703"
+  );
 }
 
 function toAirportBriefingError(stage: string, error: unknown) {

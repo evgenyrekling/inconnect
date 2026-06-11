@@ -36,6 +36,11 @@ type AirportBriefingRow = {
   created_at: string;
 };
 
+type AirportBriefingLegacyRow = Omit<
+  AirportBriefingRow,
+  "published_at" | "research_sources" | "research_summary"
+>;
+
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const demoGeneratedAt = "2026-06-09T07:30:00.000Z";
 
@@ -106,6 +111,9 @@ export async function getPublishedAirportBriefings(limit?: number) {
     const { data, error } = await query.returns<AirportBriefingRow[]>();
 
     if (error) {
+      if (isMissingColumnError(error)) {
+        return getPublishedAirportBriefingsLegacy(limit);
+      }
       console.error("Airport briefings lookup failed", error);
       return [];
     }
@@ -133,6 +141,9 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
       .maybeSingle<AirportBriefingRow>();
 
     if (error) {
+      if (isMissingColumnError(error)) {
+        return getPublishedAirportBriefingBySlugLegacy(slug);
+      }
       console.error("Airport briefing lookup failed", { slug, error });
     }
 
@@ -143,6 +154,71 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
   } catch (error) {
     if (!isMissingSupabaseConfigError(error)) {
       console.error("Airport briefing fallback lookup used", { slug, error });
+    }
+  }
+
+  return demoAirportBriefings.find((briefing) => briefing.slug === slug) ?? null;
+}
+
+async function getPublishedAirportBriefingsLegacy(limit?: number) {
+  try {
+    const supabase = getSupabaseAdminClient();
+    let query = supabase
+      .from("airport_briefings")
+      .select(
+        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, seo_title, seo_description, published, generated_at, created_at",
+      )
+      .eq("published", true)
+      .order("generated_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+    if (typeof limit === "number") {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query.returns<AirportBriefingLegacyRow[]>();
+
+    if (error) {
+      console.error("Airport briefings legacy lookup failed", error);
+      return [];
+    }
+
+    return (data ?? [])
+      .map(mapAirportBriefingLegacyRow)
+      .filter(isDisplayableAirportBriefing);
+  } catch (error) {
+    if (!isMissingSupabaseConfigError(error)) {
+      console.error("Airport briefings legacy fallback used", error);
+      return [];
+    }
+    return demoAirportBriefings;
+  }
+}
+
+async function getPublishedAirportBriefingBySlugLegacy(slug: string) {
+  try {
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("airport_briefings")
+      .select(
+        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, seo_title, seo_description, published, generated_at, created_at",
+      )
+      .eq("slug", slug)
+      .eq("published", true)
+      .maybeSingle<AirportBriefingLegacyRow>();
+
+    if (error) {
+      console.error("Airport briefing legacy lookup failed", { slug, error });
+      return null;
+    }
+
+    if (data) {
+      const briefing = mapAirportBriefingLegacyRow(data);
+      if (isDisplayableAirportBriefing(briefing)) return briefing;
+    }
+  } catch (error) {
+    if (!isMissingSupabaseConfigError(error)) {
+      console.error("Airport briefing legacy fallback lookup used", { slug, error });
     }
   }
 
@@ -177,10 +253,27 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
   };
 }
 
+function mapAirportBriefingLegacyRow(row: AirportBriefingLegacyRow): AirportBriefing {
+  return mapAirportBriefingRow({
+    ...row,
+    published_at: null,
+    research_sources: null,
+    research_summary: null,
+  });
+}
+
 function isMissingSupabaseConfigError(error: unknown) {
   return (
     error instanceof Error &&
     error.message.includes("Supabase server configuration is missing")
+  );
+}
+
+function isMissingColumnError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "42703"
   );
 }
 
