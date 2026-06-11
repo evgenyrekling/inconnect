@@ -209,10 +209,9 @@ const PRIMARY_CTA_CLASS =
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
-  { label: "Assessment", href: "/assessment" },
-  { label: "Headline Generator", href: "/headline-generator" },
-  { label: "About Generator", href: "/about-generator" },
   { label: "Intelligence", href: "/intelligence" },
+  { label: "Tools", href: "/assessment" },
+  { label: "Network", href: "/#network" },
   { label: "Pricing", href: "/pricing" },
 ];
 
@@ -1060,12 +1059,11 @@ function HeroSection() {
             Professional Intelligence Platform
           </p>
           <h1 className="mt-5 max-w-5xl text-4xl font-semibold leading-tight sm:text-6xl">
-            Discover opportunities, stay informed, and connect with the right professionals.
+            Professional Intelligence for Growth, Visibility, and Connections
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/72 sm:text-lg">
-            INConnect combines professional profile intelligence, industry
-            insights, and future networking opportunities to help professionals
-            and companies grow.
+            Discover opportunities, stay informed, improve your professional
+            presence, and connect with the right people.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <a
@@ -1073,27 +1071,18 @@ function HeroSection() {
                 "inline-flex h-12 items-center justify-center rounded-lg px-5",
                 PRIMARY_CTA_CLASS,
               )}
+              href="/intelligence"
+            >
+              Explore Intelligence
+            </a>
+            <a
+              className={classNames(
+                "inline-flex h-12 items-center justify-center rounded-lg px-5",
+                PRIMARY_CTA_CLASS,
+              )}
               href="/assessment"
             >
-              Start Assessment
-            </a>
-            <a
-              className={classNames(
-                "inline-flex h-12 items-center justify-center rounded-lg px-5",
-                PRIMARY_CTA_CLASS,
-              )}
-              href="/headline-generator"
-            >
-              Generate Headlines
-            </a>
-            <a
-              className={classNames(
-                "inline-flex h-12 items-center justify-center rounded-lg px-5",
-                PRIMARY_CTA_CLASS,
-              )}
-              href="/about-generator"
-            >
-              Generate About Section
+              Improve Your Profile
             </a>
           </div>
         </div>
@@ -1103,217 +1092,237 @@ function HeroSection() {
   );
 }
 
-function ModuleGrid() {
-  const { isAdmin: articleAccessIsAdmin, isChecking: articleAccessIsChecking } =
-    useArticleGeneratorAccess();
-  const modules = [
-    {
-      title: "Profile Intelligence Assessment",
-      status: "Active",
-      description: "Upload your LinkedIn Profile PDF and discover how the market sees you.",
-      features: [
-        "Authority Score",
-        "Professional Archetype",
-        "Market Position",
-        "Assessment History",
-      ],
-      href: "/assessment",
-    },
-    {
-      title: "Headline Generator",
-      status: "Active",
-      description:
-        "Create strategic LinkedIn headlines based on your expertise, value, and desired market perception.",
-      features: [
-        "5-step questionnaire",
-        "AI-generated headlines",
-        "Recommended headline",
-        "Copy and regenerate",
-      ],
-      href: "/headline-generator",
-    },
-    {
-      title: "About Generator",
-      status: "Active",
-      description:
-        "Create a powerful LinkedIn About section from your expertise, business value, and positioning goals.",
-      features: [
-        "7-step positioning wizard",
-        "AI-generated About sections",
-        "Recommended version",
-        "Copy and regenerate",
-      ],
-      href: "/about-generator",
-    },
-    {
-      title: "LinkedIn Article Generator",
-      status: "PRO",
-      description:
-        "Create long-form LinkedIn articles, industry insights, newsletters, and thought leadership content.",
-      features: [
-        "AI-generated articles",
-        "Industry-focused content",
-        "Thought leadership positioning",
-        "Article announcement post",
-        "Newsletter-ready output",
-      ],
-      href: "/article-generator",
-    },
-    {
-      title: "Trend Radar",
-      status: "Coming Soon in Pro",
-      description: "Discover emerging industry trends aligned with your expertise and positioning.",
-      features: [
-        "Industry trend detection",
-        "Growth opportunities",
-        "Technology trends",
-        "Authority themes",
-      ],
-      href: "#trend-radar",
-    },
-    {
-      title: "Content Intelligence",
-      status: "Coming Soon in Pro",
-      description:
-        "Generate personalized LinkedIn content opportunities based on your expertise and positioning.",
-      features: [
-        "Content pillars",
-        "Post ideas",
-        "Newsletter ideas",
-        "Weekly roadmap",
-      ],
-      href: "#content-intelligence",
-    },
-    {
-      title: "Profile Optimization Suite",
-      status: "Coming Soon",
-      description:
-        "Future tools for rewriting, strengthening, and optimizing every major LinkedIn profile section.",
-      features: [
-        "Experience Rewriter",
-        "Skills Optimizer",
-        "Profile Strength Check",
-        "Keyword Optimizer",
-      ],
-      href: "#profile-optimization-suite",
-    },
-    {
-      title: "Personal Brand Intelligence",
-      status: "Future",
-      description:
-        "Future assessments for leadership style, communication style, and personal brand positioning.",
-      features: [
-        "Archetype Assessment",
-        "Leadership Style",
-        "Communication Style",
-        "Brand Positioning",
-      ],
-      href: "#personal-brand-intelligence",
-    },
-  ];
-
+function PlatformPillars() {
   return (
-    <section className="bg-[#F3F2EF] px-5 py-10 sm:px-8 lg:px-10" id="modules">
+    <div className="bg-[#F3F2EF]">
+      <PillarSection
+        cards={[
+          { status: "Active", title: "Airport Automation Daily" },
+          { status: "Active", title: "B2B Sales & LinkedIn Daily" },
+          { status: "Coming Soon", title: "Smart Mobility Daily" },
+          { status: "Coming Soon", title: "Industrial Automation Daily" },
+        ]}
+        ctaHref="/intelligence"
+        ctaLabel="View Intelligence"
+        eyebrow="Pillar 1"
+        subtitle="Stay ahead with AI-curated daily briefings, market signals, and business-relevant insights."
+        title="Professional Intelligence"
+      />
+      <PillarSection
+        cards={[
+          { title: "LinkedIn Profile Assessment" },
+          { title: "Headline Generator" },
+          { title: "About Generator" },
+        ]}
+        ctaHref="/assessment"
+        ctaLabel="Improve My Profile"
+        eyebrow="Pillar 2"
+        subtitle="Improve how the market understands your expertise, authority, and professional value."
+        title="Professional Visibility"
+      />
+      <ProfessionalNetworkSection />
+    </div>
+  );
+}
+
+function PillarSection({
+  cards,
+  ctaHref,
+  ctaLabel,
+  eyebrow,
+  subtitle,
+  title,
+}: {
+  cards: Array<{ status?: string; title: string }>;
+  ctaHref: string;
+  ctaLabel: string;
+  eyebrow: string;
+  subtitle: string;
+  title: string;
+}) {
+  return (
+    <section className="px-5 py-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Professional Intelligence Platform
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold text-[#191919]">
-            One platform for intelligence, insight, authority, and opportunity.
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-[#666666]">
-            LinkedIn tools remain a practical entry point. INConnect is growing
-            into a broader professional intelligence platform for industry
-            insights, authority building, future business matching, and
-            professional opportunity discovery.
-          </p>
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+              {eyebrow}
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold text-[#191919] sm:text-4xl">
+              {title}
+            </h2>
+            <p className="mt-3 text-base leading-7 text-[#666666]">{subtitle}</p>
+          </div>
+          <a
+            className={classNames(
+              "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm",
+              PRIMARY_CTA_CLASS,
+            )}
+            href={ctaHref}
+          >
+            {ctaLabel}
+          </a>
         </div>
-        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {modules.map((module) => {
-            const isActive = module.status === "Active";
-            const isArticleModule = module.title === "LinkedIn Article Generator";
-            const isPremium = module.status === "PRO";
-            return (
-              <article
-                className={classNames(
-                  "flex min-h-full flex-col rounded-lg border p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]",
-                  isActive || isPremium
-                    ? "border-[#0A66C2]/25 bg-white"
-                    : "border-[#D9DDE3] bg-[#F8F8F6]",
-                )}
-                key={module.title}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-[#191919]">{module.title}</h3>
+        <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {cards.map((card) => (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+              key={card.title}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-semibold leading-snug text-[#191919]">
+                  {card.title}
+                </h3>
+                {card.status && (
                   <span
                     className={classNames(
                       "shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold",
-                      isActive
+                      card.status === "Active"
                         ? "border-[#057642]/20 bg-[#EEF7F2] text-[#057642]"
-                        : isPremium
-                          ? "border-[#0A66C2]/20 bg-[#E8F1FB] text-[#0A66C2]"
-                          : "border-[#D9DDE3] bg-white text-[#666666]",
+                        : "border-[#D9DDE3] bg-[#F8F8F6] text-[#666666]",
                     )}
                   >
-                    {module.status}
+                    {card.status}
                   </span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-[#666666]">
-                  {module.description}
-                </p>
-                <ul className="mt-4 grid gap-2 text-sm leading-6 text-[#666666]">
-                  {module.features.map((feature) => (
-                    <li className="flex gap-2" key={feature}>
-                      {isActive || isPremium ? (
-                        <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
-                      ) : (
-                        <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#0A66C2]" />
-                      )}
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                {isActive ? (
-                  <a
-                    className={classNames(
-                      "mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg px-4 text-sm",
-                      PRIMARY_CTA_CLASS,
-                    )}
-                    href={module.href}
-                  >
-                    {module.title === "Headline Generator"
-                      ? "Generate Headlines"
-                      : module.title === "About Generator"
-                        ? "Generate About Section"
-                        : "Start Assessment"}
-                  </a>
-                ) : isArticleModule ? (
-                  <a
-                    aria-disabled={!articleAccessIsAdmin}
-                    className={classNames(
-                      "mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors duration-200 ease-[ease]",
-                      articleAccessIsAdmin
-                        ? `${PRIMARY_CTA_CLASS}`
-                        : "border border-[#D9DDE3] bg-[#F8F8F6] text-[#666666] hover:border-[#0A66C2] hover:text-[#0A66C2]",
-                    )}
-                    href={articleAccessIsAdmin ? "/article-generator" : "/pricing"}
-                  >
-                    {articleAccessIsChecking
-                      ? "Checking Access..."
-                      : articleAccessIsAdmin
-                        ? "Generate Article"
-                        : "Available in Pro"}
-                  </a>
-                ) : (
-                  <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-white px-4 py-3 text-center text-sm font-semibold text-[#666666]">
-                    Coming Soon
-                  </p>
                 )}
-              </article>
-            );
-          })}
+              </div>
+            </article>
+          ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ProfessionalNetworkSection() {
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const [profileConsent, setProfileConsent] = useState(false);
+
+  async function submitEarlyAccess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/intelligence-subscriptions", {
+        body: JSON.stringify({
+          email,
+          intelligenceType: "network_early_access",
+          name,
+          profileConsent,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | Partial<IntelligenceSubscriptionResponse>
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload && "error" in payload && payload.error
+            ? payload.error
+            : "Early access could not be saved.",
+        );
+      }
+
+      setMessage("You are on the early access list for Professional Network.");
+      setEmail("");
+      setName("");
+      setProfileConsent(false);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Early access could not be saved.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="px-5 py-12 sm:px-8 lg:px-10" id="network">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
+            Pillar 3
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold text-[#191919] sm:text-4xl">
+            Professional Network
+          </h2>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
+            Coming soon: business matching, partner discovery, supplier
+            discovery, expert discovery, and opportunity matching.
+          </p>
+          <div className="mt-7 grid gap-4 sm:grid-cols-2">
+            {[
+              "Business Match",
+              "Supplier Discovery",
+              "Expert Discovery",
+              "Industry Communities",
+            ].map((item) => (
+              <article
+                className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+                key={item}
+              >
+                <h3 className="text-lg font-semibold text-[#191919]">{item}</h3>
+              </article>
+            ))}
+          </div>
+        </div>
+        <form
+          className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_10px_28px_rgba(10,25,47,0.07)] sm:p-7"
+          onSubmit={submitEarlyAccess}
+        >
+          <h3 className="text-xl font-semibold text-[#191919]">Join Early Access</h3>
+          <div className="mt-5 grid gap-4">
+            <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+              Name
+              <input
+                className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+                onChange={(event) => setName(event.target.value)}
+                value={name}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+              Email
+              <input
+                className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                value={email}
+              />
+            </label>
+            <label className="flex gap-3 text-sm leading-6 text-[#666666]">
+              <input
+                checked={profileConsent}
+                className="mt-1 h-4 w-4 rounded border-[#D9DDE3]"
+                onChange={(event) => setProfileConsent(event.target.checked)}
+                type="checkbox"
+              />
+              I agree that INConnect may store my information for Professional
+              Network early access.
+            </label>
+            <button
+              className={classNames(
+                "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              disabled={isSubmitting || !name.trim() || !email.trim() || !profileConsent}
+              type="submit"
+            >
+              {isSubmitting ? "Joining..." : "Join Early Access"}
+            </button>
+            {message && (
+              <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-4 py-3 text-sm font-semibold text-[#444444]">
+                {message}
+              </p>
+            )}
+          </div>
+        </form>
       </div>
     </section>
   );
@@ -5176,10 +5185,9 @@ function useHeadlineGeneratorIdentity() {
 export function INConnectHomePage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header showSocialProof />
+      <Header />
       <HeroSection />
-      <ModuleGrid />
-      <SponsoredContent />
+      <PlatformPillars />
       <Footer />
     </main>
   );

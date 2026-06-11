@@ -61,6 +61,15 @@ const INTELLIGENCE_TYPES = {
       "Smart Infrastructure",
     ],
   },
+  network_early_access: {
+    label: "Professional Network Early Access",
+    profileInterests: [
+      "Professional Network",
+      "Business Matching",
+      "Partner Discovery",
+      "Opportunity Matching",
+    ],
+  },
 } as const;
 
 export async function POST(request: NextRequest) {
