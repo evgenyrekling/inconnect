@@ -1182,8 +1182,8 @@ function AccountSignInModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0A192F]/60 px-5">
-      <div className="w-full max-w-md rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_24px_70px_rgba(10,25,47,0.28)]">
+    <div className="fixed inset-0 z-[70] flex min-h-screen items-center justify-center overflow-y-auto bg-[#0A192F]/60 p-6 sm:p-8">
+      <div className="max-h-[calc(100vh-48px)] w-full max-w-md overflow-y-auto rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_24px_70px_rgba(10,25,47,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
@@ -1356,16 +1356,75 @@ function NavigationDropdown({
   mobile?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const openMenu = useCallback(() => {
+    clearCloseTimer();
+    setIsOpen(true);
+  }, [clearCloseTimer]);
+
+  const closeMenu = useCallback(() => {
+    clearCloseTimer();
+    setIsOpen(false);
+  }, [clearCloseTimer]);
+
+  const scheduleCloseMenu = useCallback(() => {
+    if (mobile) return;
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsOpen(false);
+      closeTimerRef.current = null;
+    }, 200);
+  }, [clearCloseTimer, mobile]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleDocumentPointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
+        closeMenu();
+      }
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+
+    document.addEventListener("mousedown", handleDocumentPointerDown);
+    document.addEventListener("touchstart", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentPointerDown);
+      document.removeEventListener("touchstart", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [closeMenu, isOpen]);
+
+  useEffect(() => {
+    return () => clearCloseTimer();
+  }, [clearCloseTimer]);
 
   return (
     <div
+      ref={dropdownRef}
       className={classNames("relative", mobile && "shrink-0")}
       onMouseEnter={() => {
-        if (!mobile) setIsOpen(true);
+        if (!mobile) openMenu();
       }}
-      onMouseLeave={() => {
-        if (!mobile) setIsOpen(false);
-      }}
+      onMouseLeave={scheduleCloseMenu}
     >
       <div className="flex items-center">
         <a
@@ -1379,9 +1438,17 @@ function NavigationDropdown({
         </a>
         <button
           aria-expanded={isOpen}
+          aria-haspopup="menu"
           aria-label={`Toggle ${label} menu`}
           className="rounded-r-lg px-2 py-2 text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
           onClick={() => setIsOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeMenu();
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              openMenu();
+            }
+          }}
           type="button"
         >
           <ChevronDown
@@ -1395,31 +1462,36 @@ function NavigationDropdown({
       {isOpen && (
         <div
           className={classNames(
-            "z-50 rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]",
-            mobile ? "mt-2 w-64" : "absolute left-0 top-10 w-72",
+            "z-50",
+            mobile ? "mt-2 w-64" : "absolute left-0 top-full w-72 pt-2",
           )}
+          role="menu"
         >
-          {items.map((item) => (
-            <a
-              className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-              href={item.href}
-              key={item.href}
-            >
-              <span>{item.label}</span>
-              {item.status && (
-                <span
-                  className={classNames(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
-                    item.status === "Active"
-                      ? "bg-[#E6F4EA] text-[#057642]"
-                      : "bg-[#F3F2EF] text-[#666666]",
-                  )}
-                >
-                  {item.status}
-                </span>
-              )}
-            </a>
-          ))}
+          <div className="rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]">
+            {items.map((item) => (
+              <a
+                className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2] lg:py-2"
+                href={item.href}
+                key={item.href}
+                onClick={closeMenu}
+                role="menuitem"
+              >
+                <span>{item.label}</span>
+                {item.status && (
+                  <span
+                    className={classNames(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
+                      item.status === "Active"
+                        ? "bg-[#E6F4EA] text-[#057642]"
+                        : "bg-[#F3F2EF] text-[#666666]",
+                    )}
+                  >
+                    {item.status}
+                  </span>
+                )}
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </div>
