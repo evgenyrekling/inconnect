@@ -65,6 +65,7 @@ type SkippedImportRow = {
 };
 
 const MAX_ERROR_COUNT = 80;
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData().catch(() => null);
@@ -434,22 +435,23 @@ function parseContactsCsv(csvText: string) {
   if (rows.length === 0) return [];
 
   const header = rows[0].map((column) => normalizeHeader(column));
+  const hasHeader = looksLikeHeader(header, rows[0]);
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const rowNumberOffset = hasHeader ? 2 : 1;
 
-  return rows.slice(1).flatMap((row, index) => {
+  return dataRows.flatMap((row, index) => {
     if (row.every((cell) => !cell.trim())) return [];
-    const firstName = getCsvValue(row, header, "first_name");
-    const lastName = getCsvValue(row, header, "last_name");
-    const combinedName = cleanText([firstName, lastName].filter(Boolean).join(" "), 180);
+    const email = extractEmail(getCsvValue(row, header, "email")) || findEmailInRow(row);
 
     return [
       {
         company: getCsvValue(row, header, "company"),
-        email: getCsvValue(row, header, "email"),
+        email,
         industry: getCsvValue(row, header, "industry"),
         linkedinUrl: getCsvValue(row, header, "linkedin_url"),
         location: getCsvValue(row, header, "location"),
-        name: getCsvValue(row, header, "name") || combinedName,
-        rowNumber: index + 2,
+        name: inferContactName(row, header),
+        rowNumber: index + rowNumberOffset,
         title: getCsvValue(row, header, "title"),
       },
     ];
@@ -507,6 +509,23 @@ function getCsvValue(row: string[], header: string[], column: string) {
   return index >= 0 ? cleanText(row[index] ?? "", 500) : "";
 }
 
+function looksLikeHeader(header: string[], firstRow: string[]) {
+  const recognizedHeaders = new Set([
+    "company",
+    "email",
+    "first_name",
+    "industry",
+    "last_name",
+    "linkedin_url",
+    "location",
+    "name",
+    "title",
+  ]);
+
+  if (firstRow.some((cell) => EMAIL_PATTERN.test(cell))) return false;
+  return header.some((column) => recognizedHeaders.has(column));
+}
+
 function normalizeHeader(value: string) {
   const normalizedValue = value
     .trim()
@@ -516,23 +535,79 @@ function normalizeHeader(value: string) {
     .replace(/^_+|_+$/g, "");
 
   const aliases: Record<string, string> = {
+    business_email: "email",
     company: "company",
+    company_name: "company",
     email: "email",
+    email_1: "email",
     email_address: "email",
+    email_address_work: "email",
+    e_mail: "email",
     first_name: "first_name",
+    firstname: "first_name",
     full_name: "name",
     industry: "industry",
     last_name: "last_name",
+    lastname: "last_name",
     linkedin: "linkedin_url",
     linkedin_profile: "linkedin_url",
     linkedin_url: "linkedin_url",
     location: "location",
+    mail: "email",
     name: "name",
     position: "title",
+    primary_email: "email",
+    surname: "last_name",
     title: "title",
+    work_email: "email",
   };
 
   return aliases[normalizedValue] ?? normalizedValue;
+}
+
+function findEmailInRow(row: string[]) {
+  for (const cell of row) {
+    const email = extractEmail(cell);
+    if (email) return email;
+  }
+
+  return "";
+}
+
+function extractEmail(value: string) {
+  const match = value.match(EMAIL_PATTERN);
+  return match ? cleanText(match[0], 500) : "";
+}
+
+function inferContactName(row: string[], header: string[]) {
+  const firstName = getCsvValue(row, header, "first_name");
+  const lastName = getCsvValue(row, header, "last_name");
+  const headerName =
+    getCsvValue(row, header, "name") ||
+    cleanText([firstName, lastName].filter(Boolean).join(" "), 180);
+
+  if (headerName) return headerName;
+
+  const nameParts: string[] = [];
+  for (const cell of row) {
+    const candidate = cleanText(cell.replace(EMAIL_PATTERN, " "), 80);
+    if (!candidate || !looksLikeNameCell(candidate)) continue;
+    nameParts.push(candidate);
+    if (nameParts.length >= 2) break;
+  }
+
+  return cleanText(nameParts.join(" "), 180);
+}
+
+function looksLikeNameCell(value: string) {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) return false;
+  if (EMAIL_PATTERN.test(normalizedValue)) return false;
+  if (/^\+?[\d\s().-]+$/.test(normalizedValue)) return false;
+  if (/^\d+(?:\.\d+)?e\+?\d+$/i.test(normalizedValue)) return false;
+  if (/^(mr|mrs|ms|dr|prof)\.?$/i.test(normalizedValue)) return false;
+  if (/https?:\/\//i.test(normalizedValue)) return false;
+  return /[a-z]/i.test(normalizedValue);
 }
 
 function isEmptyJsonArray(value: unknown) {

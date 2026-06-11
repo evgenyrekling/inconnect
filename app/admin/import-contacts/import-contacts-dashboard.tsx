@@ -150,7 +150,8 @@ export function ImportContactsDashboard() {
                 <p className="mt-2">
                   Required: `name` and `email`. Supported aliases include
                   `Email Address`, `Full Name`, `First Name`, `Last Name`, and
-                  `Position`.
+                  `Position`. If an email appears elsewhere in a row, INConnect
+                  will detect it automatically.
                 </p>
               </div>
 
