@@ -394,7 +394,17 @@ function renderInlineMarkdown(value: string): ReactNode[] {
     const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
       if (!linkMatch[2].startsWith("/")) {
-        nodes.push(linkMatch[1]);
+        nodes.push(
+          <a
+            className="font-semibold text-[#0A66C2] underline-offset-4 transition hover:text-[#004182] hover:underline"
+            href={linkMatch[2]}
+            key={`${linkMatch[1]}-${match.index}`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {linkMatch[1]}
+          </a>,
+        );
         lastIndex = match.index + match[0].length;
         continue;
       }

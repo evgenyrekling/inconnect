@@ -78,7 +78,8 @@ export default async function AirportBriefingPage({
 
   if (!briefing) notFound();
 
-  const previewContent = createBriefingPreview(briefing.content);
+  const displayContent = formatAirportPostForDisplay(briefing.content);
+  const previewContent = createBriefingPreview(displayContent);
   const relatedBriefings = selectRelatedBriefings(
     briefing,
     await getPublishedAirportBriefings(),
@@ -148,11 +149,11 @@ export default async function AirportBriefingPage({
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <IntelligenceBriefingAccess
-          fullContent={briefing.content}
+          fullContent={displayContent}
           intelligenceType="airport_automation"
           previewContent={previewContent}
           streamTitle="Airport Automation Daily"
-          unlockTitle="Unlock Full Digest"
+          unlockTitle="Unlock Full Post"
         />
       </section>
       <RelatedAirportBriefings briefings={relatedBriefings} />
@@ -167,6 +168,13 @@ export default async function AirportBriefingPage({
 
 function createBriefingPreview(content: string) {
   return truncateMarkdownByWordShare(content.trim(), 0.3);
+}
+
+function formatAirportPostForDisplay(content: string) {
+  return content
+    .replace(/^##\s+Post\s*/i, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function truncateMarkdownByWordShare(content: string, share: number) {
