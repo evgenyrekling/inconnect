@@ -151,9 +151,12 @@ create table if not exists public.airport_briefings (
   content text,
   hero_image_url text,
   hero_image_prompt text,
+  research_sources jsonb default '[]'::jsonb,
+  research_summary text,
   seo_title text,
   seo_description text,
   published boolean default true,
+  published_at timestamptz,
   generated_at timestamptz default now(),
   created_at timestamptz default now()
 );

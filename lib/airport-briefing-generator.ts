@@ -1,9 +1,5 @@
 import OpenAI from "openai";
-import {
-  researchBlogTopic,
-  type BlogResearchExistingPost,
-  type BlogResearchResult,
-} from "@/lib/blog-research";
+import type { BlogResearchResult, BlogResearchSource } from "@/lib/blog-research";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 type GeneratedAirportBriefing = {
@@ -16,9 +12,11 @@ type GeneratedAirportBriefing = {
 };
 
 type ExistingAirportBriefing = {
+  content: string | null;
   created_at: string;
   generated_at: string | null;
   hero_image_prompt: string | null;
+  research_summary: string | null;
   slug: string | null;
   title: string | null;
 };
@@ -31,6 +29,7 @@ type StoredAirportBriefing = {
   generated_at: string | null;
   created_at: string;
   hero_image_url: string | null;
+  published_at: string | null;
 };
 
 type AirportHeroImageResult = {
@@ -58,13 +57,105 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 1200;
+const MIN_AIRPORT_WORD_COUNT = 900;
+const MAX_AIRPORT_RESEARCH_SOURCES = 5;
+const MIN_AIRPORT_RESEARCH_SOURCES = 3;
+const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
 
-const AIRPORT_BRIEFING_TOPIC = {
-  category: "Airport Automation",
-  topic:
-    "airport automation, baggage handling systems, RFID baggage tracking, passenger processing, biometrics, airport security, AI, LiDAR, robotics, digital airports, smart airport infrastructure, and airport automation projects",
-};
+const AIRPORT_RESEARCH_QUERIES = [
+  "airport automation news",
+  "airport baggage handling automation",
+  "smart airport technology",
+  "airport biometrics passenger processing",
+  "airport RFID baggage tracking",
+  "airport robotics news",
+  "airport AI operations",
+  "airport security automation",
+  "airport digital transformation",
+  "baggage handling system project airport",
+  "SITA airport technology news",
+  "Vanderlande airport automation news",
+  "BEUMER airport baggage handling news",
+  "Amadeus airport passenger processing news",
+  "Collins aerospace airport systems",
+  "Daifuku airport baggage handling",
+];
+
+const AIRPORT_ALLOWED_KEYWORDS = [
+  "airport",
+  "airports",
+  "aviation",
+  "airline",
+  "airlines",
+  "terminal",
+  "airside",
+  "baggage",
+  "passenger processing",
+  "passenger flow",
+  "biometric",
+  "biometrics",
+  "e-gate",
+  "egate",
+  "rfid",
+  "automatic tag reading",
+  "atr",
+  "security automation",
+  "smart airport",
+  "airport robotics",
+  "airport ai",
+  "lidar",
+  "vision systems",
+  "airport sensors",
+  "airport logistics",
+  "sita",
+  "vanderlande",
+  "beumer",
+  "daifuku",
+  "materna",
+  "assaia",
+  "adb safegate",
+  "amadeus",
+  "collins aerospace",
+];
+
+const AIRPORT_FORBIDDEN_KEYWORDS = [
+  "linkedin optimization",
+  "linkedin headline",
+  "linkedin headlines",
+  "linkedin profile",
+  "personal branding",
+  "profile visibility",
+  "b2b sales visibility",
+  "career growth",
+  "resume",
+  "job search",
+  "app store",
+  "play store",
+  "generic ai",
+  "ai for professionals",
+];
+
+const AIRPORT_PREFERRED_DOMAINS = [
+  "airport-technology.com",
+  "futuretravelexperience.com",
+  "passengerterminaltoday.com",
+  "internationalairportreview.com",
+  "aviationweek.com",
+  "aci.aero",
+  "iata.org",
+  "sita.aero",
+  "amadeus.com",
+  "collinsaerospace.com",
+  "vanderlande.com",
+  "beumergroup.com",
+  "daifuku.com",
+  "materna-ips.com",
+  "assaia.com",
+  "adbsafegate.com",
+];
+
+const AIRPORT_TITLE_KEYWORD_PATTERN =
+  /\b(airport|baggage|passenger processing|biometric|rfid|smart airport|terminal|aviation|airside)\b/i;
 
 const airportBriefingSchema = {
   type: "object",
@@ -117,16 +208,10 @@ export async function generateAndStoreAirportBriefing(options?: {
   }
 
   const existingBriefings = await getExistingAirportBriefings(supabase);
-  const researchExistingPosts = existingBriefings.map((briefing) => ({
-    article_angle: null,
-    category: "Airport Automation",
-    created_at: briefing.created_at,
-    title: briefing.title,
-  })) satisfies BlogResearchExistingPost[];
 
   let research: BlogResearchResult;
   try {
-    research = await researchBlogTopic(AIRPORT_BRIEFING_TOPIC, researchExistingPosts);
+    research = await researchAirportAutomationTopic(existingBriefings);
   } catch (error) {
     console.error("INConnect airport briefing web research failure", error);
     throw toAirportBriefingError("web_research", error);
@@ -134,7 +219,7 @@ export async function generateAndStoreAirportBriefing(options?: {
 
   let generatedBriefing: GeneratedAirportBriefing;
   try {
-    generatedBriefing = await generateAirportBriefing(research);
+    generatedBriefing = await generateAirportBriefingWithTitleValidation(research);
     console.info("INConnect OpenAI airport briefing generation success", {
       sourceCount: research.researchSources.length,
       title: generatedBriefing.title,
@@ -168,12 +253,15 @@ export async function generateAndStoreAirportBriefing(options?: {
     content,
     hero_image_url: heroImage.url,
     hero_image_prompt: heroImage.prompt,
+    research_sources: research.researchSources,
+    research_summary: research.researchSummary,
     seo_title: cleanText(generatedBriefing.seoTitle || title, 180),
     seo_description: cleanText(
       generatedBriefing.seoDescription || generatedBriefing.excerpt,
       320,
     ),
     published: true,
+    published_at: now,
     generated_at: now,
     created_at: now,
   };
@@ -187,7 +275,7 @@ export async function generateAndStoreAirportBriefing(options?: {
   const { data, error } = await supabase
     .from("airport_briefings")
     .insert(payload)
-    .select("id, slug, title, published, generated_at, created_at, hero_image_url")
+    .select("id, slug, title, published, generated_at, created_at, hero_image_url, published_at")
     .single<StoredAirportBriefing>();
 
   if (error) {
@@ -205,6 +293,7 @@ export async function generateAndStoreAirportBriefing(options?: {
   console.info("INConnect Supabase airport_briefings insert success", {
     heroImageUrl: data.hero_image_url,
     id: data.id,
+    publishedAt: data.published_at,
     published: data.published,
     slug: data.slug,
   });
@@ -220,7 +309,7 @@ async function getExistingAirportBriefings(
 ) {
   const { data, error } = await supabase
     .from("airport_briefings")
-    .select("slug, title, created_at, generated_at, hero_image_prompt")
+    .select("slug, title, content, created_at, generated_at, hero_image_prompt, research_summary")
     .order("created_at", { ascending: false })
     .limit(200)
     .returns<ExistingAirportBriefing[]>();
@@ -233,7 +322,260 @@ async function getExistingAirportBriefings(
   return data ?? [];
 }
 
-async function generateAirportBriefing(research: BlogResearchResult) {
+async function researchAirportAutomationTopic(
+  existingBriefings: ExistingAirportBriefing[],
+): Promise<BlogResearchResult> {
+  console.info("INConnect airport automation web research started", {
+    queryCount: AIRPORT_RESEARCH_QUERIES.length,
+  });
+
+  const currentYear = new Date().getUTCFullYear();
+  const discoveredSources: BlogResearchSource[] = [];
+
+  for (const baseQuery of AIRPORT_RESEARCH_QUERIES) {
+    const query = `${baseQuery} ${currentYear}`;
+    const sources = await searchAirportResearchSources(query).catch((error) => {
+      console.warn("INConnect airport research query failed", {
+        error: error instanceof Error ? error.message : String(error),
+        query,
+      });
+      return [];
+    });
+
+    addUniqueAirportSources(discoveredSources, sources);
+    if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 4) break;
+  }
+
+  const selectedSources = selectAirportResearchSources(discoveredSources);
+
+  if (selectedSources.length < MIN_AIRPORT_RESEARCH_SOURCES) {
+    throw new Error(
+      `Airport web research found ${selectedSources.length} usable sources; at least ${MIN_AIRPORT_RESEARCH_SOURCES} are required.`,
+    );
+  }
+
+  const articleAngle = chooseAirportBriefingAngle(selectedSources, existingBriefings);
+  const researchSummary = createAirportResearchSummary(selectedSources, articleAngle);
+
+  console.info("INConnect airport automation web research success", {
+    angle: articleAngle,
+    sourceCount: selectedSources.length,
+    sources: selectedSources.map((source) => ({
+      domain: source.domain,
+      title: source.title,
+      url: source.url,
+    })),
+  });
+
+  return {
+    articleAngle,
+    researchSources: selectedSources,
+    researchSummary,
+  };
+}
+
+async function searchAirportResearchSources(query: string): Promise<BlogResearchSource[]> {
+  const encodedQuery = encodeURIComponent(query);
+  const urls = [
+    `https://www.bing.com/news/search?q=${encodedQuery}&format=rss`,
+    `https://www.bing.com/search?q=${encodedQuery}&format=rss`,
+  ];
+  const results: BlogResearchSource[] = [];
+
+  for (const url of urls) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AIRPORT_RESEARCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "user-agent": "INConnectBot/1.0 airport automation research",
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) continue;
+
+      const rss = await response.text();
+      addUniqueAirportSources(results, parseAirportRssItems(rss));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return results.filter(isAirportRelevantSource);
+}
+
+function parseAirportRssItems(rss: string): BlogResearchSource[] {
+  const itemMatches = rss.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
+
+  return itemMatches.flatMap((item) => {
+      const title = decodeXml(extractXmlValue(item, "title"));
+      const link = decodeXml(extractXmlValue(item, "link"));
+      const description = decodeXml(extractXmlValue(item, "description"));
+      const publishedAt = decodeXml(extractXmlValue(item, "pubDate"));
+      const url = normalizeAirportSourceUrl(link);
+      if (!title || !url) return [];
+
+      return {
+        domain: getDomain(url),
+        excerpt: cleanText(stripHtml(description), 320),
+        publishedAt: publishedAt || undefined,
+        title: cleanText(stripHtml(title), 220),
+        url,
+      } satisfies BlogResearchSource;
+    });
+}
+
+function selectAirportResearchSources(sources: BlogResearchSource[]) {
+  return sources
+    .filter(isAirportRelevantSource)
+    .sort((a, b) => getAirportSourceScore(b) - getAirportSourceScore(a))
+    .slice(0, MAX_AIRPORT_RESEARCH_SOURCES);
+}
+
+function isAirportRelevantSource(source: BlogResearchSource) {
+  const haystack = `${source.title} ${source.excerpt} ${source.domain} ${source.url}`
+    .toLowerCase()
+    .replace(/[-_]+/g, " ");
+  const hasAirportSignal = AIRPORT_ALLOWED_KEYWORDS.some((keyword) =>
+    haystack.includes(keyword),
+  );
+  const hasForbiddenSignal = AIRPORT_FORBIDDEN_KEYWORDS.some((keyword) =>
+    haystack.includes(keyword),
+  );
+  const isLinkedInNoise =
+    source.domain.includes("linkedin.com") ||
+    source.url.includes("/login") ||
+    source.url.includes("/signup");
+
+  return hasAirportSignal && !hasForbiddenSignal && !isLinkedInNoise;
+}
+
+function getAirportSourceScore(source: BlogResearchSource) {
+  const haystack = `${source.title} ${source.excerpt} ${source.domain}`.toLowerCase();
+  let score = 0;
+
+  if (AIRPORT_PREFERRED_DOMAINS.some((domain) => source.domain.endsWith(domain))) {
+    score += 20;
+  }
+
+  for (const keyword of AIRPORT_ALLOWED_KEYWORDS) {
+    if (haystack.includes(keyword)) score += 2;
+  }
+
+  if (/press release|project|deploy|implementation|automation|biometric|baggage|rfid/i.test(haystack)) {
+    score += 4;
+  }
+
+  return score;
+}
+
+function chooseAirportBriefingAngle(
+  sources: BlogResearchSource[],
+  existingBriefings: ExistingAirportBriefing[],
+) {
+  const recentText = existingBriefings
+    .slice(0, 30)
+    .map((briefing) => `${briefing.title ?? ""} ${briefing.research_summary ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+  const sourceText = sources
+    .map((source) => `${source.title} ${source.excerpt}`)
+    .join(" ")
+    .toLowerCase();
+  const candidateAngles = [
+    {
+      angle:
+        "How airports are combining passenger processing, biometric identity, and operational data to improve terminal flow.",
+      signals: ["biometric", "passenger", "terminal", "processing", "egate"],
+    },
+    {
+      angle:
+        "Why baggage visibility, BHS modernization, RFID, and automatic tag reading are becoming core operational priorities.",
+      signals: ["baggage", "rfid", "tag", "atr", "handling"],
+    },
+    {
+      angle:
+        "Where airport AI, sensors, LiDAR, computer vision, and control-room analytics are moving from pilots into daily operations.",
+      signals: ["ai", "sensor", "lidar", "vision", "analytics", "operations"],
+    },
+    {
+      angle:
+        "How smart airport infrastructure and supplier ecosystems are shaping automation opportunities for operators and integrators.",
+      signals: ["smart airport", "infrastructure", "supplier", "project", "digital"],
+    },
+    {
+      angle:
+        "What airport robotics, security automation, and passenger-service automation signal about the next phase of airport operations.",
+      signals: ["robotics", "security", "automation", "service", "operations"],
+    },
+  ];
+
+  return (
+    candidateAngles
+      .map((candidate) => ({
+        ...candidate,
+        score:
+          candidate.signals.filter((signal) => sourceText.includes(signal)).length * 4 -
+          (recentText.includes(candidate.angle.toLowerCase().slice(0, 60)) ? 8 : 0),
+      }))
+      .sort((a, b) => b.score - a.score)[0]?.angle ??
+    "Airport automation signals across baggage, passenger processing, security, sensors, AI, and smart airport infrastructure."
+  );
+}
+
+function createAirportResearchSummary(
+  sources: BlogResearchSource[],
+  articleAngle: string,
+) {
+  return [
+    `Airport-only research angle: ${articleAngle}`,
+    "Use sources as context only. Do not invent contracts, pilots, airport deployments, supplier claims, statistics, or commercial relationships not supported by the source snippets.",
+    "If sources are broad or weak, write a trend-based briefing and clearly frame it as broader airport industry signals.",
+    "Source context:",
+    ...sources.map(
+      (source, index) =>
+        `${index + 1}. ${source.title} (${source.domain}) - ${source.excerpt}`,
+    ),
+  ].join("\n");
+}
+
+function addUniqueAirportSources(
+  target: BlogResearchSource[],
+  sources: BlogResearchSource[],
+) {
+  const existingUrls = new Set(target.map((source) => source.url));
+
+  for (const source of sources) {
+    if (existingUrls.has(source.url)) continue;
+    target.push(source);
+    existingUrls.add(source.url);
+  }
+}
+
+async function generateAirportBriefingWithTitleValidation(
+  research: BlogResearchResult,
+) {
+  let generatedBriefing: GeneratedAirportBriefing | null = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    generatedBriefing = await generateAirportBriefing(research, attempt);
+    if (isValidAirportTitle(generatedBriefing.title)) return generatedBriefing;
+
+    console.warn("INConnect airport briefing title rejected", {
+      attempt,
+      title: generatedBriefing.title,
+    });
+  }
+
+  throw new AirportBriefingGenerationError(
+    "title_validation",
+    `Generated airport briefing title is outside the airport automation boundary: ${generatedBriefing?.title ?? "missing title"}`,
+  );
+}
+
+async function generateAirportBriefing(research: BlogResearchResult, attempt = 1) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const briefingDate = new Intl.DateTimeFormat("en-US", {
     day: "numeric",
@@ -241,6 +583,7 @@ async function generateAirportBriefing(research: BlogResearchResult) {
     timeZone: "UTC",
     year: "numeric",
   }).format(new Date());
+  const requiredTitle = `Airport Automation Daily Briefing - ${briefingDate}`;
 
   const response = await openai.responses.parse({
     model: "gpt-4o-mini",
@@ -251,6 +594,8 @@ async function generateAirportBriefing(research: BlogResearchResult) {
         role: "system",
         content: [
           "You are INConnect Airport Automation Daily, a professional intelligence briefing for airport automation, aviation technology, and smart airport infrastructure.",
+          "Hard boundary: write only about airports, baggage handling systems, baggage tracking, RFID in airports, automatic tag reading, passenger processing, biometrics, e-gates, smart airports, airport robotics, airport AI, airport security automation, airport operations, airport digital infrastructure, airport sensors, airport LiDAR, airport vision systems, airport logistics, airport expansion projects, and airport technology suppliers.",
+          "Forbidden topics: LinkedIn optimization, LinkedIn headlines, personal branding, profile visibility, B2B sales visibility, career growth, generic AI for professionals, and any non-airport professional advice.",
           "Generate original analysis based only on the provided source context.",
           "Do not invent airport projects, contracts, pilots, deployments, acquisitions, passenger statistics, financial figures, or company claims.",
           "If the source context does not support a specific claim, write at the category or trend level instead of naming a project.",
@@ -258,9 +603,11 @@ async function generateAirportBriefing(research: BlogResearchResult) {
           "Do not include external source lists, further reading sections, raw URLs, or external Markdown links.",
           "Write for professionals in airports, airlines, BHS, RFID, passenger processing, biometrics, airport security, AI, LiDAR, robotics, and digital airport operations.",
           "Use clean Markdown only. Do not repeat the title as a leading # heading.",
-          "Use ## section headings exactly for: Date, Executive Summary, Top Developments, Industry Impact, Technology Trends, Business Opportunities, Companies Mentioned, Recommended LinkedIn Post.",
-          "Business Opportunities, Industry Impact, Technology Trends, and Recommended LinkedIn Post should be useful but should not overclaim.",
-          "Minimum 1,200 words. Target 1,200 to 1,800 words. Avoid generic filler.",
+          "Use ## section headings exactly for: Executive Summary, Top Developments, Technology Signals, Business Opportunities, Companies to Watch, Suggested LinkedIn Post Idea.",
+          "Top Developments must include 3-5 real source-backed developments where possible: what happened, airport/company, technology area, and why it matters.",
+          "Technology Signals should cover relevant signals across RFID, AI, biometrics, BHS, ATR, robotics, LiDAR, vision, sensors, and passenger flow.",
+          "Business Opportunities should speak to suppliers, sensor companies, integrators, operators, and consultants without overclaiming.",
+          "Minimum 900 words. Target 1,200 to 1,600 words. Avoid generic filler.",
           "Use short paragraphs and practical bullet lists.",
         ].join(" "),
       },
@@ -268,6 +615,8 @@ async function generateAirportBriefing(research: BlogResearchResult) {
         role: "user",
         content: [
           `Briefing date: ${briefingDate}`,
+          `Required title: ${requiredTitle}`,
+          `Generation attempt: ${attempt}`,
           `Research angle: ${research.articleAngle}`,
           "",
           "Research summary:",
@@ -280,17 +629,17 @@ async function generateAirportBriefing(research: BlogResearchResult) {
           ),
           "",
           "Return structured JSON only.",
+          `Set title exactly to: ${requiredTitle}`,
           "The content field must include these sections in this order:",
-          "## Date",
           "## Executive Summary",
           "## Top Developments",
-          "## Industry Impact",
-          "## Technology Trends",
+          "## Technology Signals",
           "## Business Opportunities",
-          "## Companies Mentioned",
-          "## Recommended LinkedIn Post",
+          "## Companies to Watch",
+          "## Suggested LinkedIn Post Idea",
           "",
           "If company names are not clearly supported by the sources, say that no company-specific claims are included in today's briefing rather than inventing names.",
+          "If sources are weak, explicitly say the briefing is based on broader airport automation industry signals.",
         ].join("\n"),
       },
     ],
@@ -401,8 +750,10 @@ async function expandAirportBriefing({
         content: [
           "You are expanding an Airport Automation Daily briefing that was too short.",
           "Preserve the existing section order and factual caution.",
-          "Expand to 1,300-1,700 words with more airport-specific context, practical examples, and actionable analysis.",
+          "Preserve these sections: Executive Summary, Top Developments, Technology Signals, Business Opportunities, Companies to Watch, Suggested LinkedIn Post Idea.",
+          "Expand to 1,200-1,600 words with more airport-specific context, practical examples, and actionable analysis.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
+          "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
           "Do not add external links, source lists, or generic filler.",
         ].join(" "),
@@ -452,14 +803,12 @@ function getAirportBriefingQuality(
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const requiredSections = [
-    "Date",
     "Executive Summary",
     "Top Developments",
-    "Industry Impact",
-    "Technology Trends",
+    "Technology Signals",
     "Business Opportunities",
-    "Companies Mentioned",
-    "Recommended LinkedIn Post",
+    "Companies to Watch",
+    "Suggested LinkedIn Post Idea",
   ];
   const sectionCount = requiredSections.filter((section) =>
     new RegExp(`##\\s+${escapeRegExp(section)}`, "i").test(content),
@@ -491,6 +840,10 @@ function getAirportBriefingQuality(
 
   if (/further reading/i.test(content)) {
     issues.push("Briefing includes a Further Reading section.");
+  }
+
+  if (containsForbiddenAirportTopic(content)) {
+    issues.push("Briefing includes non-airport LinkedIn, branding, career, or B2B sales content.");
   }
 
   return { issues, sectionCount, wordCount };
@@ -615,6 +968,7 @@ function createAirportHeroImagePrompt({
       ? `Avoid repeating these recent image patterns: ${recentPatternSummary}.`
       : "Avoid generic blue office imagery; make the scene specific to airport operations.",
     "Realistic premium business-magazine photography, modern airport environment, diverse professionals, operational technology, blue INConnect accents balanced with neutral airport materials.",
+    "No LinkedIn screens, no social media profile imagery, no generic professional branding scenes, no office-only scenes.",
     "No text, no letters, no logos, no watermarks, no cartoon style, no mascot style, no exaggerated sci-fi effects.",
   ].join(" ");
 }
@@ -669,7 +1023,16 @@ function ensureUniqueTitle(value: string, existingBriefings: ExistingAirportBrie
 }
 
 function createDefaultAirportTitle() {
-  return `Airport Automation Daily - ${getUtcDateSuffix()}`;
+  return `Airport Automation Daily Briefing - ${getUtcDateSuffix()}`;
+}
+
+function isValidAirportTitle(title: string) {
+  return AIRPORT_TITLE_KEYWORD_PATTERN.test(title);
+}
+
+function containsForbiddenAirportTopic(value: string) {
+  const normalizedValue = value.toLowerCase().replace(/[-_]+/g, " ");
+  return AIRPORT_FORBIDDEN_KEYWORDS.some((keyword) => normalizedValue.includes(keyword));
 }
 
 function stripLeadingTitleHeading(content: string, title: string) {
@@ -700,6 +1063,53 @@ function slugify(value: string) {
 
 function cleanText(value: string, maxLength: number) {
   return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function extractXmlValue(xml: string, tagName: string) {
+  const match = xml.match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i"));
+  return match?.[1]?.trim() ?? "";
+}
+
+function decodeXml(value: string) {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function stripHtml(value: string) {
+  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeAirportSourceUrl(value: string) {
+  const cleanedValue = value.trim();
+  if (!cleanedValue) return "";
+
+  try {
+    const parsedUrl = new URL(cleanedValue);
+    const redirectedUrl =
+      parsedUrl.searchParams.get("url") ||
+      parsedUrl.searchParams.get("u") ||
+      parsedUrl.searchParams.get("r");
+
+    if (redirectedUrl?.startsWith("http")) return redirectedUrl;
+
+    parsedUrl.hash = "";
+    return parsedUrl.toString();
+  } catch {
+    return "";
+  }
+}
+
+function getDomain(value: string) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
 }
 
 function countWords(value: string) {

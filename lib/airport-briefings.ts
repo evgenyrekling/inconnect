@@ -9,6 +9,9 @@ export type AirportBriefing = {
   heroImageUrl: string;
   id?: string;
   published?: boolean;
+  publishedAt?: string;
+  researchSources?: unknown[];
+  researchSummary?: string;
   seoDescription: string;
   seoTitle: string;
   slug: string;
@@ -23,9 +26,12 @@ type AirportBriefingRow = {
   content: string;
   hero_image_url: string | null;
   hero_image_prompt: string | null;
+  research_sources: unknown[] | null;
+  research_summary: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published: boolean;
+  published_at: string | null;
   generated_at: string;
   created_at: string;
 };
@@ -48,11 +54,7 @@ export const demoAirportBriefings: AirportBriefing[] = [
       "- Passenger processing continues to move toward self-service, biometrics, and better identity orchestration.",
       "- AI, robotics, sensors, and digital airport platforms are becoming more practical when they solve a narrow operational pain point.",
       "",
-      "## Industry Impact",
-      "",
-      "The industry impact is not only technical. Automation changes airport procurement, airline-airport collaboration, operational training, and the way infrastructure projects are justified.",
-      "",
-      "## Technology Trends",
+      "## Technology Signals",
       "",
       "- RFID baggage tracking and sensor-based visibility",
       "- AI-assisted decision support for operations teams",
@@ -63,11 +65,11 @@ export const demoAirportBriefings: AirportBriefing[] = [
       "",
       "Suppliers that connect automation to measurable operational outcomes are better positioned than suppliers that only describe features. Airports need clear business cases, integration confidence, and credible deployment paths.",
       "",
-      "## Companies Mentioned",
+      "## Companies to Watch",
       "",
       "This preview does not reference live market sources yet. Future daily briefings will only mention companies when supported by source context.",
       "",
-      "## Recommended LinkedIn Post",
+      "## Suggested LinkedIn Post Idea",
       "",
       "Airport automation is becoming less about isolated technology pilots and more about operational intelligence. The winners will connect passenger flow, baggage visibility, security, and infrastructure data into decisions that help airports run with more confidence.",
     ].join("\n"),
@@ -90,9 +92,10 @@ export async function getPublishedAirportBriefings(limit?: number) {
     let query = supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, seo_title, seo_description, published, generated_at, created_at",
+        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("published", true)
+      .order("published_at", { ascending: false, nullsFirst: false })
       .order("generated_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
 
@@ -107,7 +110,7 @@ export async function getPublishedAirportBriefings(limit?: number) {
       return [];
     }
 
-    return (data ?? []).map(mapAirportBriefingRow);
+    return (data ?? []).map(mapAirportBriefingRow).filter(isDisplayableAirportBriefing);
   } catch (error) {
     if (!isMissingSupabaseConfigError(error)) {
       console.error("Airport briefings fallback used", error);
@@ -123,7 +126,7 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
     const { data, error } = await supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, seo_title, seo_description, published, generated_at, created_at",
+        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("slug", slug)
       .eq("published", true)
@@ -133,7 +136,10 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
       console.error("Airport briefing lookup failed", { slug, error });
     }
 
-    if (data) return mapAirportBriefingRow(data);
+    if (data) {
+      const briefing = mapAirportBriefingRow(data);
+      if (isDisplayableAirportBriefing(briefing)) return briefing;
+    }
   } catch (error) {
     if (!isMissingSupabaseConfigError(error)) {
       console.error("Airport briefing fallback lookup used", { slug, error });
@@ -161,6 +167,9 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
     heroImageUrl: row.hero_image_url || DEFAULT_AIRPORT_HERO_IMAGE_URL,
     id: row.id,
     published: row.published,
+    publishedAt: row.published_at ?? undefined,
+    researchSources: row.research_sources ?? undefined,
+    researchSummary: row.research_summary ?? undefined,
     seoDescription: row.seo_description || row.excerpt,
     seoTitle: row.seo_title || `${row.title} | Airport Automation Daily`,
     slug: row.slug,
@@ -173,4 +182,21 @@ function isMissingSupabaseConfigError(error: unknown) {
     error instanceof Error &&
     error.message.includes("Supabase server configuration is missing")
   );
+}
+
+function isDisplayableAirportBriefing(briefing: AirportBriefing) {
+  const title = briefing.title.toLowerCase();
+  const hasAirportKeyword =
+    /\b(airport|baggage|passenger processing|biometric|rfid|smart airport|terminal|aviation|airside)\b/i.test(
+      briefing.title,
+    );
+  const hasOffTopicTitle =
+    title.includes("linkedin optimization") ||
+    title.includes("linkedin headline") ||
+    title.includes("personal branding") ||
+    title.includes("profile visibility") ||
+    title.includes("b2b sales visibility") ||
+    title.includes("career growth");
+
+  return hasAirportKeyword && !hasOffTopicTitle;
 }
