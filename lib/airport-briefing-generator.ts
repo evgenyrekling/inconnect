@@ -57,7 +57,9 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 900;
+const MIN_AIRPORT_WORD_COUNT = 250;
+const MAX_AIRPORT_WORD_COUNT = 450;
+const MAX_AIRPORT_DEVELOPMENT_WORD_COUNT = 100;
 const MAX_AIRPORT_RESEARCH_SOURCES = 5;
 const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
@@ -155,7 +157,7 @@ const AIRPORT_PREFERRED_DOMAINS = [
 ];
 
 const AIRPORT_TITLE_KEYWORD_PATTERN =
-  /\b(airport|baggage|passenger processing|biometric|rfid|smart airport|terminal|aviation|airside)\b/i;
+  /\bINConnect 1-Minute Daily Digest\b/i;
 
 const airportBriefingSchema = {
   type: "object",
@@ -395,7 +397,10 @@ async function researchAirportAutomationTopic(
     if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 4) break;
   }
 
-  const selectedSources = selectAirportResearchSources(discoveredSources);
+  const selectedSources = selectAirportResearchSources(
+    discoveredSources,
+    existingBriefings,
+  );
 
   if (selectedSources.length < MIN_AIRPORT_RESEARCH_SOURCES) {
     throw new Error(
@@ -476,10 +481,23 @@ function parseAirportRssItems(rss: string): BlogResearchSource[] {
     });
 }
 
-function selectAirportResearchSources(sources: BlogResearchSource[]) {
+function selectAirportResearchSources(
+  sources: BlogResearchSource[],
+  existingBriefings: ExistingAirportBriefing[],
+) {
+  const recentText = existingBriefings
+    .slice(0, 20)
+    .map((briefing) => `${briefing.title ?? ""} ${briefing.content ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+
   return sources
     .filter(isAirportRelevantSource)
-    .sort((a, b) => getAirportSourceScore(b) - getAirportSourceScore(a))
+    .sort(
+      (a, b) =>
+        getAirportSourceScore(b, recentText) -
+        getAirportSourceScore(a, recentText),
+    )
     .slice(0, MAX_AIRPORT_RESEARCH_SOURCES);
 }
 
@@ -501,7 +519,7 @@ function isAirportRelevantSource(source: BlogResearchSource) {
   return hasAirportSignal && !hasForbiddenSignal && !isLinkedInNoise;
 }
 
-function getAirportSourceScore(source: BlogResearchSource) {
+function getAirportSourceScore(source: BlogResearchSource, recentText: string) {
   const haystack = `${source.title} ${source.excerpt} ${source.domain}`.toLowerCase();
   let score = 0;
 
@@ -516,6 +534,21 @@ function getAirportSourceScore(source: BlogResearchSource) {
   if (/press release|project|deploy|implementation|automation|biometric|baggage|rfid/i.test(haystack)) {
     score += 4;
   }
+
+  if (source.publishedAt && !Number.isNaN(Date.parse(source.publishedAt))) {
+    const ageMs = Date.now() - new Date(source.publishedAt).getTime();
+    const ageDays = ageMs / (24 * 60 * 60 * 1000);
+    if (ageDays <= 7) score += 10;
+    else if (ageDays <= 30) score += 6;
+    else if (ageDays <= 90) score += 2;
+  }
+
+  const titleWords = source.title
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((word) => word.length > 5);
+  const repeatedSignals = titleWords.filter((word) => recentText.includes(word)).length;
+  score -= repeatedSignals * 3;
 
   return score;
 }
@@ -632,7 +665,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
     timeZone: "UTC",
     year: "numeric",
   }).format(new Date());
-  const requiredTitle = `Airport Automation Daily Briefing - ${briefingDate}`;
+  const requiredTitle = `INConnect 1-Minute Daily Digest - ${briefingDate}`;
 
   const response = await openai.responses.parse({
     model: "gpt-4o-mini",
@@ -643,21 +676,23 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
         role: "system",
         content: [
           "You are INConnect Airport Automation Daily, a professional intelligence briefing for airport automation, aviation technology, and smart airport infrastructure.",
+          "Rebuild the output as INConnect 1-Minute Daily Digest for airport professionals.",
           "Hard boundary: write only about airports, baggage handling systems, baggage tracking, RFID in airports, automatic tag reading, passenger processing, biometrics, e-gates, smart airports, airport robotics, airport AI, airport security automation, airport operations, airport digital infrastructure, airport sensors, airport LiDAR, airport vision systems, airport logistics, airport expansion projects, and airport technology suppliers.",
           "Forbidden topics: LinkedIn optimization, LinkedIn headlines, personal branding, profile visibility, B2B sales visibility, career growth, generic AI for professionals, and any non-airport professional advice.",
           "Generate original analysis based only on the provided source context.",
           "Do not invent airport projects, contracts, pilots, deployments, acquisitions, passenger statistics, financial figures, or company claims.",
           "If the source context does not support a specific claim, write at the category or trend level instead of naming a project.",
           "Do not copy source wording or structure.",
-          "Do not include external source lists, further reading sections, raw URLs, or external Markdown links.",
+          "Do not include external source lists, further reading sections, or external Markdown links.",
           "Write for professionals in airports, airlines, BHS, RFID, passenger processing, biometrics, airport security, AI, LiDAR, robotics, and digital airport operations.",
           "Use clean Markdown only. Do not repeat the title as a leading # heading.",
-          "Use ## section headings exactly for: Executive Summary, Top Developments, Technology Signals, Business Opportunities, Companies to Watch, Suggested LinkedIn Post Idea.",
-          "Top Developments must include 3-5 real source-backed developments where possible: what happened, airport/company, technology area, and why it matters.",
-          "Technology Signals should cover relevant signals across RFID, AI, biometrics, BHS, ATR, robotics, LiDAR, vision, sensors, and passenger flow.",
-          "Business Opportunities should speak to suppliers, sensor companies, integrators, operators, and consultants without overclaiming.",
-          "Minimum 900 words. Target 1,200 to 1,600 words. Avoid generic filler.",
-          "Use short paragraphs and practical bullet lists.",
+          "The content must contain exactly three developments.",
+          "Each development must contain these labels exactly: Headline:, Summary:, Why it matters:, Source URL:.",
+          "Each development must be no more than 100 words, counting all four labels and values.",
+          "Total digest length must be 250-450 words.",
+          "Prioritize freshness over length.",
+          "Do not include Suggested LinkedIn Post, long-form article sections, numbered lists, newsletter formatting, or extra commentary.",
+          "Do not use numbered Markdown lists. Use section headings only: ## Development A, ## Development B, ## Development C.",
         ].join(" "),
       },
       {
@@ -679,16 +714,28 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "",
           "Return structured JSON only.",
           `Set title exactly to: ${requiredTitle}`,
-          "The content field must include these sections in this order:",
-          "## Executive Summary",
-          "## Top Developments",
-          "## Technology Signals",
-          "## Business Opportunities",
-          "## Companies to Watch",
-          "## Suggested LinkedIn Post Idea",
+          "The content field must use this exact structure:",
+          "## Development A",
+          "Headline: ...",
+          "Summary: ...",
+          "Why it matters: ...",
+          "Source URL: https://...",
           "",
-          "If company names are not clearly supported by the sources, say that no company-specific claims are included in today's briefing rather than inventing names.",
-          "If sources are weak, explicitly say the briefing is based on broader airport automation industry signals.",
+          "## Development B",
+          "Headline: ...",
+          "Summary: ...",
+          "Why it matters: ...",
+          "Source URL: https://...",
+          "",
+          "## Development C",
+          "Headline: ...",
+          "Summary: ...",
+          "Why it matters: ...",
+          "Source URL: https://...",
+          "",
+          "Use three different source URLs if available.",
+          "Use the exact source URL from the source context for each development.",
+          "If sources are weak, choose the strongest airport automation signals and avoid unsupported company/project claims.",
         ].join("\n"),
       },
     ],
@@ -707,7 +754,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
   }
 
   const parsed = response.output_parsed as GeneratedAirportBriefing;
-  if (!parsed.title || !parsed.content || parsed.content.trim().length < 500) {
+  if (!parsed.title || !parsed.content || parsed.content.trim().length < 300) {
     throw new Error("Generated airport briefing was empty or incomplete.");
   }
 
@@ -733,26 +780,23 @@ async function prepareQualityCheckedAirportContent({
     wordCount: quality.wordCount,
   });
 
-  for (
-    let expansionAttempt = 1;
-    quality.wordCount < MIN_AIRPORT_WORD_COUNT && expansionAttempt <= 2;
-    expansionAttempt += 1
-  ) {
-    console.info("INConnect airport briefing expansion started", {
-      expansionAttempt,
+  for (let revisionAttempt = 1; quality.issues.length > 0 && revisionAttempt <= 2; revisionAttempt += 1) {
+    console.info("INConnect airport digest revision started", {
+      issues: quality.issues,
+      revisionAttempt,
       title,
       wordCount: quality.wordCount,
     });
-    content = await expandAirportBriefing({
+    content = await reviseAirportDigest({
       content,
-      expansionAttempt,
       research,
+      revisionAttempt,
       title,
     });
     quality = getAirportBriefingQuality(content, research);
-    console.info("INConnect airport briefing expansion quality check", {
-      expansionAttempt,
+    console.info("INConnect airport digest revision quality check", {
       issues: quality.issues,
+      revisionAttempt,
       sectionCount: quality.sectionCount,
       title,
       wordCount: quality.wordCount,
@@ -777,15 +821,15 @@ async function prepareQualityCheckedAirportContent({
   return { content, quality };
 }
 
-async function expandAirportBriefing({
+async function reviseAirportDigest({
   content,
-  expansionAttempt,
   research,
+  revisionAttempt,
   title,
 }: {
   content: string;
-  expansionAttempt: number;
   research: BlogResearchResult;
+  revisionAttempt: number;
   title: string;
 }) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -797,29 +841,30 @@ async function expandAirportBriefing({
       {
         role: "system",
         content: [
-          "You are expanding an Airport Automation Daily briefing that was too short.",
-          "Preserve the existing section order and factual caution.",
-          "Preserve these sections: Executive Summary, Top Developments, Technology Signals, Business Opportunities, Companies to Watch, Suggested LinkedIn Post Idea.",
-          "Expand to 1,200-1,600 words with more airport-specific context, practical examples, and actionable analysis.",
+          "You are revising an INConnect 1-Minute Daily Digest for airport professionals.",
+          "Return exactly three developments and keep the total digest between 250 and 450 words.",
+          "Each development must be no more than 100 words.",
+          "Each development must include exactly these labels: Headline:, Summary:, Why it matters:, Source URL:.",
+          "Use section headings only: ## Development A, ## Development B, ## Development C.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
-          "Do not add external links, source lists, or generic filler.",
+          "Do not add Suggested LinkedIn Post, numbered lists, newsletter formatting, external source lists, or generic filler.",
         ].join(" "),
       },
       {
         role: "user",
         content: [
           `Title: ${title}`,
-          `Expansion attempt: ${expansionAttempt}`,
+          `Revision attempt: ${revisionAttempt}`,
           "",
           "Research summary:",
           research.researchSummary,
           "",
-          "Current briefing markdown:",
+          "Current digest markdown:",
           content,
           "",
-          "Return structured JSON only with the expanded markdown in the content field.",
+          "Return structured JSON only with the revised digest markdown in the content field.",
         ].join("\n"),
       },
     ],
@@ -834,12 +879,12 @@ async function expandAirportBriefing({
   });
 
   if (!response.output_parsed) {
-    throw new Error("Expanded airport briefing response format error.");
+    throw new Error("Revised airport digest response format error.");
   }
 
   const parsed = response.output_parsed as { content: string };
-  if (!parsed.content || parsed.content.trim().length < 500) {
-    throw new Error("Expanded airport briefing was empty or incomplete.");
+  if (!parsed.content || parsed.content.trim().length < 300) {
+    throw new Error("Revised airport digest was empty or incomplete.");
   }
 
   return parsed.content.trim();
@@ -852,25 +897,50 @@ function getAirportBriefingQuality(
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const requiredSections = [
-    "Executive Summary",
-    "Top Developments",
-    "Technology Signals",
-    "Business Opportunities",
-    "Companies to Watch",
-    "Suggested LinkedIn Post Idea",
+    "Development A",
+    "Development B",
+    "Development C",
   ];
   const sectionCount = requiredSections.filter((section) =>
     new RegExp(`##\\s+${escapeRegExp(section)}`, "i").test(content),
   ).length;
+  const developments = extractDigestDevelopments(content);
+  const developmentHeadingCount = (content.match(/##\s+Development\b/gi) ?? []).length;
 
   if (wordCount < MIN_AIRPORT_WORD_COUNT) {
     issues.push(`Briefing has ${wordCount} words; minimum is ${MIN_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (sectionCount < requiredSections.length) {
-    issues.push(
-      `Briefing includes ${sectionCount} required sections; minimum is ${requiredSections.length}.`,
-    );
+  if (wordCount > MAX_AIRPORT_WORD_COUNT) {
+    issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
+  }
+
+  if (
+    sectionCount !== requiredSections.length ||
+    developments.length !== 3 ||
+    developmentHeadingCount !== 3
+  ) {
+    issues.push("Digest must include exactly three developments.");
+  }
+
+  developments.forEach((development, index) => {
+    const developmentWordCount = countWords(stripMarkdown(development));
+    if (developmentWordCount > MAX_AIRPORT_DEVELOPMENT_WORD_COUNT) {
+      issues.push(
+        `Development ${index + 1} has ${developmentWordCount} words; maximum is ${MAX_AIRPORT_DEVELOPMENT_WORD_COUNT}.`,
+      );
+    }
+
+    for (const label of ["Headline:", "Summary:", "Why it matters:", "Source URL:"]) {
+      if (!development.includes(label)) {
+        issues.push(`Development ${index + 1} is missing ${label}`);
+      }
+    }
+  });
+
+  const sourceUrlCount = (content.match(/Source URL:\s*https?:\/\/\S+/gi) ?? []).length;
+  if (sourceUrlCount !== 3) {
+    issues.push(`Digest includes ${sourceUrlCount} source URLs; exactly 3 are required.`);
   }
 
   if (research.researchSources.length < 3) {
@@ -879,16 +949,16 @@ function getAirportBriefingQuality(
     );
   }
 
-  if (/https?:\/\//i.test(content)) {
-    issues.push("Briefing includes a raw URL.");
-  }
-
   if (/\[[^\]]+\]\((?!\/)[^)]+\)/i.test(content)) {
     issues.push("Briefing includes an external Markdown link.");
   }
 
-  if (/further reading/i.test(content)) {
-    issues.push("Briefing includes a Further Reading section.");
+  if (/further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments/i.test(content)) {
+    issues.push("Digest includes long-form briefing or source-list sections.");
+  }
+
+  if (/^\s*\d+\./m.test(content)) {
+    issues.push("Digest includes a numbered list.");
   }
 
   if (containsForbiddenAirportTopic(content)) {
@@ -1072,7 +1142,7 @@ function ensureUniqueTitle(value: string, existingBriefings: ExistingAirportBrie
 }
 
 function createDefaultAirportTitle() {
-  return `Airport Automation Daily Briefing - ${getUtcDateSuffix()}`;
+  return `INConnect 1-Minute Daily Digest - ${getUtcDateSuffix()}`;
 }
 
 function isValidAirportTitle(title: string) {
@@ -1098,6 +1168,14 @@ function stripLeadingTitleHeading(content: string, title: string) {
   }
 
   return trimmedContent;
+}
+
+function extractDigestDevelopments(content: string) {
+  return (
+    content.match(
+      /##\s+Development\s+[ABC][\s\S]*?(?=##\s+Development\s+[ABC]|\s*$)/gi,
+    ) ?? []
+  );
 }
 
 function slugify(value: string) {

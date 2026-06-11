@@ -40,9 +40,10 @@ export default async function AirportAutomationIntelligencePage() {
             Airport Automation Daily
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            Daily developments in airport automation, baggage handling,
-            passenger processing, RFID, biometrics, security, AI, LiDAR,
-            robotics, digital airports, and smart airport infrastructure.
+            A 1-minute daily digest for airport professionals covering the
+            most important developments in automation, baggage, passenger
+            processing, biometrics, security, AI, robotics, and smart airport
+            infrastructure.
           </p>
         </div>
       </section>
@@ -79,6 +80,7 @@ function LatestAirportBriefingPreview({ briefing }: { briefing: AirportBriefing 
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
           {formatAirportBriefingDate(briefing.generatedAt)}
         </p>
+        <p className="mt-2 text-sm font-semibold text-[#057642]">1 minute read</p>
         <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#191919]">
           {briefing.title}
         </h2>
@@ -90,7 +92,7 @@ function LatestAirportBriefingPreview({ briefing }: { briefing: AirportBriefing 
           intelligenceType="airport_automation"
           previewContent={createBriefingPreview(briefing.content)}
           streamTitle="Airport Automation Daily"
-          unlockTitle="Unlock Full Briefing"
+          unlockTitle="Unlock Full Digest"
         />
       </div>
     </article>
@@ -104,7 +106,7 @@ function RecentAirportBriefings({ briefings }: { briefings: AirportBriefing[] })
     <section className="px-5 pb-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-5xl">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Previous Airport Briefings
+          Previous Daily Digests
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {briefings.map((briefing) => (
@@ -124,6 +126,9 @@ function RecentAirportBriefings({ briefings }: { briefings: AirportBriefing[] })
               <div className="p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
                   {formatAirportBriefingDate(briefing.generatedAt)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-[#057642]">
+                  1 minute read
                 </p>
                 <h3 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
                   {briefing.title}

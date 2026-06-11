@@ -120,6 +120,7 @@ export default async function AirportBriefingPage({
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
             <span>INConnect Intelligence</span>
+            <span className="font-semibold text-[#057642]">1 minute read</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -137,7 +138,7 @@ export default async function AirportBriefingPage({
           intelligenceType="airport_automation"
           previewContent={previewContent}
           streamTitle="Airport Automation Daily"
-          unlockTitle="Unlock Full Briefing"
+          unlockTitle="Unlock Full Digest"
         />
       </section>
       <RelatedAirportBriefings briefings={relatedBriefings} />
@@ -210,7 +211,7 @@ function RelatedAirportBriefings({
     <section className="px-5 pb-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-5xl">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Recent Airport Briefings
+          Recent Daily Digests
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {briefings.map((briefing) => (
@@ -229,6 +230,9 @@ function RelatedAirportBriefings({
               <div className="p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
                   {formatAirportBriefingDate(briefing.generatedAt)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-[#057642]">
+                  1 minute read
                 </p>
                 <h2 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
                   {briefing.title}

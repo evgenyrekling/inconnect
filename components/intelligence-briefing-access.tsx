@@ -188,7 +188,7 @@ export function IntelligenceBriefingAccess({
                 disabled={!canSubmit}
                 type="submit"
               >
-                {isSubmitting ? "Unlocking..." : "Unlock Full Briefing"}
+                {isSubmitting ? "Unlocking..." : unlockTitle}
               </button>
             </form>
           )}
@@ -383,7 +383,7 @@ function renderMarkdownBlock(block: MarkdownBlock, index: number) {
 
 function renderInlineMarkdown(value: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const inlinePattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+  const inlinePattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s)]+)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -407,6 +407,18 @@ function renderInlineMarkdown(value: string): ReactNode[] {
         >
           {linkMatch[1]}
         </Link>,
+      );
+    } else if (/^https?:\/\//i.test(token)) {
+      nodes.push(
+        <a
+          className="font-semibold text-[#0A66C2] underline-offset-4 transition hover:text-[#004182] hover:underline"
+          href={token}
+          key={`${token}-${match.index}`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {token}
+        </a>,
       );
     } else {
       nodes.push(
