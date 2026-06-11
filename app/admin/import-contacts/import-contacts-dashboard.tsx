@@ -6,9 +6,20 @@ type ImportSummary = {
   connectionsCreated: number;
   duplicatesSkipped: number;
   errors: string[];
+  importedUsers: number;
   existingUsersUpdated: number;
   newUsersCreated: number;
+  skippedMissingEmail: number;
+  skippedMissingName: number;
+  skippedRows: SkippedImportRow[];
   totalRowsProcessed: number;
+};
+
+type SkippedImportRow = {
+  email: string;
+  name: string;
+  reason: "missing name" | "missing email" | "duplicate email";
+  rowNumber: number;
 };
 
 type ImportResponse =
@@ -137,7 +148,9 @@ export function ImportContactsDashboard() {
                   `location`, `industry`
                 </p>
                 <p className="mt-2">
-                  Required: `email`. All other columns are optional.
+                  Required: `name` and `email`. Supported aliases include
+                  `Email Address`, `Full Name`, `First Name`, `Last Name`, and
+                  `Position`.
                 </p>
               </div>
 
@@ -164,10 +177,19 @@ export function ImportContactsDashboard() {
             {summary ? (
               <div className="mt-5 grid gap-3">
                 <SummaryRow label="Total rows processed" value={summary.totalRowsProcessed} />
+                <SummaryRow label="Imported users" value={summary.importedUsers} />
                 <SummaryRow label="New users created" value={summary.newUsersCreated} />
                 <SummaryRow
                   label="Existing users updated"
                   value={summary.existingUsersUpdated}
+                />
+                <SummaryRow
+                  label="Skipped missing name"
+                  value={summary.skippedMissingName}
+                />
+                <SummaryRow
+                  label="Skipped missing email"
+                  value={summary.skippedMissingEmail}
                 />
                 <SummaryRow
                   label="Connections created"
@@ -178,6 +200,15 @@ export function ImportContactsDashboard() {
                   value={summary.duplicatesSkipped}
                 />
                 <SummaryRow label="Errors" value={summary.errors.length} />
+                {summary.skippedRows.length > 0 && (
+                  <button
+                    className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
+                    onClick={() => downloadSkippedRowsCsv(summary.skippedRows)}
+                    type="button"
+                  >
+                    Download skipped rows CSV
+                  </button>
+                )}
                 {summary.errors.length > 0 && (
                   <div className="mt-3 rounded-lg border border-[#B24020]/20 bg-[#FFF4F1] p-4">
                     <p className="text-sm font-semibold text-[#B24020]">
@@ -222,4 +253,32 @@ function SummaryRow({ label, value }: { label: string; value: number }) {
       <span className="text-lg font-semibold text-[#0A66C2]">{value}</span>
     </div>
   );
+}
+
+function downloadSkippedRowsCsv(rows: SkippedImportRow[]) {
+  const csv = [
+    ["row_number", "name", "email", "reason"],
+    ...rows.map((row) => [
+      String(row.rowNumber),
+      row.name,
+      row.email,
+      row.reason,
+    ]),
+  ]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "inconnect-skipped-contact-import-rows.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function escapeCsvCell(value: string) {
+  if (!/[",\n\r]/.test(value)) return value;
+  return `"${value.replace(/"/g, "\"\"")}"`;
 }

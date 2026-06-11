@@ -16,6 +16,7 @@ type CsvContact = {
   linkedinUrl: string;
   location: string;
   name: string;
+  rowNumber: number;
   title: string;
 };
 
@@ -47,9 +48,20 @@ type ImportSummary = {
   connectionsCreated: number;
   duplicatesSkipped: number;
   errors: string[];
+  importedUsers: number;
   existingUsersUpdated: number;
   newUsersCreated: number;
+  skippedMissingEmail: number;
+  skippedMissingName: number;
+  skippedRows: SkippedImportRow[];
   totalRowsProcessed: number;
+};
+
+type SkippedImportRow = {
+  email: string;
+  name: string;
+  reason: "missing name" | "missing email" | "duplicate email";
+  rowNumber: number;
 };
 
 const MAX_ERROR_COUNT = 80;
@@ -76,29 +88,42 @@ export async function POST(request: NextRequest) {
       connectionsCreated: 0,
       duplicatesSkipped: 0,
       errors: [],
+      importedUsers: 0,
       existingUsersUpdated: 0,
       newUsersCreated: 0,
+      skippedMissingEmail: 0,
+      skippedMissingName: 0,
+      skippedRows: [],
       totalRowsProcessed: contacts.length,
     };
     const seenEmails = new Set<string>();
 
     for (const contact of contacts) {
       const normalizedContactEmail = normalizeEmail(contact.email);
+      const contactName = cleanText(contact.name, 180);
+
+      if (!contactName) {
+        summary.skippedMissingName += 1;
+        addSkippedRow(summary, contact, "missing name");
+        continue;
+      }
 
       if (!isValidEmail(normalizedContactEmail)) {
-        addImportError(summary, `Invalid or missing email: ${contact.email || "(blank)"}`);
+        summary.skippedMissingEmail += 1;
+        addSkippedRow(summary, contact, "missing email");
         continue;
       }
 
       if (seenEmails.has(normalizedContactEmail)) {
         summary.duplicatesSkipped += 1;
+        addSkippedRow(summary, contact, "duplicate email");
         continue;
       }
       seenEmails.add(normalizedContactEmail);
 
       if (normalizedContactEmail === adminEmail) {
         summary.duplicatesSkipped += 1;
-        addImportError(summary, `Skipped self connection for ${normalizedContactEmail}.`);
+        addSkippedRow(summary, contact, "duplicate email");
         continue;
       }
 
@@ -132,6 +157,7 @@ export async function POST(request: NextRequest) {
         } else {
           summary.duplicatesSkipped += 1;
         }
+        summary.importedUsers += 1;
       } catch (error) {
         console.error("CONTACT IMPORT ROW ERROR", {
           contact: {
@@ -408,13 +434,13 @@ function parseContactsCsv(csvText: string) {
   if (rows.length === 0) return [];
 
   const header = rows[0].map((column) => normalizeHeader(column));
-  const emailIndex = header.indexOf("email");
-  if (emailIndex === -1) {
-    throw new Error("CSV must include an email column.");
-  }
 
-  return rows.slice(1).flatMap((row) => {
+  return rows.slice(1).flatMap((row, index) => {
     if (row.every((cell) => !cell.trim())) return [];
+    const firstName = getCsvValue(row, header, "first_name");
+    const lastName = getCsvValue(row, header, "last_name");
+    const combinedName = cleanText([firstName, lastName].filter(Boolean).join(" "), 180);
+
     return [
       {
         company: getCsvValue(row, header, "company"),
@@ -422,7 +448,8 @@ function parseContactsCsv(csvText: string) {
         industry: getCsvValue(row, header, "industry"),
         linkedinUrl: getCsvValue(row, header, "linkedin_url"),
         location: getCsvValue(row, header, "location"),
-        name: getCsvValue(row, header, "name"),
+        name: getCsvValue(row, header, "name") || combinedName,
+        rowNumber: index + 2,
         title: getCsvValue(row, header, "title"),
       },
     ];
@@ -481,7 +508,31 @@ function getCsvValue(row: string[], header: string[], column: string) {
 }
 
 function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const normalizedValue = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s/.-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const aliases: Record<string, string> = {
+    company: "company",
+    email: "email",
+    email_address: "email",
+    first_name: "first_name",
+    full_name: "name",
+    industry: "industry",
+    last_name: "last_name",
+    linkedin: "linkedin_url",
+    linkedin_profile: "linkedin_url",
+    linkedin_url: "linkedin_url",
+    location: "location",
+    name: "name",
+    position: "title",
+    title: "title",
+  };
+
+  return aliases[normalizedValue] ?? normalizedValue;
 }
 
 function isEmptyJsonArray(value: unknown) {
@@ -500,6 +551,19 @@ function addImportError(summary: ImportSummary, message: string) {
   if (summary.errors.length < MAX_ERROR_COUNT) {
     summary.errors.push(message);
   }
+}
+
+function addSkippedRow(
+  summary: ImportSummary,
+  contact: CsvContact,
+  reason: SkippedImportRow["reason"],
+) {
+  summary.skippedRows.push({
+    email: cleanText(contact.email, 500),
+    name: cleanText(contact.name, 180),
+    reason,
+    rowNumber: contact.rowNumber,
+  });
 }
 
 function isAdminEmail(email: string) {
