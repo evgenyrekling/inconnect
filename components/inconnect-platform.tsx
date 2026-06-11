@@ -510,6 +510,7 @@ function readStoredReturningIdentity(): StoredReturningIdentity | null {
 function storeReturningIdentity(identity: StoredReturningIdentity) {
   try {
     window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(identity));
+    window.dispatchEvent(new Event("inconnect:identity-changed"));
   } catch {
     // localStorage can be unavailable in private browsing or embedded contexts.
   }
@@ -518,6 +519,7 @@ function storeReturningIdentity(identity: StoredReturningIdentity) {
 function clearReturningIdentity() {
   try {
     window.localStorage.removeItem(RETURNING_USER_STORAGE_KEY);
+    window.dispatchEvent(new Event("inconnect:identity-changed"));
   } catch {
     // localStorage can be unavailable in private browsing or embedded contexts.
   }
@@ -982,27 +984,30 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         <a href="/" aria-label="INConnect home">
           <Logo markSize={46} />
         </a>
-        <nav className="hidden items-center gap-1 lg:flex">
-          <NavigationDropdown
-            href="/intelligence"
-            items={intelligenceNavItems}
-            label="Intelligence"
-          />
-          <NavigationDropdown
-            href="/assessment"
-            items={toolNavItems}
-            label="LinkedIn Tools"
-          />
-          {navItems.map((item) => (
-            <a
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-              href={item.href}
-              key={item.label}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        <div className="flex items-center gap-3">
+          <nav className="hidden items-center gap-1 lg:flex">
+            <NavigationDropdown
+              href="/intelligence"
+              items={intelligenceNavItems}
+              label="Intelligence"
+            />
+            <NavigationDropdown
+              href="/assessment"
+              items={toolNavItems}
+              label="LinkedIn Tools"
+            />
+            {navItems.map((item) => (
+              <a
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+                href={item.href}
+                key={item.label}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <AccountMenu />
+        </div>
       </div>
       <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
         <NavigationDropdown
@@ -1030,6 +1035,313 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
       {showSocialProof && <UserCountSocialProof />}
     </header>
   );
+}
+
+function AccountMenu() {
+  const [identity, setIdentity] = useState<StoredReturningIdentity | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+
+  useEffect(() => {
+    function refreshIdentity() {
+      setIdentity(readStoredReturningIdentity());
+    }
+
+    refreshIdentity();
+    window.addEventListener("storage", refreshIdentity);
+    window.addEventListener("inconnect:identity-changed", refreshIdentity);
+    return () => {
+      window.removeEventListener("storage", refreshIdentity);
+      window.removeEventListener("inconnect:identity-changed", refreshIdentity);
+    };
+  }, []);
+
+  const firstName = getFirstNameFromDisplayName(getIdentityDisplayName(identity));
+
+  function handleLogout() {
+    clearLocalAccountState();
+    setIdentity(null);
+    setIsDropdownOpen(false);
+    window.location.href = "/";
+  }
+
+  if (!identity) {
+    return (
+      <>
+        <button
+          className="shrink-0 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2]/40 hover:bg-[#E8F1FB]"
+          onClick={() => setIsSignInOpen(true)}
+          type="button"
+        >
+          Sign In
+        </button>
+        {isSignInOpen && (
+          <AccountSignInModal
+            onClose={() => setIsSignInOpen(false)}
+            onSignedIn={(nextIdentity) => {
+              setIdentity(nextIdentity);
+              setIsSignInOpen(false);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div
+      className="relative shrink-0"
+      onMouseEnter={() => setIsDropdownOpen(true)}
+      onMouseLeave={() => setIsDropdownOpen(false)}
+    >
+      <button
+        aria-expanded={isDropdownOpen}
+        className="flex items-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2]/40 hover:bg-[#E8F1FB]"
+        onClick={() => setIsDropdownOpen((current) => !current)}
+        type="button"
+      >
+        Welcome, {firstName || "there"}
+        <ChevronDown
+          className={classNames(
+            "h-4 w-4 text-[#0A66C2] transition-transform",
+            isDropdownOpen && "rotate-180",
+          )}
+        />
+      </button>
+      {isDropdownOpen && (
+        <div className="absolute right-0 top-11 z-50 w-64 rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]">
+          <a
+            className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+            href="/my-profile"
+          >
+            My Profile
+          </a>
+          <a
+            className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+            href="/my-intelligence"
+          >
+            My Intelligence
+          </a>
+          <button
+            className="mt-2 w-full rounded-lg border-t border-[#D9DDE3] px-3 py-2 text-left text-sm font-semibold text-[#B42318] transition hover:bg-[#FEF3F2]"
+            onClick={handleLogout}
+            type="button"
+          >
+            Logout
+          </button>
+          <p className="px-3 pb-2 pt-1 text-xs leading-5 text-[#666666]">
+            You can remove local identification now. Account deletion requests
+            will be supported from this menu later.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountSignInModal({
+  onClose,
+  onSignedIn,
+}: {
+  onClose: () => void;
+  onSignedIn: (identity: StoredReturningIdentity) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (name.trim().length < 2) {
+      setError("Please enter your name.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const identity = await resolveAccountIdentity({
+        email: normalizedEmail,
+        name: name.trim(),
+      });
+      storeReturningIdentity(identity);
+      onSignedIn(identity);
+    } catch {
+      setError("Sign in could not be completed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0A192F]/60 px-5">
+      <div className="w-full max-w-md rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_24px_70px_rgba(10,25,47,0.28)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+              INConnect Account
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
+              Sign in
+            </h2>
+          </div>
+          <button
+            className="rounded-lg px-2 py-1 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+            onClick={onClose}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+        <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+          <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+            Name
+            <input
+              className="rounded-lg border border-[#D9DDE3] px-3 py-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/20"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Your name"
+              type="text"
+              value={name}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+            Email
+            <input
+              className="rounded-lg border border-[#D9DDE3] px-3 py-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-2 focus:ring-[#0A66C2]/20"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              type="email"
+              value={email}
+            />
+          </label>
+          {error && (
+            <p className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B42318]">
+              {error}
+            </p>
+          )}
+          <p className="text-xs leading-5 text-[#666666]">
+            INConnect stores local identification so it can remember your tools,
+            briefings, and preferences. You can log out and remove local
+            identification at any time.
+          </p>
+          <button
+            className={classNames(
+              "inline-flex h-11 items-center justify-center rounded-lg px-4 text-sm",
+              PRIMARY_CTA_CLASS,
+            )}
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? "Signing In..." : "Continue"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+async function resolveAccountIdentity({
+  email,
+  name,
+}: {
+  email: string;
+  name: string;
+}): Promise<StoredReturningIdentity> {
+  const fallbackIdentity: StoredReturningIdentity = {
+    email,
+    linkedinUrl: "",
+    name,
+    userKey: await createClientUserKey(email),
+  };
+
+  try {
+    const params = new URLSearchParams({ email });
+    const response = await fetch(`/api/returning-user?${params.toString()}`, {
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as unknown;
+
+    if (!response.ok || !isReturningUserIdentityPayload(payload)) {
+      return fallbackIdentity;
+    }
+
+    return {
+      email: payload.user.email || email,
+      latestAssessmentId:
+        typeof payload.latestAssessmentId === "string"
+          ? payload.latestAssessmentId
+          : undefined,
+      linkedinUrl: payload.user.linkedinUrl || "",
+      name: payload.user.name || name,
+      userKey: payload.user.userKey || fallbackIdentity.userKey,
+    };
+  } catch {
+    return fallbackIdentity;
+  }
+}
+
+function isReturningUserIdentityPayload(value: unknown): value is {
+  latestAssessmentId?: string;
+  user: {
+    email?: string;
+    linkedinUrl?: string;
+    name?: string;
+    userKey?: string;
+  };
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "user" in value &&
+    typeof value.user === "object" &&
+    value.user !== null
+  );
+}
+
+async function createClientUserKey(email: string) {
+  if (typeof window === "undefined" || !window.crypto?.subtle) {
+    return `local-${email.trim().toLowerCase()}`;
+  }
+
+  const encoded = new TextEncoder().encode(email.trim().toLowerCase());
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function clearLocalAccountState() {
+  try {
+    window.localStorage.clear();
+  } catch {
+    // localStorage can be unavailable in private browsing or embedded contexts.
+  }
+
+  try {
+    window.sessionStorage.clear();
+  } catch {
+    // sessionStorage can be unavailable in private browsing or embedded contexts.
+  }
+
+  try {
+    document.cookie.split(";").forEach((cookie) => {
+      const name = cookie.split("=")[0]?.trim();
+      if (!name) return;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    });
+  } catch {
+    // Cookie clearing is best-effort because some cookies can be httpOnly.
+  }
+
+  window.dispatchEvent(new Event("inconnect:identity-changed"));
 }
 
 function NavigationDropdown({
