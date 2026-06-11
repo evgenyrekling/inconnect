@@ -210,9 +210,13 @@ const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
   { label: "Intelligence", href: "/intelligence" },
-  { label: "Tools", href: "/assessment" },
-  { label: "Network", href: "/#network" },
+  { label: "Network", href: "/network-coming-soon" },
   { label: "Pricing", href: "/pricing" },
+];
+const toolNavItems = [
+  { label: "LinkedIn Profile Assessment", href: "/assessment" },
+  { label: "Headline Generator", href: "/headline-generator" },
+  { label: "About Generator", href: "/about-generator" },
 ];
 
 const roleOptions = [
@@ -953,7 +957,14 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
           <Logo markSize={46} />
         </a>
         <nav className="hidden items-center gap-1 lg:flex">
-          {navItems.map((item) => (
+          <a
+            className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+            href={navItems[0].href}
+          >
+            {navItems[0].label}
+          </a>
+          <ToolsDropdown />
+          {navItems.slice(1).map((item) => (
             <a
               className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
               href={item.href}
@@ -965,7 +976,14 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         </nav>
       </div>
       <nav className="flex gap-2 overflow-x-auto border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
-        {navItems.map((item) => (
+        <a
+          className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
+          href={navItems[0].href}
+        >
+          {navItems[0].label}
+        </a>
+        <ToolsDropdown mobile />
+        {navItems.slice(1).map((item) => (
           <a
             className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
             href={item.href}
@@ -977,6 +995,52 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
       </nav>
       {showSocialProof && <UserCountSocialProof />}
     </header>
+  );
+}
+
+function ToolsDropdown({ mobile = false }: { mobile?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div
+      className={classNames("relative", mobile && "shrink-0")}
+      onMouseEnter={() => {
+        if (!mobile) setIsOpen(true);
+      }}
+      onMouseLeave={() => {
+        if (!mobile) setIsOpen(false);
+      }}
+    >
+      <button
+        aria-expanded={isOpen}
+        className={classNames(
+          "cursor-pointer list-none rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2] marker:hidden",
+          mobile && "shrink-0",
+        )}
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        Tools
+      </button>
+      {isOpen && (
+        <div
+          className={classNames(
+            "z-50 rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]",
+            mobile ? "mt-2 w-64" : "absolute left-0 top-10 w-72",
+          )}
+        >
+          {toolNavItems.map((item) => (
+            <a
+              className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+              href={item.href}
+              key={item.href}
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1097,79 +1161,61 @@ function PlatformPillars() {
     <div className="bg-[#F3F2EF]">
       <PillarSection
         cards={[
-          { status: "Active", title: "Airport Automation Daily" },
-          { status: "Active", title: "B2B Sales & LinkedIn Daily" },
+          {
+            href: "/intelligence/airport-automation",
+            status: "Active",
+            title: "Airport Automation Daily",
+          },
+          {
+            href: "/intelligence/b2b-sales",
+            status: "Active",
+            title: "B2B Sales & LinkedIn Daily",
+          },
           { status: "Coming Soon", title: "Smart Mobility Daily" },
           { status: "Coming Soon", title: "Industrial Automation Daily" },
         ]}
-        ctaHref="/intelligence"
-        ctaLabel="View Intelligence"
-        eyebrow="Pillar 1"
         subtitle="Stay ahead with AI-curated daily briefings, market signals, and business-relevant insights."
         title="Professional Intelligence"
       />
       <PillarSection
         cards={[
-          { title: "LinkedIn Profile Assessment" },
-          { title: "Headline Generator" },
-          { title: "About Generator" },
+          { href: "/assessment", title: "LinkedIn Profile Assessment" },
+          { href: "/headline-generator", title: "Headline Generator" },
+          { href: "/about-generator", title: "About Generator" },
         ]}
-        ctaHref="/assessment"
-        ctaLabel="Improve My Profile"
-        eyebrow="Pillar 2"
         subtitle="Improve how the market understands your expertise, authority, and professional value."
         title="Professional Visibility"
       />
-      <ProfessionalNetworkSection />
+      <NetworkSummarySection />
     </div>
   );
 }
 
 function PillarSection({
   cards,
-  ctaHref,
-  ctaLabel,
-  eyebrow,
   subtitle,
   title,
 }: {
-  cards: Array<{ status?: string; title: string }>;
-  ctaHref: string;
-  ctaLabel: string;
-  eyebrow: string;
+  cards: Array<{ href?: string; status?: string; title: string }>;
   subtitle: string;
   title: string;
 }) {
   return (
     <section className="px-5 py-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-              {eyebrow}
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold text-[#191919] sm:text-4xl">
-              {title}
-            </h2>
-            <p className="mt-3 text-base leading-7 text-[#666666]">{subtitle}</p>
-          </div>
-          <a
-            className={classNames(
-              "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm",
-              PRIMARY_CTA_CLASS,
-            )}
-            href={ctaHref}
-          >
-            {ctaLabel}
-          </a>
+        <div className="max-w-3xl">
+          <h2 className="text-3xl font-semibold text-[#191919] sm:text-4xl">
+            {title}
+          </h2>
+          <p className="mt-3 text-base leading-7 text-[#666666]">{subtitle}</p>
         </div>
         <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => (
             <article
-              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+              className="flex min-h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
               key={card.title}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-1 items-start justify-between gap-3">
                 <h3 className="text-lg font-semibold leading-snug text-[#191919]">
                   {card.title}
                 </h3>
@@ -1186,6 +1232,17 @@ function PillarSection({
                   </span>
                 )}
               </div>
+              {card.href && (
+                <a
+                  className={classNames(
+                    "mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg px-4 text-sm",
+                    PRIMARY_CTA_CLASS,
+                  )}
+                  href={card.href}
+                >
+                  Explore
+                </a>
+              )}
             </article>
           ))}
         </div>
@@ -1194,7 +1251,40 @@ function PillarSection({
   );
 }
 
-function ProfessionalNetworkSection() {
+function NetworkSummarySection() {
+  return (
+    <section className="px-5 py-12 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="max-w-3xl">
+          <h2 className="text-3xl font-semibold text-[#191919] sm:text-4xl">
+            Professional Network
+          </h2>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
+            Coming soon: business matching, partner discovery, supplier
+            discovery, expert discovery, and opportunity matching.
+          </p>
+        </div>
+        <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            "Business Match",
+            "Supplier Discovery",
+            "Expert Discovery",
+            "Industry Communities",
+          ].map((item) => (
+            <article
+              className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
+              key={item}
+            >
+              <h3 className="text-lg font-semibold text-[#191919]">{item}</h3>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function NetworkEarlyAccessForm() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -1244,87 +1334,56 @@ function ProfessionalNetworkSection() {
   }
 
   return (
-    <section className="px-5 py-12 sm:px-8 lg:px-10" id="network">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Pillar 3
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold text-[#191919] sm:text-4xl">
-            Professional Network
-          </h2>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
-            Coming soon: business matching, partner discovery, supplier
-            discovery, expert discovery, and opportunity matching.
-          </p>
-          <div className="mt-7 grid gap-4 sm:grid-cols-2">
-            {[
-              "Business Match",
-              "Supplier Discovery",
-              "Expert Discovery",
-              "Industry Communities",
-            ].map((item) => (
-              <article
-                className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]"
-                key={item}
-              >
-                <h3 className="text-lg font-semibold text-[#191919]">{item}</h3>
-              </article>
-            ))}
-          </div>
-        </div>
-        <form
-          className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_10px_28px_rgba(10,25,47,0.07)] sm:p-7"
-          onSubmit={submitEarlyAccess}
+    <form
+      className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_10px_28px_rgba(10,25,47,0.07)] sm:p-7"
+      onSubmit={submitEarlyAccess}
+    >
+      <h3 className="text-xl font-semibold text-[#191919]">Join Early Access</h3>
+      <div className="mt-5 grid gap-4">
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Name
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            onChange={(event) => setName(event.target.value)}
+            value={name}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Email
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            value={email}
+          />
+        </label>
+        <label className="flex gap-3 text-sm leading-6 text-[#666666]">
+          <input
+            checked={profileConsent}
+            className="mt-1 h-4 w-4 rounded border-[#D9DDE3]"
+            onChange={(event) => setProfileConsent(event.target.checked)}
+            type="checkbox"
+          />
+          I agree that INConnect may store my information for Professional
+          Network early access.
+        </label>
+        <button
+          className={classNames(
+            "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm",
+            PRIMARY_CTA_CLASS,
+          )}
+          disabled={isSubmitting || !name.trim() || !email.trim() || !profileConsent}
+          type="submit"
         >
-          <h3 className="text-xl font-semibold text-[#191919]">Join Early Access</h3>
-          <div className="mt-5 grid gap-4">
-            <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-              Name
-              <input
-                className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-                onChange={(event) => setName(event.target.value)}
-                value={name}
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-              Email
-              <input
-                className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                value={email}
-              />
-            </label>
-            <label className="flex gap-3 text-sm leading-6 text-[#666666]">
-              <input
-                checked={profileConsent}
-                className="mt-1 h-4 w-4 rounded border-[#D9DDE3]"
-                onChange={(event) => setProfileConsent(event.target.checked)}
-                type="checkbox"
-              />
-              I agree that INConnect may store my information for Professional
-              Network early access.
-            </label>
-            <button
-              className={classNames(
-                "inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm",
-                PRIMARY_CTA_CLASS,
-              )}
-              disabled={isSubmitting || !name.trim() || !email.trim() || !profileConsent}
-              type="submit"
-            >
-              {isSubmitting ? "Joining..." : "Join Early Access"}
-            </button>
-            {message && (
-              <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-4 py-3 text-sm font-semibold text-[#444444]">
-                {message}
-              </p>
-            )}
-          </div>
-        </form>
+          {isSubmitting ? "Joining..." : "Join Early Access"}
+        </button>
+        {message && (
+          <p className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-4 py-3 text-sm font-semibold text-[#444444]">
+            {message}
+          </p>
+        )}
       </div>
-    </section>
+    </form>
   );
 }
 
