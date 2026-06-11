@@ -2,6 +2,7 @@
 
 import {
   BadgeCheck,
+  ChevronDown,
   Check,
   Copy,
   Download,
@@ -209,11 +210,36 @@ const PRIMARY_CTA_CLASS =
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
-  { label: "Intelligence", href: "/intelligence" },
   { label: "Network", href: "/network-coming-soon" },
-  { label: "Pricing", href: "/pricing" },
 ];
-const toolNavItems = [
+type DropdownNavItem = {
+  href: string;
+  label: string;
+  status?: "Active" | "Coming Soon";
+};
+const intelligenceNavItems: DropdownNavItem[] = [
+  {
+    href: "/intelligence/airport-automation",
+    label: "Airport Automation Daily",
+    status: "Active",
+  },
+  {
+    href: "/intelligence/linkedin-daily",
+    label: "LinkedIn Daily",
+    status: "Active",
+  },
+  {
+    href: "/intelligence/smart-mobility",
+    label: "Smart Mobility Daily",
+    status: "Coming Soon",
+  },
+  {
+    href: "/intelligence/industrial-automation",
+    label: "Industrial Automation Daily",
+    status: "Coming Soon",
+  },
+];
+const toolNavItems: DropdownNavItem[] = [
   { label: "LinkedIn Profile Assessment", href: "/assessment" },
   { label: "Headline Generator", href: "/headline-generator" },
   { label: "About Generator", href: "/about-generator" },
@@ -957,14 +983,17 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
           <Logo markSize={46} />
         </a>
         <nav className="hidden items-center gap-1 lg:flex">
-          <a
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-            href={navItems[0].href}
-          >
-            {navItems[0].label}
-          </a>
-          <ToolsDropdown />
-          {navItems.slice(1).map((item) => (
+          <NavigationDropdown
+            href="/intelligence"
+            items={intelligenceNavItems}
+            label="Intelligence"
+          />
+          <NavigationDropdown
+            href="/assessment"
+            items={toolNavItems}
+            label="LinkedIn Tools"
+          />
+          {navItems.map((item) => (
             <a
               className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
               href={item.href}
@@ -975,15 +1004,20 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
           ))}
         </nav>
       </div>
-      <nav className="flex gap-2 overflow-x-auto border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
-        <a
-          className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
-          href={navItems[0].href}
-        >
-          {navItems[0].label}
-        </a>
-        <ToolsDropdown mobile />
-        {navItems.slice(1).map((item) => (
+      <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
+        <NavigationDropdown
+          href="/intelligence"
+          items={intelligenceNavItems}
+          label="Intelligence"
+          mobile
+        />
+        <NavigationDropdown
+          href="/assessment"
+          items={toolNavItems}
+          label="LinkedIn Tools"
+          mobile
+        />
+        {navItems.map((item) => (
           <a
             className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
             href={item.href}
@@ -998,7 +1032,17 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
   );
 }
 
-function ToolsDropdown({ mobile = false }: { mobile?: boolean }) {
+function NavigationDropdown({
+  href,
+  items,
+  label,
+  mobile = false,
+}: {
+  href: string;
+  items: DropdownNavItem[];
+  label: string;
+  mobile?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -1011,17 +1055,31 @@ function ToolsDropdown({ mobile = false }: { mobile?: boolean }) {
         if (!mobile) setIsOpen(false);
       }}
     >
-      <button
-        aria-expanded={isOpen}
-        className={classNames(
-          "cursor-pointer list-none rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2] marker:hidden",
-          mobile && "shrink-0",
-        )}
-        onClick={() => setIsOpen((current) => !current)}
-        type="button"
-      >
-        Tools
-      </button>
+      <div className="flex items-center">
+        <a
+          className={classNames(
+            "rounded-l-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]",
+            mobile && "shrink-0",
+          )}
+          href={href}
+        >
+          {label}
+        </a>
+        <button
+          aria-expanded={isOpen}
+          aria-label={`Toggle ${label} menu`}
+          className="rounded-r-lg px-2 py-2 text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+        >
+          <ChevronDown
+            className={classNames(
+              "h-4 w-4 transition-transform",
+              isOpen && "rotate-180",
+            )}
+          />
+        </button>
+      </div>
       {isOpen && (
         <div
           className={classNames(
@@ -1029,13 +1087,25 @@ function ToolsDropdown({ mobile = false }: { mobile?: boolean }) {
             mobile ? "mt-2 w-64" : "absolute left-0 top-10 w-72",
           )}
         >
-          {toolNavItems.map((item) => (
+          {items.map((item) => (
             <a
-              className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+              className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
               href={item.href}
               key={item.href}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.status && (
+                <span
+                  className={classNames(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
+                    item.status === "Active"
+                      ? "bg-[#E6F4EA] text-[#057642]"
+                      : "bg-[#F3F2EF] text-[#666666]",
+                  )}
+                >
+                  {item.status}
+                </span>
+              )}
             </a>
           ))}
         </div>
