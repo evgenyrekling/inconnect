@@ -37,11 +37,13 @@ export async function generateMetadata({
     };
   }
 
+  const canonicalUrl = `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`;
+
   return {
     title: briefing.seoTitle,
     description: briefing.seoDescription,
     alternates: {
-      canonical: `/intelligence/airport-automation/${briefing.slug}`,
+      canonical: canonicalUrl,
     },
     openGraph: {
       title: briefing.seoTitle,
@@ -57,7 +59,7 @@ export async function generateMetadata({
       type: "article",
       publishedTime: briefing.generatedAt,
       authors: ["INConnect Intelligence"],
-      url: `/intelligence/airport-automation/${briefing.slug}`,
+      url: canonicalUrl,
     },
     twitter: {
       card: "summary_large_image",
@@ -88,6 +90,7 @@ export default async function AirportBriefingPage({
       "@type": "Organization",
       name: "INConnect Intelligence",
     },
+    dateModified: briefing.generatedAt,
     datePublished: briefing.generatedAt,
     description: briefing.seoDescription,
     headline: briefing.title,
@@ -105,12 +108,20 @@ export default async function AirportBriefingPage({
       <Header showSocialProof />
       <article className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-3xl">
-          <Link
-            className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
-            href="/intelligence/airport-automation"
-          >
-            Back to Airport Automation Daily
-          </Link>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+              href="/intelligence"
+            >
+              Back to Intelligence
+            </Link>
+            <Link
+              className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+              href="/intelligence/airport-automation"
+            >
+              Airport Automation Archive
+            </Link>
+          </div>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
             Airport Automation Daily
           </p>
@@ -129,6 +140,9 @@ export default async function AirportBriefingPage({
               src={briefing.heroImageUrl}
             />
           </div>
+          <p className="mt-8 text-lg leading-8 text-[#444444]">
+            {briefing.excerpt}
+          </p>
         </div>
       </article>
 

@@ -26,7 +26,7 @@ export default function VisionPage() {
             "Headline Generator",
             "About Generator",
             "Airport Automation Daily",
-            "B2B Sales & LinkedIn Daily",
+            "LinkedIn Daily",
             "Professional profile database",
           ],
         },

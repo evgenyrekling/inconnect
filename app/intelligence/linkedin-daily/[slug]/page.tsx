@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BlogArticleAccess } from "@/app/blog/[slug]/blog-article-access";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   type BlogPost,
@@ -10,9 +11,8 @@ import {
   getPublishedBlogPosts,
 } from "@/lib/blog-posts";
 import { SITE_URL } from "@/lib/seo";
-import { BlogArticleAccess } from "./blog-article-access";
 
-type BlogArticlePageProps = {
+type LinkedInDailyBriefingPageProps = {
   params: Promise<{
     slug: string;
   }>;
@@ -27,17 +27,17 @@ export function generateStaticParams() {
 
 export async function generateMetadata({
   params,
-}: BlogArticlePageProps): Promise<Metadata> {
+}: LinkedInDailyBriefingPageProps): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPublishedBlogPostBySlug(slug);
 
   if (!post) {
     return {
-      title: "Briefing Not Found | INConnect",
+      title: "LinkedIn Daily Briefing Not Found | INConnect",
     };
   }
 
-  const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+  const canonicalUrl = `${SITE_URL}/intelligence/linkedin-daily/${post.slug}`;
 
   return {
     title: post.seoTitle,
@@ -58,7 +58,7 @@ export async function generateMetadata({
       ],
       type: "article",
       publishedTime: post.publishedAt,
-      authors: [post.authorName],
+      authors: ["INConnect Intelligence"],
       url: canonicalUrl,
     },
     twitter: {
@@ -70,7 +70,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function BlogArticlePage({ params }: BlogArticlePageProps) {
+export default async function LinkedInDailyBriefingPage({
+  params,
+}: LinkedInDailyBriefingPageProps) {
   const { slug } = await params;
   const post = await getPublishedBlogPostBySlug(slug);
 
@@ -82,19 +84,20 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     post,
     await getPublishedBlogPosts(),
   );
+  const canonicalUrl = `${SITE_URL}/intelligence/linkedin-daily/${post.slug}`;
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
     author: {
       "@type": "Organization",
-      name: post.authorName,
+      name: "INConnect Intelligence",
     },
     dateModified: post.publishedAt,
     datePublished: post.publishedAt,
     description: post.seoDescription,
     headline: post.title,
     image: post.heroImageUrl,
-    mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
+    mainEntityOfPage: canonicalUrl,
     publisher: {
       "@type": "Organization",
       name: "INConnect",
@@ -107,21 +110,29 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       <Header showSocialProof />
       <article className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-3xl">
-          <Link
-            className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
-            href="/intelligence/linkedin-daily"
-          >
-            Back to LinkedIn Daily
-          </Link>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+              href="/intelligence"
+            >
+              Back to Intelligence
+            </Link>
+            <Link
+              className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
+              href="/intelligence/linkedin-daily"
+            >
+              LinkedIn Daily Archive
+            </Link>
+          </div>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            {post.category}
+            LinkedIn Daily
           </p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
             {post.title}
           </h1>
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatBlogDate(post.publishedAt)}</span>
-            <span>{post.authorName}</span>
+            <span>INConnect Intelligence</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -130,6 +141,9 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
               src={post.heroImageUrl}
             />
           </div>
+          <p className="mt-8 text-lg leading-8 text-[#444444]">
+            {post.excerpt}
+          </p>
         </div>
       </article>
 
@@ -139,7 +153,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
           previewContent={previewContent}
         />
       </section>
-      <RelatedArticles articles={relatedArticles} />
+      <RelatedLinkedInBriefings articles={relatedArticles} />
       <script
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
         type="application/ld+json"
@@ -232,20 +246,20 @@ function selectRelatedArticles(currentPost: BlogPost, posts: BlogPost[]) {
   ].slice(0, 3);
 }
 
-function RelatedArticles({ articles }: { articles: BlogPost[] }) {
+function RelatedLinkedInBriefings({ articles }: { articles: BlogPost[] }) {
   if (articles.length === 0) return null;
 
   return (
     <section className="px-5 pb-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-5xl">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Related Articles
+          Related LinkedIn Daily Briefings
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {articles.map((article) => (
             <Link
               className="group overflow-hidden rounded-lg border border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition hover:-translate-y-0.5 hover:border-[#0A66C2]/40 hover:shadow-[0_14px_32px_rgba(10,25,47,0.09)]"
-              href={`/blog/${article.slug}`}
+              href={`/intelligence/linkedin-daily/${article.slug}`}
               key={article.slug}
             >
               <div className="aspect-[16/9] bg-[#E8F1FB]">

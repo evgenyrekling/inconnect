@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 
 const INTELLIGENCE_BLOG_TERMS = [
   "linkedin",
-  "b2b sales",
   "sales",
   "personal branding",
   "career growth",

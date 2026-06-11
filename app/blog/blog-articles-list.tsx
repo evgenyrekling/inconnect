@@ -6,7 +6,13 @@ import type { BlogPost } from "@/lib/blog-posts";
 
 const ARTICLES_PER_PAGE = 9;
 
-export function BlogArticlesList({ posts }: { posts: BlogPost[] }) {
+export function BlogArticlesList({
+  basePath = "/blog",
+  posts,
+}: {
+  basePath?: string;
+  posts: BlogPost[];
+}) {
   const [visibleCount, setVisibleCount] = useState(ARTICLES_PER_PAGE);
   const visiblePosts = posts.slice(0, visibleCount);
   const hasMorePosts = visibleCount < posts.length;
@@ -24,7 +30,7 @@ export function BlogArticlesList({ posts }: { posts: BlogPost[] }) {
     <>
       <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {visiblePosts.map((post) => (
-          <BlogPostCard key={post.slug} post={post} />
+          <BlogPostCard basePath={basePath} key={post.slug} post={post} />
         ))}
       </div>
       {hasMorePosts && (
@@ -44,7 +50,15 @@ export function BlogArticlesList({ posts }: { posts: BlogPost[] }) {
   );
 }
 
-function BlogPostCard({ post }: { post: BlogPost }) {
+function BlogPostCard({
+  basePath,
+  post,
+}: {
+  basePath: string;
+  post: BlogPost;
+}) {
+  const postHref = `${basePath}/${post.slug}`;
+
   return (
     <article className="flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
       <div className="aspect-video overflow-hidden rounded-lg bg-[#E8F1FB]">
@@ -59,7 +73,7 @@ function BlogPostCard({ post }: { post: BlogPost }) {
         <span>{post.category}</span>
       </div>
       <h3 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
-        <Link className="transition hover:text-[#0A66C2]" href={`/blog/${post.slug}`}>
+        <Link className="transition hover:text-[#0A66C2]" href={postHref}>
           {post.title}
         </Link>
       </h3>
@@ -68,7 +82,7 @@ function BlogPostCard({ post }: { post: BlogPost }) {
         <span className="text-[#666666]">{formatBlogDate(post.publishedAt)}</span>
         <Link
           className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
-          href={`/blog/${post.slug}`}
+          href={postHref}
         >
           Read briefing
         </Link>

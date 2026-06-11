@@ -57,9 +57,8 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 250;
-const MAX_AIRPORT_WORD_COUNT = 450;
-const MAX_AIRPORT_DEVELOPMENT_WORD_COUNT = 100;
+const MIN_AIRPORT_WORD_COUNT = 500;
+const MAX_AIRPORT_WORD_COUNT = 800;
 const MAX_AIRPORT_RESEARCH_SOURCES = 5;
 const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
@@ -157,7 +156,7 @@ const AIRPORT_PREFERRED_DOMAINS = [
 ];
 
 const AIRPORT_TITLE_KEYWORD_PATTERN =
-  /\bINConnect 1-Minute Daily Digest\b/i;
+  /(?=.*\bINConnect 1-Minute Daily Digest\b)(?=.*\b(?:airport|airports|aviation|airline|terminal|airside|baggage|passenger|biometric|rfid|robot|robotics|gse|security|lidar|sensor|digital twin|smart airport)\b)/i;
 
 const airportBriefingSchema = {
   type: "object",
@@ -665,7 +664,10 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
     timeZone: "UTC",
     year: "numeric",
   }).format(new Date());
-  const requiredTitle = `INConnect 1-Minute Daily Digest - ${briefingDate}`;
+  const requiredTitleFormat =
+    "[Keyword airport topic] | INConnect 1-Minute Daily Digest - " +
+    briefingDate;
+  const slugDate = getUtcDateSuffix();
 
   const response = await openai.responses.parse({
     model: "gpt-4o-mini",
@@ -676,7 +678,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
         role: "system",
         content: [
           "You are INConnect Airport Automation Daily, a professional intelligence briefing for airport automation, aviation technology, and smart airport infrastructure.",
-          "Rebuild the output as INConnect 1-Minute Daily Digest for airport professionals.",
+          "Build the output as an SEO-ready INConnect 1-Minute Daily Digest page for airport professionals.",
           "Hard boundary: write only about airports, baggage handling systems, baggage tracking, RFID in airports, automatic tag reading, passenger processing, biometrics, e-gates, smart airports, airport robotics, airport AI, airport security automation, airport operations, airport digital infrastructure, airport sensors, airport LiDAR, airport vision systems, airport logistics, airport expansion projects, and airport technology suppliers.",
           "Forbidden topics: LinkedIn optimization, LinkedIn headlines, personal branding, profile visibility, B2B sales visibility, career growth, generic AI for professionals, and any non-airport professional advice.",
           "Generate original analysis based only on the provided source context.",
@@ -686,20 +688,26 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Do not include external source lists, further reading sections, or external Markdown links.",
           "Write for professionals in airports, airlines, BHS, RFID, passenger processing, biometrics, airport security, AI, LiDAR, robotics, and digital airport operations.",
           "Use clean Markdown only. Do not repeat the title as a leading # heading.",
-          "The content must contain exactly three developments.",
-          "Each development must contain these labels exactly: Headline:, Summary:, Why it matters:, Source URL:.",
-          "Each development should be 80-95 words and must be no more than 100 words, counting all four labels and values.",
-          "Total digest length must be 300-360 words, safely inside the allowed 250-450 word range.",
+          "The content must cover one primary topic only.",
+          "Examples of good topics: Humanoid Robots at Airports, RFID Expansion, Autonomous GSE, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
+          "Total digest length must be 500-800 words, with a target of 600-700 words.",
           "Prioritize freshness over length.",
-          "Do not include Suggested LinkedIn Post, long-form article sections, numbered lists, newsletter formatting, or extra commentary.",
-          "Do not use numbered Markdown lists. Use section headings only: ## Development A, ## Development B, ## Development C.",
+          "Do not include Suggested LinkedIn Post, Top Developments, numbered lists, newsletter formatting, long-form article sections, or extra commentary.",
+          "Do not use numbered Markdown lists.",
+          "Use section headings exactly: ## Topic, ## What Happened?, ## Why It Matters, ## Key Takeaway, ## Original Source.",
+          "What Happened? must be 220-360 words.",
+          "Why It Matters must be 140-240 words.",
+          "Key Takeaway must be 2-4 concise sentences.",
+          "Original Source must include Source Name, Source URL, and Open Article fields.",
+          "Use a keyword-based slug with the UTC date suffix, for example rfid-baggage-tracking-airports-2026-06-11. Do not use only the date or only inconnect-1-minute-daily-digest.",
         ].join(" "),
       },
       {
         role: "user",
         content: [
           `Briefing date: ${briefingDate}`,
-          `Required title: ${requiredTitle}`,
+          `Required title format: ${requiredTitleFormat}`,
+          `Required slug date suffix: ${slugDate}`,
           `Generation attempt: ${attempt}`,
           `Research angle: ${research.articleAngle}`,
           "",
@@ -713,29 +721,29 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           ),
           "",
           "Return structured JSON only.",
-          `Set title exactly to: ${requiredTitle}`,
+          "Set title to a keyword-rich airport topic followed by the digest label and date.",
+          `Use this title format: ${requiredTitleFormat}`,
+          `Set slug to a concise keyword phrase ending in ${slugDate}.`,
           "The content field must use this exact structure:",
-          "## Development A",
-          "Headline: ...",
-          "Summary: ...",
-          "Why it matters: ...",
-          "Source URL: https://...",
+          "## Topic",
+          "Topic name",
           "",
-          "## Development B",
-          "Headline: ...",
-          "Summary: ...",
-          "Why it matters: ...",
-          "Source URL: https://...",
+          "## What Happened?",
+          "220-360 words on the single source-backed development, with context and practical detail.",
           "",
-          "## Development C",
-          "Headline: ...",
-          "Summary: ...",
-          "Why it matters: ...",
-          "Source URL: https://...",
+          "## Why It Matters",
+          "140-240 words explaining operational, commercial, and technology significance.",
           "",
-          "Use three different source URLs if available.",
-          "Use the exact source URL from the source context for each development.",
-          "If sources are weak, choose the strongest airport automation signals and avoid unsupported company/project claims.",
+          "## Key Takeaway",
+          "2-4 concise sentences.",
+          "",
+          "## Original Source",
+          "Source Name: source publication or company",
+          "Source URL: https://...",
+          "Open Article: https://...",
+          "",
+          "Use the exact source URL from the source context.",
+          "If sources are weak, choose the strongest airport automation signal and avoid unsupported company/project claims.",
         ].join("\n"),
       },
     ],
@@ -846,14 +854,14 @@ async function reviseAirportDigest({
         content: [
           "You are revising an INConnect 1-Minute Daily Digest for airport professionals.",
           "Fix the listed quality issues exactly.",
-          "Return exactly three developments and keep the total digest between 300 and 360 words, safely inside the allowed 250-450 word range.",
-          "Each development should be 80-95 words and must never exceed 100 words.",
-          "Each development must include exactly these labels: Headline:, Summary:, Why it matters:, Source URL:.",
-          "Use section headings only: ## Development A, ## Development B, ## Development C.",
+          "Return one primary topic only and keep the total digest between 600 and 700 words, safely inside the allowed 500-800 word range.",
+          "Use section headings exactly: ## Topic, ## What Happened?, ## Why It Matters, ## Key Takeaway, ## Original Source.",
+          "What Happened? must be 220-360 words. Why It Matters must be 140-240 words. Key Takeaway must be 2-4 sentences.",
+          "Original Source must include Source Name, Source URL, and Open Article fields.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
-          "Do not add Suggested LinkedIn Post, numbered lists, newsletter formatting, external source lists, or generic filler.",
+          "Do not add Suggested LinkedIn Post, Top Developments, numbered lists, newsletter formatting, long-form article sections, external source lists, or generic filler.",
         ].join(" "),
       },
       {
@@ -904,15 +912,18 @@ function getAirportBriefingQuality(
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const requiredSections = [
-    "Development A",
-    "Development B",
-    "Development C",
+    "Topic",
+    "What Happened?",
+    "Why It Matters",
+    "Key Takeaway",
+    "Original Source",
   ];
   const sectionCount = requiredSections.filter((section) =>
     new RegExp(`##\\s+${escapeRegExp(section)}`, "i").test(content),
   ).length;
-  const developments = extractDigestDevelopments(content);
-  const developmentHeadingCount = (content.match(/##\s+Development\b/gi) ?? []).length;
+  const whatHappened = extractSectionContent(content, "What Happened?");
+  const whyItMatters = extractSectionContent(content, "Why It Matters");
+  const keyTakeaway = extractSectionContent(content, "Key Takeaway");
 
   if (wordCount < MIN_AIRPORT_WORD_COUNT) {
     issues.push(`Briefing has ${wordCount} words; minimum is ${MIN_AIRPORT_WORD_COUNT}.`);
@@ -922,32 +933,33 @@ function getAirportBriefingQuality(
     issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (
-    sectionCount !== requiredSections.length ||
-    developments.length !== 3 ||
-    developmentHeadingCount !== 3
-  ) {
-    issues.push("Digest must include exactly three developments.");
+  if (sectionCount !== requiredSections.length) {
+    issues.push("Digest must include Topic, What Happened?, Why It Matters, Key Takeaway, and Original Source sections.");
   }
 
-  developments.forEach((development, index) => {
-    const developmentWordCount = countWords(stripMarkdown(development));
-    if (developmentWordCount > MAX_AIRPORT_DEVELOPMENT_WORD_COUNT) {
-      issues.push(
-        `Development ${index + 1} has ${developmentWordCount} words; maximum is ${MAX_AIRPORT_DEVELOPMENT_WORD_COUNT}.`,
-      );
-    }
+  const whatHappenedWords = countWords(stripMarkdown(whatHappened));
+  if (whatHappenedWords < 220 || whatHappenedWords > 360) {
+    issues.push(`What Happened has ${whatHappenedWords} words; required range is 220-360.`);
+  }
 
-    for (const label of ["Headline:", "Summary:", "Why it matters:", "Source URL:"]) {
-      if (!development.includes(label)) {
-        issues.push(`Development ${index + 1} is missing ${label}`);
-      }
-    }
-  });
+  const whyWords = countWords(stripMarkdown(whyItMatters));
+  if (whyWords < 140 || whyWords > 240) {
+    issues.push(`Why It Matters has ${whyWords} words; required range is 140-240.`);
+  }
+
+  const keyTakeawaySentences = (keyTakeaway.match(/[.!?](?:\s|$)/g) ?? []).length;
+  if (keyTakeawaySentences < 2 || keyTakeawaySentences > 4) {
+    issues.push("Key Takeaway must be 2-4 sentences.");
+  }
+
+  if (!/Source Name:\s*\S+/i.test(content)) {
+    issues.push("Digest is missing Source Name.");
+  }
 
   const sourceUrlCount = (content.match(/Source URL:\s*https?:\/\/\S+/gi) ?? []).length;
-  if (sourceUrlCount !== 3) {
-    issues.push(`Digest includes ${sourceUrlCount} source URLs; exactly 3 are required.`);
+  const openArticleCount = (content.match(/Open Article:\s*https?:\/\/\S+/gi) ?? []).length;
+  if (sourceUrlCount !== 1 || openArticleCount !== 1) {
+    issues.push("Digest must include one Source URL and one Open Article URL.");
   }
 
   if (research.researchSources.length < 3) {
@@ -960,7 +972,7 @@ function getAirportBriefingQuality(
     issues.push("Briefing includes an external Markdown link.");
   }
 
-  if (/further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments/i.test(content)) {
+  if (/further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments|development a|development b|development c/i.test(content)) {
     issues.push("Digest includes long-form briefing or source-list sections.");
   }
 
@@ -1124,11 +1136,23 @@ function ensureUniqueSlug(value: string, existingBriefings: ExistingAirportBrief
       .map((briefing) => briefing.slug)
       .filter((slug): slug is string => Boolean(slug)),
   );
-  const baseSlug = slugify(value) || `airport-automation-daily-${getUtcDateSuffix()}`;
+  const dateSuffix = getUtcDateSuffix();
+  let baseSlug = slugify(value) || `airport-automation-daily-${dateSuffix}`;
+
+  if (/^inconnect-1-minute-daily-digest(?:-\d{4}-\d{2}-\d{2})?$/.test(baseSlug)) {
+    baseSlug = `airport-automation-daily-${dateSuffix}`;
+  }
+
+  if (!baseSlug.endsWith(dateSuffix)) {
+    baseSlug = `${baseSlug}-${dateSuffix}`;
+  }
 
   if (!existingSlugs.has(baseSlug)) return baseSlug;
 
-  const datedSlug = `${baseSlug}-${getUtcDateSuffix()}`;
+  const datedSlug = `${baseSlug}-${new Date()
+    .toISOString()
+    .slice(11, 16)
+    .replace(":", "")}`;
   if (!existingSlugs.has(datedSlug)) return datedSlug;
 
   let suffix = 2;
@@ -1149,7 +1173,7 @@ function ensureUniqueTitle(value: string, existingBriefings: ExistingAirportBrie
 }
 
 function createDefaultAirportTitle() {
-  return `INConnect 1-Minute Daily Digest - ${getUtcDateSuffix()}`;
+  return `Airport Automation Daily | INConnect 1-Minute Daily Digest - ${getUtcDateSuffix()}`;
 }
 
 function isValidAirportTitle(title: string) {
@@ -1177,12 +1201,14 @@ function stripLeadingTitleHeading(content: string, title: string) {
   return trimmedContent;
 }
 
-function extractDigestDevelopments(content: string) {
-  return (
-    content.match(
-      /##\s+Development\s+[ABC][\s\S]*?(?=##\s+Development\s+[ABC]|\s*$)/gi,
-    ) ?? []
+function extractSectionContent(content: string, section: string) {
+  const match = content.match(
+    new RegExp(
+      `##\\s+${escapeRegExp(section)}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|\\s*$)`,
+      "i",
+    ),
   );
+  return match?.[1]?.trim() ?? "";
 }
 
 function slugify(value: string) {

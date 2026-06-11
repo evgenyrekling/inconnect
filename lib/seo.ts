@@ -24,7 +24,7 @@ export function createSeoMetadata({
     title,
     description,
     alternates: {
-      canonical: path,
+      canonical: url,
     },
     openGraph: {
       title,

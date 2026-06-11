@@ -14,10 +14,10 @@ export function BlogArticleAccess({
   return (
     <IntelligenceBriefingAccess
       fullContent={fullContent}
-      intelligenceType="b2b_sales"
+      intelligenceType="linkedin_daily"
       previewContent={previewContent}
-      streamTitle="B2B Sales & LinkedIn Daily"
-      unlockTitle="Unlock today's B2B Sales & LinkedIn Daily briefing."
+      streamTitle="LinkedIn Daily"
+      unlockTitle="Unlock today's LinkedIn Daily briefing."
     />
   );
 }

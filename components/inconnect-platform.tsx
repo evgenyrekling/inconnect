@@ -1167,9 +1167,9 @@ function PlatformPillars() {
             title: "Airport Automation Daily",
           },
           {
-            href: "/intelligence/b2b-sales",
+            href: "/intelligence/linkedin-daily",
             status: "Active",
-            title: "B2B Sales & LinkedIn Daily",
+            title: "LinkedIn Daily",
           },
           { status: "Coming Soon", title: "Smart Mobility Daily" },
           { status: "Coming Soon", title: "Industrial Automation Daily" },
@@ -5164,7 +5164,7 @@ export function Footer() {
     { label: "Terms", href: "/terms" },
     { label: "Contact", href: "/contact" },
     { label: "Vision", href: "/vision" },
-    { label: "B2B Sales & LinkedIn Daily", href: "/intelligence/b2b-sales" },
+    { label: "LinkedIn Daily", href: "/intelligence/linkedin-daily" },
   ];
 
   return (
@@ -5640,11 +5640,11 @@ export function INConnectIntelligencePage({
             </p>
             <ul className="mt-5 grid gap-2 text-sm leading-6 text-[#444444]">
               {[
-                "Top airport automation stories",
-                "Key companies and projects",
-                "Technology trends",
-                "Business opportunities",
-                "Suggested LinkedIn post idea",
+                "One primary topic per day",
+                "What happened",
+                "Why it matters",
+                "Key takeaway",
+                "Original source",
               ].map((item) => (
                 <li className="flex gap-2" key={item}>
                   <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
@@ -5680,7 +5680,7 @@ export function INConnectIntelligencePage({
               )}
               href="/intelligence/airport-automation"
             >
-              Unlock Briefing
+              Read Daily Digest
             </a>
           </article>
 
@@ -5691,23 +5691,23 @@ export function INConnectIntelligencePage({
                   Active
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
-                  B2B Sales & LinkedIn Daily
+                  LinkedIn Daily
                 </h2>
               </div>
               <FileText className="h-8 w-8 text-[#0A66C2]" />
             </div>
             <p className="mt-4 text-sm leading-6 text-[#666666]">
-              Daily insights from INConnect's B2B Sales & LinkedIn Daily stream
-              covering LinkedIn growth, profile optimization, B2B visibility,
-              personal branding, AI tools, and professional authority.
+              Daily insights covering LinkedIn visibility, personal branding,
+              networking, content strategy, AI tools, thought leadership, and
+              professional growth.
             </p>
             <ul className="mt-5 grid gap-2 text-sm leading-6 text-[#444444]">
               {[
-                "Latest LinkedIn growth insights",
-                "B2B visibility signals",
-                "Profile optimization ideas",
-                "Authority-building themes",
-                "Practical next steps",
+                "LinkedIn visibility signals",
+                "Personal branding ideas",
+                "Networking themes",
+                "Content strategy prompts",
+                "Professional growth insights",
               ].map((item) => (
                 <li className="flex gap-2" key={item}>
                   <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
@@ -5718,7 +5718,7 @@ export function INConnectIntelligencePage({
             {latestInsightPosts[0] ? (
               <a
                 className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
-                href={`/blog/${latestInsightPosts[0].slug}`}
+                href={`/intelligence/linkedin-daily/${latestInsightPosts[0].slug}`}
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
                   Latest briefing
@@ -5741,7 +5741,7 @@ export function INConnectIntelligencePage({
                 "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
                 PRIMARY_CTA_CLASS,
               )}
-              href="/intelligence/b2b-sales"
+              href="/intelligence/linkedin-daily"
             >
               Unlock Latest Insights
             </a>

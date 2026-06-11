@@ -39,11 +39,13 @@ const INTELLIGENCE_TYPES = {
       "Aviation Technology",
     ],
   },
-  b2b_sales: {
-    label: "B2B Sales & LinkedIn Daily",
+  linkedin_daily: {
+    label: "LinkedIn Daily",
     profileInterests: [
-      "B2B Sales",
       "LinkedIn Growth",
+      "LinkedIn Visibility",
+      "Networking",
+      "Content Strategy",
       "Professional Visibility",
       "Personal Branding",
     ],
@@ -230,7 +232,9 @@ function normalizeSubscriptionRequest(
   const record = value as Record<string, unknown>;
   const name = getString(record.name, 180);
   const email = getString(record.email, 320);
-  const intelligenceType = getString(record.intelligenceType, 80);
+  const intelligenceType = normalizeIntelligenceType(
+    getString(record.intelligenceType, 80),
+  );
   const userKey = getString(record.userKey, 180);
   const profileConsent = record.profileConsent === true;
 
@@ -245,6 +249,10 @@ function normalizeSubscriptionRequest(
     profileConsent,
     userKey: userKey || undefined,
   };
+}
+
+function normalizeIntelligenceType(value: string) {
+  return value === "b2b_sales" ? "linkedin_daily" : value;
 }
 
 function getString(value: unknown, maxLength: number) {

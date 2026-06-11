@@ -15,7 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/about-generator",
     "/intelligence",
     "/intelligence/airport-automation",
-    "/intelligence/b2b-sales",
+    "/intelligence/linkedin-daily",
     "/intelligence/smart-mobility",
     "/intelligence/industrial-automation",
     "/blog",
@@ -39,6 +39,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(post.publishedAt),
       priority: 0.8,
       url: `${SITE_URL}/blog/${post.slug}`,
+    })),
+    ...posts.map((post) => ({
+      changeFrequency: "daily" as const,
+      lastModified: new Date(post.publishedAt),
+      priority: 0.85,
+      url: `${SITE_URL}/intelligence/linkedin-daily/${post.slug}`,
     })),
     ...airportBriefings.map((briefing) => ({
       changeFrequency: "daily" as const,
