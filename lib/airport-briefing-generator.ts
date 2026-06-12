@@ -57,7 +57,7 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 400;
+const MIN_AIRPORT_WORD_COUNT = 280;
 const MAX_AIRPORT_WORD_COUNT = 600;
 const MAX_AIRPORT_RESEARCH_SOURCES = 5;
 const MIN_AIRPORT_RESEARCH_SOURCES = 3;
@@ -710,7 +710,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Use clean Markdown only. Do not repeat the title as a leading # heading.",
           "The content must cover one primary topic only.",
           "Examples of good topics: Humanoid Robots at Airports, RFID Expansion, Autonomous GSE, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
-          "Total post body length must be 400-600 words.",
+          "Total post body length must be 350-500 words. Minimum acceptable full post length is 280 words; maximum is 600 words.",
           "Prioritize freshness over length.",
           "Do not include Source, Read original story, Discussion Question, Executive Summary, Why It Matters, INConnect View, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, or report-style commentary.",
           "Do not use numbered Markdown lists.",
@@ -746,7 +746,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           `Set slug to a concise keyword phrase ending in ${slugDate}.`,
           "The content field must contain only the post body.",
           "Open exactly with: Today, INConnect looks at...",
-          "Write 3-4 concise paragraphs, 400-600 words total.",
+          "Write 3-4 concise paragraphs, 350-500 words target, never below 280 words and never above 600 words.",
           "Do not include source links, source labels, discussion questions, headings, bullets, or numbered lists.",
           "",
           "If sources are weak, choose the strongest airport automation signal and avoid unsupported company/project claims.",
@@ -868,11 +868,13 @@ async function reviseAirportDigest({
         content: [
           "You are revising an INConnect 1-Minute Daily Digest for airport professionals.",
           "Fix the listed quality issues exactly.",
-          "Return one primary topic only and keep the full logged-in post body between 400 and 600 words.",
+          "Return one primary topic only and keep the full logged-in post body between 350 and 500 words, with an allowed range of 280-600 words.",
           "Do not use Markdown section headings.",
           "Return only the post body. Do not include title, source links, discussion questions, headings, bullets, or numbered lists.",
           "The first sentence must start exactly with: Today, INConnect looks at",
           "The post body must have 3-4 concise paragraphs.",
+          "If the current post is below 280 words, expand once with more airport-specific context and INConnect perspective without adding filler.",
+          "If the current post is above 600 words, shorten it automatically.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
