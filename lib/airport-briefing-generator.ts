@@ -43,6 +43,21 @@ type AirportBriefingQuality = {
   wordCount: number;
 };
 
+type AirportTopicHistoryRow = {
+  category: string | null;
+  published_at: string | null;
+  title: string | null;
+  topic: string | null;
+};
+
+type AirportTopicSelection = {
+  angle: string;
+  category: string;
+  noveltyScore: number;
+  rejectedCategories: string[];
+  topic: string;
+};
+
 export class AirportBriefingGenerationError extends Error {
   constructor(
     public readonly stage: string,
@@ -155,6 +170,93 @@ const AIRPORT_PREFERRED_DOMAINS = [
   "adbsafegate.com",
 ];
 
+const AIRPORT_TOPIC_CANDIDATES = [
+  {
+    angle:
+      "How airports are improving passenger processing through biometrics, self-service, identity orchestration, and terminal-flow intelligence.",
+    category: "Passenger Processing",
+    signals: ["biometric", "passenger", "terminal", "processing", "egate", "self service"],
+    topic: "Passenger processing and identity automation",
+  },
+  {
+    angle:
+      "Why baggage handling modernization is becoming a core airport automation priority as airports pursue more reliable flow and fewer disruptions.",
+    category: "Baggage Handling",
+    signals: ["baggage", "bag drop", "handling", "sortation", "conveyor", "bhs"],
+    topic: "Baggage handling modernization",
+  },
+  {
+    angle:
+      "Where RFID and automatic tag reading are creating stronger baggage visibility, exception handling, and operational accountability across airports.",
+    category: "RFID",
+    signals: ["rfid", "tag", "atr", "tracking", "baggage visibility"],
+    topic: "RFID baggage visibility",
+  },
+  {
+    angle:
+      "How autonomous vehicles are beginning to reshape airside logistics, apron movement, baggage transport, and airport service operations.",
+    category: "Autonomous Vehicles",
+    signals: ["autonomous", "vehicle", "driverless", "shuttle", "apron", "airside"],
+    topic: "Autonomous vehicles in airport operations",
+  },
+  {
+    angle:
+      "What airport robotics signals about labor pressure, repetitive operational tasks, passenger service, baggage support, and terminal resilience.",
+    category: "Robotics",
+    signals: ["robot", "robotics", "humanoid", "service robot", "automation"],
+    topic: "Robotics in airport environments",
+  },
+  {
+    angle:
+      "How AI, sensors, analytics, computer vision, and LiDAR are moving airport teams toward predictive operations and better situational awareness.",
+    category: "AI & Analytics",
+    signals: ["ai", "analytics", "sensor", "lidar", "vision", "predictive", "data"],
+    topic: "AI and analytics for airport operations",
+  },
+  {
+    angle:
+      "Where airport security automation is changing screening, surveillance, identity checks, queue management, and operational risk detection.",
+    category: "Airport Security",
+    signals: ["security", "screening", "surveillance", "checkpoint", "identity", "risk"],
+    topic: "Airport security automation",
+  },
+  {
+    angle:
+      "How cargo automation is becoming more important as airports connect air freight, warehouse processes, tracking, and ground logistics.",
+    category: "Cargo Automation",
+    signals: ["cargo", "freight", "warehouse", "logistics", "ULD", "air freight"],
+    topic: "Cargo automation and air freight operations",
+  },
+  {
+    angle:
+      "Why ground support equipment is becoming a practical automation frontier for turnaround reliability, safety, electrification, and airside efficiency.",
+    category: "Ground Support Equipment",
+    signals: ["gse", "ground support", "turnaround", "tug", "airside", "ramp"],
+    topic: "Ground support equipment automation",
+  },
+  {
+    angle:
+      "How digital twins are helping airports model capacity, test operational changes, coordinate stakeholders, and improve infrastructure planning.",
+    category: "Digital Twins",
+    signals: ["digital twin", "simulation", "model", "capacity", "planning"],
+    topic: "Digital twins for airport operations",
+  },
+  {
+    angle:
+      "Where sustainability and automation overlap in airports through electrification, energy efficiency, smarter resource use, and lower-emission operations.",
+    category: "Sustainability",
+    signals: ["sustainability", "electric", "emissions", "energy", "carbon", "efficiency"],
+    topic: "Sustainable airport automation",
+  },
+  {
+    angle:
+      "How airport infrastructure modernization is creating the foundation for more connected, data-rich, and automated airport operations.",
+    category: "Infrastructure",
+    signals: ["infrastructure", "terminal", "project", "expansion", "modernization", "smart airport"],
+    topic: "Airport infrastructure modernization",
+  },
+];
+
 const AIRPORT_TITLE_KEYWORD_PATTERN =
   /\b(?:airport|airports|aviation|airline|terminal|airside|baggage|passenger|biometric|rfid|robot|robotics|gse|security|lidar|sensor|digital twin|smart airport)\b/i;
 
@@ -209,12 +311,17 @@ export async function generateAndStoreAirportBriefing(options?: {
   }
 
   const existingBriefings = await getExistingAirportBriefings(supabase);
+  const topicHistory = await getAirportTopicHistory(supabase);
 
   let research: BlogResearchResult;
   try {
-    research = await researchAirportAutomationTopic(existingBriefings);
+    research = await researchAirportAutomationTopic(existingBriefings, topicHistory);
+    const topicSelection = getAirportTopicSelection(research);
     console.info("INConnect airport post topic selected", {
-      selectedTopic: research.articleAngle,
+      noveltyScore: topicSelection.noveltyScore,
+      rejectedCategories: topicSelection.rejectedCategories,
+      selectedCategory: topicSelection.category,
+      selectedTopic: topicSelection.topic,
       sourceUrl: research.researchSources[0]?.url ?? null,
       sourceCount: research.researchSources.length,
     });
@@ -326,6 +433,12 @@ export async function generateAndStoreAirportBriefing(options?: {
     sourceUrl: research.researchSources[0]?.url ?? null,
   });
 
+  await saveAirportTopicHistory(supabase, {
+    publishedAt: data.published_at ?? data.generated_at ?? data.created_at,
+    research,
+    title,
+  });
+
   return {
     briefing: data,
     published: true,
@@ -353,6 +466,62 @@ async function getExistingAirportBriefings(
     ...briefing,
     research_summary: null,
   }));
+}
+
+async function getAirportTopicHistory(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+) {
+  const { data, error } = await supabase
+    .from("airport_topic_history")
+    .select("title, topic, category, published_at")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(30)
+    .returns<AirportTopicHistoryRow[]>();
+
+  if (error) {
+    console.warn("INConnect airport_topic_history lookup skipped", {
+      error,
+    });
+    return [];
+  }
+
+  return data ?? [];
+}
+
+async function saveAirportTopicHistory(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  {
+    publishedAt,
+    research,
+    title,
+  }: {
+    publishedAt: string | null;
+    research: BlogResearchResult;
+    title: string;
+  },
+) {
+  const topicSelection = getAirportTopicSelection(research);
+  const { error } = await supabase.from("airport_topic_history").insert({
+    category: topicSelection.category,
+    published_at: publishedAt || new Date().toISOString(),
+    title,
+    topic: topicSelection.topic,
+  });
+
+  if (error) {
+    console.warn("INConnect airport_topic_history insert skipped", {
+      error,
+      selectedCategory: topicSelection.category,
+      selectedTopic: topicSelection.topic,
+    });
+    return;
+  }
+
+  console.info("INConnect airport_topic_history insert success", {
+    publishedAt,
+    selectedCategory: topicSelection.category,
+    selectedTopic: topicSelection.topic,
+  });
 }
 
 async function insertAirportBriefingWithSchemaFallback(
@@ -395,6 +564,7 @@ async function insertAirportBriefingWithSchemaFallback(
 
 async function researchAirportAutomationTopic(
   existingBriefings: ExistingAirportBriefing[],
+  topicHistory: AirportTopicHistoryRow[],
 ): Promise<BlogResearchResult> {
   console.info("INConnect airport automation web research started", {
     queryCount: AIRPORT_RESEARCH_QUERIES.length,
@@ -428,11 +598,20 @@ async function researchAirportAutomationTopic(
     );
   }
 
-  const articleAngle = chooseAirportBriefingAngle(selectedSources, existingBriefings);
+  const topicSelection = chooseAirportBriefingTopic(
+    selectedSources,
+    existingBriefings,
+    topicHistory,
+  );
+  const articleAngle = topicSelection.angle;
   const researchSummary = createAirportResearchSummary(selectedSources, articleAngle);
 
   console.info("INConnect airport automation web research success", {
     angle: articleAngle,
+    noveltyScore: topicSelection.noveltyScore,
+    rejectedCategories: topicSelection.rejectedCategories,
+    selectedCategory: topicSelection.category,
+    selectedTopic: topicSelection.topic,
     sourceCount: selectedSources.length,
     sources: selectedSources.map((source) => ({
       domain: source.domain,
@@ -443,9 +622,10 @@ async function researchAirportAutomationTopic(
 
   return {
     articleAngle,
+    topicSelection,
     researchSources: selectedSources,
     researchSummary,
-  };
+  } as BlogResearchResult;
 }
 
 async function searchAirportResearchSources(query: string): Promise<BlogResearchSource[]> {
@@ -573,10 +753,11 @@ function getAirportSourceScore(source: BlogResearchSource, recentText: string) {
   return score;
 }
 
-function chooseAirportBriefingAngle(
+function chooseAirportBriefingTopic(
   sources: BlogResearchSource[],
   existingBriefings: ExistingAirportBriefing[],
-) {
+  topicHistory: AirportTopicHistoryRow[],
+): AirportTopicSelection {
   const recentText = existingBriefings
     .slice(0, 30)
     .map((briefing) => `${briefing.title ?? ""} ${briefing.research_summary ?? ""}`)
@@ -586,45 +767,70 @@ function chooseAirportBriefingAngle(
     .map((source) => `${source.title} ${source.excerpt}`)
     .join(" ")
     .toLowerCase();
-  const candidateAngles = [
-    {
-      angle:
-        "How airports are combining passenger processing, biometric identity, and operational data to improve terminal flow.",
-      signals: ["biometric", "passenger", "terminal", "processing", "egate"],
-    },
-    {
-      angle:
-        "Why baggage visibility, BHS modernization, RFID, and automatic tag reading are becoming core operational priorities.",
-      signals: ["baggage", "rfid", "tag", "atr", "handling"],
-    },
-    {
-      angle:
-        "Where airport AI, sensors, LiDAR, computer vision, and control-room analytics are moving from pilots into daily operations.",
-      signals: ["ai", "sensor", "lidar", "vision", "analytics", "operations"],
-    },
-    {
-      angle:
-        "How smart airport infrastructure and supplier ecosystems are shaping automation opportunities for operators and integrators.",
-      signals: ["smart airport", "infrastructure", "supplier", "project", "digital"],
-    },
-    {
-      angle:
-        "What airport robotics, security automation, and passenger-service automation signal about the next phase of airport operations.",
-      signals: ["robotics", "security", "automation", "service", "operations"],
-    },
-  ];
-
-  return (
-    candidateAngles
-      .map((candidate) => ({
-        ...candidate,
-        score:
-          candidate.signals.filter((signal) => sourceText.includes(signal)).length * 4 -
-          (recentText.includes(candidate.angle.toLowerCase().slice(0, 60)) ? 8 : 0),
-      }))
-      .sort((a, b) => b.score - a.score)[0]?.angle ??
-    "Airport automation signals across baggage, passenger processing, security, sensors, AI, and smart airport infrastructure."
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentCategories = new Set(
+    topicHistory
+      .filter((entry) => {
+        if (!entry.published_at) return false;
+        const publishedAt = new Date(entry.published_at).getTime();
+        return Number.isFinite(publishedAt) && publishedAt >= sevenDaysAgo;
+      })
+      .map((entry) => entry.category)
+      .filter((category): category is string => Boolean(category)),
   );
+  const rejectedCategories = AIRPORT_TOPIC_CANDIDATES
+    .filter((candidate) => recentCategories.has(candidate.category))
+    .map((candidate) => candidate.category);
+  const recentKeywords = getRepeatedAirportKeywords([
+    ...existingBriefings.slice(0, 30).map((briefing) => briefing.title ?? ""),
+    ...topicHistory.slice(0, 30).map((entry) => `${entry.title ?? ""} ${entry.topic ?? ""}`),
+  ]);
+  const candidates = AIRPORT_TOPIC_CANDIDATES
+    .filter((candidate) => !recentCategories.has(candidate.category))
+    .map((candidate) => {
+      const relevanceScore =
+        candidate.signals.filter((signal) => sourceText.includes(signal.toLowerCase())).length *
+        12;
+      const titleSimilarityPenalty = existingBriefings
+        .slice(0, 30)
+        .some((briefing) => areAirportTitlesSimilar(candidate.topic, briefing.title ?? ""))
+        ? 30
+        : 0;
+      const repeatedKeywordPenalty =
+        candidate.signals.filter((signal) => recentKeywords.has(normalizeAirportKeyword(signal)))
+          .length * 8;
+      const recentHistoryPenalty = topicHistory
+        .slice(0, 30)
+        .some((entry) => areAirportTitlesSimilar(candidate.topic, entry.topic ?? entry.title ?? ""))
+        ? 20
+        : 0;
+      const noveltyScore =
+        100 + relevanceScore - titleSimilarityPenalty - repeatedKeywordPenalty - recentHistoryPenalty;
+
+      return {
+        ...candidate,
+        noveltyScore,
+      };
+    })
+    .sort((a, b) => b.noveltyScore - a.noveltyScore);
+  const selected =
+    candidates[0] ??
+    AIRPORT_TOPIC_CANDIDATES.map((candidate) => ({
+      ...candidate,
+      noveltyScore: candidate.signals.filter((signal) =>
+        sourceText.includes(signal.toLowerCase()),
+      ).length,
+    })).sort((a, b) => b.noveltyScore - a.noveltyScore)[0];
+
+  return {
+    angle:
+      selected?.angle ??
+      "Airport automation signals across baggage, passenger processing, security, sensors, AI, and smart airport infrastructure.",
+    category: selected?.category ?? "Infrastructure",
+    noveltyScore: selected?.noveltyScore ?? 0,
+    rejectedCategories,
+    topic: selected?.topic ?? "Airport automation market signal",
+  };
 }
 
 function createAirportResearchSummary(
@@ -641,6 +847,53 @@ function createAirportResearchSummary(
         `${index + 1}. ${source.title} (${source.domain}) - ${source.excerpt}`,
     ),
   ].join("\n");
+}
+
+function getAirportTopicSelection(research: BlogResearchResult) {
+  const maybeSelection = (research as BlogResearchResult & {
+    topicSelection?: AirportTopicSelection;
+  }).topicSelection;
+
+  return (
+    maybeSelection ?? {
+      angle: research.articleAngle,
+      category: "Infrastructure",
+      noveltyScore: 0,
+      rejectedCategories: [],
+      topic: research.articleAngle,
+    }
+  );
+}
+
+function getRepeatedAirportKeywords(values: string[]) {
+  const keywords = new Set<string>();
+  for (const value of values) {
+    for (const word of value.toLowerCase().split(/\W+/)) {
+      const keyword = normalizeAirportKeyword(word);
+      if (keyword.length >= 5) keywords.add(keyword);
+    }
+  }
+  return keywords;
+}
+
+function normalizeAirportKeyword(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function areAirportTitlesSimilar(left: string, right: string) {
+  const leftKeywords = new Set(
+    normalizeAirportKeyword(left)
+      .split(/\s+/)
+      .filter((word) => word.length >= 5),
+  );
+  const rightKeywords = normalizeAirportKeyword(right)
+    .split(/\s+/)
+    .filter((word) => word.length >= 5);
+
+  if (leftKeywords.size === 0 || rightKeywords.length === 0) return false;
+
+  const overlap = rightKeywords.filter((word) => leftKeywords.has(word)).length;
+  return overlap >= 2 || overlap / Math.max(leftKeywords.size, rightKeywords.length) >= 0.45;
 }
 
 function addUniqueAirportSources(
