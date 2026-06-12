@@ -11,7 +11,7 @@ import { createSeoMetadata } from "@/lib/seo";
 export const metadata: Metadata = createSeoMetadata({
   title: "Airport Automation Daily | INConnect Intelligence",
   description:
-    "Daily airport automation intelligence covering airports, airlines, BHS, RFID, passenger processing, biometrics, security, AI, LiDAR, robotics, and smart airport projects.",
+    "Daily INConnect intelligence posts covering airports, airlines, BHS, RFID, passenger processing, biometrics, security, AI, LiDAR, robotics, and smart airport projects.",
   path: "/intelligence/airport-automation",
 });
 
@@ -40,10 +40,10 @@ export default async function AirportAutomationIntelligencePage() {
             Airport Automation Daily
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            A 1-minute daily digest for airport professionals covering the
-            most important developments in automation, baggage, passenger
-            processing, biometrics, security, AI, robotics, and smart airport
-            infrastructure.
+            Daily INConnect perspective posts for airport professionals
+            covering the most important developments in automation, baggage,
+            passenger processing, biometrics, security, AI, robotics, and smart
+            airport infrastructure.
           </p>
         </div>
       </section>
@@ -55,7 +55,7 @@ export default async function AirportAutomationIntelligencePage() {
           </p>
           {!latestBriefing ? (
             <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 text-sm leading-6 text-[#666666]">
-              Airport Automation Daily briefings will appear here after the
+              Airport Automation Daily posts will appear here after the
               first scheduled generation run.
             </div>
           ) : (
@@ -104,7 +104,7 @@ function AirportBriefingCard({
       <div className={classNames(featured ? "mt-5 lg:mt-0" : "mt-5")}>
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
           <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
-          <span className="text-[#057642]">1 minute read</span>
+          <span className="text-[#057642]">{getReadingTimeLabel(briefing.content)}</span>
         </div>
         <h2 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
           <Link
@@ -133,4 +133,10 @@ function AirportBriefingCard({
 
 function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function getReadingTimeLabel(content: string) {
+  const words = content.trim().split(/\s+/).filter(Boolean).length;
+  const minutes = Math.max(1, Math.ceil(words / 250));
+  return `${minutes} min read`;
 }

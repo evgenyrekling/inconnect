@@ -80,6 +80,7 @@ export default async function AirportBriefingPage({
 
   const displayContent = formatAirportPostForDisplay(briefing.content);
   const previewContent = createBriefingPreview(displayContent);
+  const readingTime = getReadingTimeLabel(displayContent);
   const relatedBriefings = selectRelatedBriefings(
     briefing,
     await getPublishedAirportBriefings(),
@@ -132,7 +133,7 @@ export default async function AirportBriefingPage({
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
             <span>INConnect Intelligence</span>
-            <span className="font-semibold text-[#057642]">1 minute read</span>
+            <span className="font-semibold text-[#057642]">{readingTime}</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -167,28 +168,29 @@ export default async function AirportBriefingPage({
 }
 
 function createBriefingPreview(content: string) {
-  return truncateMarkdownByWordShare(content.trim(), 0.3);
+  return truncateMarkdownByWordCount(content.trim(), 220);
 }
 
 function formatAirportPostForDisplay(content: string) {
   return content
     .replace(/^##\s+Post\s*/i, "")
+    .replace(/^Airport Automation Daily\s*\|[^\n]+\n*/i, "")
+    .replace(/\n*Read original story:[\s\S]*$/i, "")
+    .replace(/\n*##\s+(?:Source|Discussion Question)[\s\S]*$/i, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function truncateMarkdownByWordShare(content: string, share: number) {
+function truncateMarkdownByWordCount(content: string, wordLimit: number) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const totalWords = countWords(content);
-  const targetWords = Math.max(1, Math.ceil(totalWords * share));
   const previewLines: string[] = [];
   let visibleWords = 0;
 
   for (const line of lines) {
     const lineWords = countWords(line);
 
-    if (line.trim() && visibleWords + lineWords > targetWords) {
-      const remainingWords = Math.max(1, targetWords - visibleWords);
+    if (line.trim() && visibleWords + lineWords > wordLimit) {
+      const remainingWords = Math.max(1, wordLimit - visibleWords);
       previewLines.push(truncateLineByWords(line, remainingWords));
       break;
     }
@@ -196,10 +198,15 @@ function truncateMarkdownByWordShare(content: string, share: number) {
     previewLines.push(line);
     visibleWords += lineWords;
 
-    if (visibleWords >= targetWords) break;
+    if (visibleWords >= wordLimit) break;
   }
 
   return previewLines.join("\n").trim();
+}
+
+function getReadingTimeLabel(content: string) {
+  const minutes = Math.max(1, Math.ceil(countWords(content) / 250));
+  return `${minutes} min read`;
 }
 
 function countWords(value: string) {
@@ -233,7 +240,7 @@ function RelatedAirportBriefings({
     <section className="px-5 pb-12 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-5xl">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-          Recent Daily Digests
+          Recent Intelligence Posts
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {briefings.map((briefing) => (
@@ -254,7 +261,7 @@ function RelatedAirportBriefings({
                   {formatAirportBriefingDate(briefing.generatedAt)}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-[#057642]">
-                  1 minute read
+                  {getReadingTimeLabel(briefing.content)}
                 </p>
                 <h2 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
                   {briefing.title}
