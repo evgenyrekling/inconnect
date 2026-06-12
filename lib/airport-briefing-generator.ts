@@ -57,8 +57,9 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 150;
+const MIN_AIRPORT_WORD_COUNT = 120;
 const MAX_AIRPORT_WORD_COUNT = 250;
+const TARGET_AIRPORT_WORD_COUNT = 220;
 const MAX_AIRPORT_RESEARCH_SOURCES = 5;
 const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
@@ -213,8 +214,16 @@ export async function generateAndStoreAirportBriefing(options?: {
   let research: BlogResearchResult;
   try {
     research = await researchAirportAutomationTopic(existingBriefings);
+    console.info("INConnect airport post topic selected", {
+      selectedTopic: research.articleAngle,
+      sourceUrl: research.researchSources[0]?.url ?? null,
+      sourceCount: research.researchSources.length,
+    });
   } catch (error) {
-    console.error("INConnect airport briefing web research failure", error);
+    console.error("INConnect airport briefing web research failure", {
+      error: error instanceof Error ? error.message : String(error),
+      rawError: error,
+    });
     throw toAirportBriefingError("web_research", error);
   }
 
@@ -226,7 +235,10 @@ export async function generateAndStoreAirportBriefing(options?: {
       title: generatedBriefing.title,
     });
   } catch (error) {
-    console.error("INConnect OpenAI airport briefing generation failure", error);
+    console.error("INConnect OpenAI airport briefing generation failure", {
+      error: error instanceof Error ? error.message : String(error),
+      rawError: error,
+    });
     throw toAirportBriefingError("openai_generation", error);
   }
 
@@ -235,10 +247,16 @@ export async function generateAndStoreAirportBriefing(options?: {
     existingBriefings,
   );
   const slug = ensureUniqueSlug(generatedBriefing.slug || title, existingBriefings);
-  const { content, quality } = await prepareQualityCheckedAirportContent({
+  const { content, initialWordCount, quality } = await prepareQualityCheckedAirportContent({
     generatedBriefing,
     research,
     title,
+  });
+  console.info("INConnect airport post final content ready", {
+    finalWordCount: quality.wordCount,
+    initialWordCount,
+    selectedTopic: title,
+    sourceUrl: extractAirportPostSourceUrl(content) ?? research.researchSources[0]?.url ?? null,
   });
   const heroImage = await generateAndUploadAirportHeroImage({
     recentBriefings: existingBriefings.slice(0, 10),
@@ -281,6 +299,7 @@ export async function generateAndStoreAirportBriefing(options?: {
   if (error) {
     console.error("INConnect Supabase airport_briefings insert failure", {
       error,
+      exactError: error.message,
       slug,
       title,
     });
@@ -298,11 +317,14 @@ export async function generateAndStoreAirportBriefing(options?: {
   }
 
   console.info("INConnect Supabase airport_briefings insert success", {
+    finalWordCount: quality.wordCount,
     heroImageUrl: data.hero_image_url,
     id: data.id,
     publishedAt: data.published_at,
     published: data.published,
+    publishStatus: "published",
     slug: data.slug,
+    sourceUrl: extractAirportPostSourceUrl(content) ?? research.researchSources[0]?.url ?? null,
   });
 
   return {
@@ -689,14 +711,15 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Use clean Markdown only. Do not repeat the title as a leading # heading.",
           "The content must cover one primary topic only.",
           "Examples of good topics: Humanoid Robots at Airports, RFID Expansion, Autonomous GSE, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
-          "Total post length must be 150-250 words, with a target of 180-220 words.",
+          "Total post length must be 120-220 words. Absolute maximum is 250 words.",
           "Prioritize freshness over length.",
           "Do not include Executive Summary, Why It Matters, INConnect View, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, or report-style commentary.",
           "Do not use numbered Markdown lists.",
-          "Use section headings exactly: ## Post, ## Source, ## Discussion Question.",
-          "Post must be one short LinkedIn-style message from INConnect: 120-190 words, 2-4 short paragraphs, professional and insightful.",
-          "Source must contain one Markdown link with this exact label: [Read original story](https://...).",
-          "Discussion Question must be one question ending with a question mark.",
+          "Do not use Markdown section headings.",
+          "Format exactly as: Airport Automation Daily | [Date], blank line, one concise post-style message, blank line, Read original story: [source domain or title](https://...), blank line, one discussion question ending with a question mark.",
+          "The post-style message must be 90-170 words, 2-4 short paragraphs, professional and insightful.",
+          "The source line must contain one Markdown link after the label Read original story:",
+          "The discussion question must be one question ending with a question mark.",
           "Use a keyword-based slug with the UTC date suffix, for example humanoid-robots-airport-baggage-operations-2026-06-11. Do not use only the date or only inconnect-1-minute-daily-digest.",
         ].join(" "),
       },
@@ -723,14 +746,13 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           `Use this title format: ${requiredTitleFormat}`,
           `Set slug to a concise keyword phrase ending in ${slugDate}.`,
           "The content field must use this exact structure:",
-          "## Post",
-          "150-250 words total across the full content. Write like INConnect is commenting on one relevant industry development. Use 2-4 short paragraphs.",
+          `Airport Automation Daily | ${briefingDate}`,
           "",
-          "## Source",
-          "[Read original story](https://...)",
+          "One concise post-style message. Write like INConnect is commenting on one relevant industry development. Keep total content 120-220 words and never exceed 250 words. Use 2-4 short paragraphs.",
           "",
-          "## Discussion Question",
-          "One question for airport professionals.",
+          "Read original story: [source domain or title](https://...)",
+          "",
+          "One discussion question for airport professionals.",
           "",
           "Use the exact source URL from the source context.",
           "If sources are weak, choose the strongest airport automation signal and avoid unsupported company/project claims.",
@@ -770,15 +792,17 @@ async function prepareQualityCheckedAirportContent({
 }) {
   let content = stripLeadingTitleHeading(generatedBriefing.content, generatedBriefing.title);
   let quality = getAirportBriefingQuality(content, research);
+  const initialWordCount = quality.wordCount;
 
   console.info("INConnect airport briefing initial quality check", {
     issues: quality.issues,
+    initialWordCount,
     sectionCount: quality.sectionCount,
     title,
     wordCount: quality.wordCount,
   });
 
-  for (let revisionAttempt = 1; quality.issues.length > 0 && revisionAttempt <= 3; revisionAttempt += 1) {
+  for (let revisionAttempt = 1; quality.issues.length > 0 && revisionAttempt <= 2; revisionAttempt += 1) {
     console.info("INConnect airport digest revision started", {
       issues: quality.issues,
       revisionAttempt,
@@ -802,6 +826,24 @@ async function prepareQualityCheckedAirportContent({
     });
   }
 
+  if (quality.wordCount > MAX_AIRPORT_WORD_COUNT) {
+    const truncatedContent = truncateAirportPostAtSentenceBoundary(
+      content,
+      MAX_AIRPORT_WORD_COUNT,
+    );
+    const truncatedQuality = getAirportBriefingQuality(truncatedContent, research);
+
+    if (truncatedQuality.wordCount <= MAX_AIRPORT_WORD_COUNT) {
+      console.warn("INConnect airport post truncated after rewrite exceeded absolute maximum", {
+        beforeWordCount: quality.wordCount,
+        finalWordCount: truncatedQuality.wordCount,
+        title,
+      });
+      content = truncatedContent;
+      quality = truncatedQuality;
+    }
+  }
+
   console.info("INConnect airport briefing final quality check result", {
     issues: quality.issues,
     passed: quality.issues.length === 0,
@@ -811,13 +853,19 @@ async function prepareQualityCheckedAirportContent({
   });
 
   if (quality.issues.length > 0) {
+    console.error("INConnect airport post quality check failed", {
+      exactError: quality.issues.join(" "),
+      finalWordCount: quality.wordCount,
+      initialWordCount,
+      title,
+    });
     throw new AirportBriefingGenerationError(
       "quality_check",
       `Airport briefing failed quality checks: ${quality.issues.join(" ")}`,
     );
   }
 
-  return { content, quality };
+  return { content, initialWordCount, quality };
 }
 
 async function reviseAirportDigest({
@@ -844,11 +892,10 @@ async function reviseAirportDigest({
         content: [
           "You are revising an INConnect 1-Minute Daily Digest for airport professionals.",
           "Fix the listed quality issues exactly.",
-          "Return one primary topic only and keep the total post between 180 and 220 words, safely inside the allowed 150-250 word range.",
-          "Use section headings exactly: ## Post, ## Source, ## Discussion Question.",
-          "Post must be a concise LinkedIn-style INConnect message with 2-4 short paragraphs.",
-          "Source must contain one Markdown link with this exact label: [Read original story](https://...).",
-          "Discussion Question must be one question ending with a question mark.",
+          "Return one primary topic only and keep the total post between 120 and 220 words. Absolute maximum is 250 words.",
+          "Do not use Markdown section headings.",
+          "Format exactly as: Airport Automation Daily | [Date], blank line, concise LinkedIn-style post message, blank line, Read original story: [source domain or title](https://...), blank line, one discussion question ending with a question mark.",
+          "The post message must have 2-4 short paragraphs.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
@@ -902,16 +949,15 @@ function getAirportBriefingQuality(
 ): AirportBriefingQuality {
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
-  const requiredSections = [
-    "Post",
-    "Source",
-    "Discussion Question",
-  ];
-  const sectionCount = requiredSections.filter((section) =>
-    new RegExp(`##\\s+${escapeRegExp(section)}`, "i").test(content),
-  ).length;
-  const post = extractSectionContent(content, "Post");
-  const discussionQuestion = extractSectionContent(content, "Discussion Question");
+  const lines = content
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const sourceUrl = extractAirportPostSourceUrl(content);
+  const discussionQuestion = lines[lines.length - 1] ?? "";
+  const postMessage = extractAirportPostMessage(content);
+  const sectionCount = /^Airport Automation Daily\s*\|/i.test(lines[0] ?? "") ? 1 : 0;
 
   if (wordCount < MIN_AIRPORT_WORD_COUNT) {
     issues.push(`Briefing has ${wordCount} words; minimum is ${MIN_AIRPORT_WORD_COUNT}.`);
@@ -921,33 +967,38 @@ function getAirportBriefingQuality(
     issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (sectionCount !== requiredSections.length) {
-    issues.push("Post must include Post, Source, and Discussion Question sections.");
+  if (wordCount > TARGET_AIRPORT_WORD_COUNT && wordCount <= MAX_AIRPORT_WORD_COUNT) {
+    console.warn("INConnect airport post is above target but within absolute maximum", {
+      targetWordCount: TARGET_AIRPORT_WORD_COUNT,
+      wordCount,
+    });
   }
 
-  const postWords = countWords(stripMarkdown(post));
-  if (postWords < 120 || postWords > 190) {
-    issues.push(`Post has ${postWords} words; required range is 120-190.`);
+  if (sectionCount !== 1) {
+    issues.push("Post must start with Airport Automation Daily | [Date].");
   }
 
-  const paragraphCount = post
+  const postWords = countWords(stripMarkdown(postMessage));
+  if (postWords < 80 || postWords > 190) {
+    issues.push(`Post message has ${postWords} words; required range is 80-190.`);
+  }
+
+  const paragraphCount = postMessage
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean).length;
   if (paragraphCount < 2 || paragraphCount > 4) {
-    issues.push("Post must have 2-4 short paragraphs.");
+    issues.push("Post message must have 2-4 short paragraphs.");
   }
 
   const questionCount = (discussionQuestion.match(/\?/g) ?? []).length;
   if (questionCount !== 1 || !discussionQuestion.trim().endsWith("?")) {
-    issues.push("Discussion Question must be exactly one question ending with a question mark.");
+    issues.push("Post must end with exactly one discussion question.");
   }
 
-  const readOriginalStoryCount = (
-    content.match(/\[Read original story\]\(https?:\/\/[^)]+\)/gi) ?? []
-  ).length;
-  if (readOriginalStoryCount !== 1) {
-    issues.push("Post must include one Read original story Markdown source link.");
+  const readOriginalStoryCount = (content.match(/Read original story:/gi) ?? []).length;
+  if (readOriginalStoryCount !== 1 || !sourceUrl) {
+    issues.push("Post must include one Read original story source link.");
   }
 
   if (research.researchSources.length < 3) {
@@ -957,11 +1008,12 @@ function getAirportBriefingQuality(
   }
 
   const externalMarkdownLinks = content.match(/\[[^\]]+\]\((?!\/)[^)]+\)/gi) ?? [];
-  if (
-    externalMarkdownLinks.length !== 1 ||
-    !/^\[Read original story\]\(https?:\/\/[^)]+\)$/i.test(externalMarkdownLinks[0])
-  ) {
+  if (externalMarkdownLinks.length > 1) {
     issues.push("Post must only include the single Read original story external link.");
+  }
+
+  if (/^##\s+/m.test(content)) {
+    issues.push("Post must not use Markdown section headings.");
   }
 
   if (/further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments|technology trends|inconnect view|why it matters|development a|development b|development c/i.test(content)) {
@@ -977,6 +1029,62 @@ function getAirportBriefingQuality(
   }
 
   return { issues, sectionCount, wordCount };
+}
+
+function extractAirportPostSourceUrl(content: string) {
+  const markdownSourceMatch = content.match(
+    /Read original story:\s*\[[^\]]+\]\((https?:\/\/[^)]+)\)/i,
+  );
+  if (markdownSourceMatch?.[1]) return markdownSourceMatch[1].trim();
+
+  const rawSourceMatch = content.match(/Read original story:\s*(https?:\/\/\S+)/i);
+  return rawSourceMatch?.[1]?.trim().replace(/[).,]+$/, "") ?? "";
+}
+
+function extractAirportPostMessage(content: string) {
+  const normalizedContent = content.replace(/\r\n/g, "\n").trim();
+  const withoutHeader = normalizedContent.replace(/^Airport Automation Daily\s*\|[^\n]+\n*/i, "");
+  return withoutHeader
+    .replace(/\n*Read original story:[\s\S]*$/i, "")
+    .trim();
+}
+
+function truncateAirportPostAtSentenceBoundary(content: string, maxWords: number) {
+  const normalizedContent = content.replace(/\r\n/g, "\n").trim();
+  const blocks = normalizedContent.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  const header = blocks.find((block) => /^Airport Automation Daily\s*\|/i.test(block)) ?? blocks[0] ?? "";
+  const source = blocks.find((block) => /^Read original story:/i.test(block)) ?? "";
+  const question = [...blocks].reverse().find((block) => /\?\s*$/.test(block)) ?? "";
+  const message = blocks
+    .filter((block) => block !== header && block !== source && block !== question)
+    .join("\n\n")
+    .trim();
+  const nonMessageWordCount = countWords(stripMarkdown([header, source, question].join(" ")));
+  const messageWordLimit = Math.max(40, maxWords - nonMessageWordCount);
+  const truncatedMessage = truncateTextAtSentenceBoundary(message, messageWordLimit);
+
+  return [header, truncatedMessage, source, question]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+function truncateTextAtSentenceBoundary(text: string, wordLimit: number) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= wordLimit) return text.trim();
+
+  const roughCut = words.slice(0, wordLimit).join(" ");
+  const sentenceBoundary = Math.max(
+    roughCut.lastIndexOf("."),
+    roughCut.lastIndexOf("!"),
+    roughCut.lastIndexOf("?"),
+  );
+
+  if (sentenceBoundary > Math.floor(roughCut.length * 0.55)) {
+    return roughCut.slice(0, sentenceBoundary + 1).trim();
+  }
+
+  return `${roughCut.replace(/[,:;]+$/, "")}.`;
 }
 
 async function generateAndUploadAirportHeroImage({
