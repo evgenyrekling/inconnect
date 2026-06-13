@@ -201,6 +201,20 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
   {
     angle:
+      "How airside automation is changing apron coordination, aircraft turnaround, service sequencing, and operational visibility around aircraft stands.",
+    category: "Airside Operations",
+    signals: ["airside", "apron", "aircraft turnaround", "stand", "ramp", "turnaround"],
+    topic: "Airside operations automation",
+  },
+  {
+    angle:
+      "Why ground handling automation is becoming more important as airports and handlers look for safer, more reliable, and more coordinated turnaround processes.",
+    category: "Ground Handling",
+    signals: ["ground handling", "ramp handling", "turnaround", "airside", "handler"],
+    topic: "Ground handling automation",
+  },
+  {
+    angle:
       "What airport robotics signals about labor pressure, repetitive operational tasks, passenger service, baggage support, and terminal resilience.",
     category: "Robotics",
     signals: ["robot", "robotics", "humanoid", "service robot", "automation"],
@@ -257,8 +271,57 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
 ];
 
-const AIRPORT_TITLE_KEYWORD_PATTERN =
-  /\b(?:airport|airports|aviation|airline|terminal|airside|baggage|passenger|biometric|rfid|robot|robotics|gse|security|lidar|sensor|digital twin|smart airport)\b/i;
+const AIRPORT_TITLE_KEYWORDS = [
+  "airport",
+  "terminal",
+  "baggage",
+  "passenger processing",
+  "biometric",
+  "rfid",
+  "bhs",
+  "atr",
+  "airside",
+  "apron",
+  "ground support",
+  "gse",
+  "ground handling",
+  "aircraft turnaround",
+  "cargo",
+  "security screening",
+  "e-gate",
+  "egate",
+  "self-service",
+  "self service",
+  "kiosk",
+  "boarding",
+  "gate automation",
+  "airport robotics",
+  "autonomous vehicle",
+  "autonomous gse",
+  "airport ai",
+  "airport sensor",
+  "airport operations",
+  "smart airport",
+  "digital airport",
+  "airport infrastructure",
+];
+
+const AIRPORT_TITLE_CATEGORY_PATTERNS = [
+  { category: "Passenger Processing", pattern: /\b(passenger processing|biometric|e-?gate|self[-\s]?service|kiosk|boarding|gate automation)\b/i },
+  { category: "Baggage Handling", pattern: /\b(baggage|bhs|bag drop|sortation|conveyor)\b/i },
+  { category: "RFID", pattern: /\b(rfid|atr|automatic tag reading)\b/i },
+  { category: "Ground Support Equipment", pattern: /\b(ground support equipment|ground support|gse|autonomous gse)\b/i },
+  { category: "Airside Operations", pattern: /\b(airside|apron|aircraft turnaround)\b/i },
+  { category: "Ground Handling", pattern: /\b(ground handling|ramp handling|turnaround)\b/i },
+  { category: "Autonomous Vehicles", pattern: /\b(autonomous vehicle|autonomous vehicles|driverless|autonomous shuttle)\b/i },
+  { category: "Robotics", pattern: /\b(robotics|robot|humanoid)\b/i },
+  { category: "AI & Analytics", pattern: /\b(airport ai|ai|analytics|sensor|sensors|lidar|computer vision)\b/i },
+  { category: "Airport Security", pattern: /\b(security screening|security automation|checkpoint|screening)\b/i },
+  { category: "Cargo Automation", pattern: /\b(cargo|freight|air freight|warehouse automation)\b/i },
+  { category: "Digital Twins", pattern: /\b(digital twin|simulation|airport model)\b/i },
+  { category: "Sustainability", pattern: /\b(sustainability|electric|emissions|energy efficiency|carbon)\b/i },
+  { category: "Infrastructure", pattern: /\b(infrastructure|smart airport|digital airport|terminal modernization|airport infrastructure)\b/i },
+];
 
 const airportBriefingSchema = {
   type: "object",
@@ -916,17 +979,27 @@ async function generateAirportBriefingWithTitleValidation(
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     generatedBriefing = await generateAirportBriefing(research, attempt);
-    if (isValidAirportTitle(generatedBriefing.title)) return generatedBriefing;
+    const titleValidation = validateAirportTitle(generatedBriefing.title);
+    if (titleValidation.isValid) return generatedBriefing;
 
     console.warn("INConnect airport briefing title rejected", {
       attempt,
+      detectedCategory: titleValidation.detectedCategory,
+      missingKeywordReason: titleValidation.missingKeywordReason,
+      rejectedTitle: generatedBriefing.title,
       title: generatedBriefing.title,
     });
   }
 
+  const titleValidation = validateAirportTitle(generatedBriefing?.title ?? "");
   throw new AirportBriefingGenerationError(
     "title_validation",
-    `Generated airport briefing title is outside the airport automation boundary: ${generatedBriefing?.title ?? "missing title"}`,
+    [
+      "Generated airport briefing title is outside the airport automation boundary.",
+      `Rejected title: ${generatedBriefing?.title ?? "missing title"}.`,
+      `Detected category: ${titleValidation.detectedCategory}.`,
+      `Reason: ${titleValidation.missingKeywordReason}.`,
+    ].join(" "),
   );
 }
 
@@ -1422,8 +1495,23 @@ function createDefaultAirportTitle() {
   return `Airport Automation Daily - ${getUtcDateSuffix()}`;
 }
 
-function isValidAirportTitle(title: string) {
-  return AIRPORT_TITLE_KEYWORD_PATTERN.test(title);
+function validateAirportTitle(title: string) {
+  const normalizedTitle = title.toLowerCase().replace(/[-_/]+/g, " ");
+  const detectedCategory =
+    AIRPORT_TITLE_CATEGORY_PATTERNS.find(({ pattern }) => pattern.test(title))
+      ?.category ?? "Unknown";
+  const matchedKeyword = AIRPORT_TITLE_KEYWORDS.find((keyword) =>
+    normalizedTitle.includes(keyword.toLowerCase()),
+  );
+
+  return {
+    detectedCategory,
+    isValid: Boolean(matchedKeyword) || detectedCategory !== "Unknown",
+    missingKeywordReason: matchedKeyword
+      ? ""
+      : "Title does not contain a recognized airport automation keyword or category signal.",
+    matchedKeyword: matchedKeyword ?? "",
+  };
 }
 
 function containsForbiddenAirportTopic(value: string) {
