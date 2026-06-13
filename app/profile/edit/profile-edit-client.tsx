@@ -54,9 +54,13 @@ export function ProfileEditClient() {
     setMessage("");
     const response = await fetch("/api/public-profiles", {
       body: JSON.stringify({
+        company: nextProfile.company,
         displayName: nextProfile.displayName,
         headline: nextProfile.headline,
+        location: nextProfile.location,
+        professionalRole: nextProfile.professionalRole,
         sections: nextProfile.sections,
+        summary: nextProfile.summary,
         userKey: identity.userKey,
         visibility: nextProfile.visibility,
       }),
@@ -126,6 +130,22 @@ export function ProfileEditClient() {
                 <textarea className="min-h-24 rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.headline} onChange={(event) => setProfile({ ...profile, headline: event.target.value })} />
               </label>
               <label className="grid gap-2 text-sm font-semibold">
+                Professional role
+                <input className="rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.professionalRole} onChange={(event) => setProfile({ ...profile, professionalRole: event.target.value })} />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold">
+                Company
+                <input className="rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.company} onChange={(event) => setProfile({ ...profile, company: event.target.value })} />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold">
+                Location
+                <input className="rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.location} onChange={(event) => setProfile({ ...profile, location: event.target.value })} />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold">
+                Summary
+                <textarea className="min-h-28 rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.summary} onChange={(event) => setProfile({ ...profile, summary: event.target.value })} />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold">
                 Visibility
                 <select className="rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.visibility} onChange={(event) => setProfile({ ...profile, isPublic: event.target.value === "public", visibility: event.target.value })}>
                   <option value="unlisted">Unlisted</option>
@@ -171,6 +191,8 @@ export function ProfileEditClient() {
                     sections: profile.sections.filter((item) => item.id !== section.id),
                   })
                 }
+                onMoveDown={() => moveSection(profile, setProfile, section.id, 1)}
+                onMoveUp={() => moveSection(profile, setProfile, section.id, -1)}
                 section={section}
                 sectionNumber={index + 1}
               />
@@ -185,14 +207,19 @@ export function ProfileEditClient() {
 function SectionEditor({
   onChange,
   onDelete,
+  onMoveDown,
+  onMoveUp,
   section,
   sectionNumber,
 }: {
   onChange: (section: PublicProfileSection) => void;
   onDelete: () => void;
+  onMoveDown: () => void;
+  onMoveUp: () => void;
   section: PublicProfileSection;
   sectionNumber: number;
 }) {
+  const isCustom = section.id.startsWith("custom-");
   return (
     <article className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
       <div className="flex items-center justify-between gap-4">
@@ -206,9 +233,19 @@ function SectionEditor({
       </div>
       <input className="mt-4 w-full rounded-lg border border-[#D9DDE3] px-3 py-2 text-lg font-semibold" value={section.title} onChange={(event) => onChange({ ...section, title: event.target.value })} />
       <textarea className="mt-3 min-h-28 w-full rounded-lg border border-[#D9DDE3] px-3 py-2 text-sm leading-6" value={section.content} onChange={(event) => onChange({ ...section, content: event.target.value })} />
-      <button className="mt-3 text-sm font-semibold text-red-600" onClick={onDelete} type="button">
-        Delete custom section
-      </button>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button className="rounded-lg border border-[#D9DDE3] px-3 py-2 text-sm font-semibold" onClick={onMoveUp} type="button">
+          Move Up
+        </button>
+        <button className="rounded-lg border border-[#D9DDE3] px-3 py-2 text-sm font-semibold" onClick={onMoveDown} type="button">
+          Move Down
+        </button>
+        {isCustom && (
+          <button className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600" onClick={onDelete} type="button">
+            Delete custom section
+          </button>
+        )}
+      </div>
     </article>
   );
 }
@@ -228,6 +265,29 @@ function addSection(profile: PublicProfile, setProfile: (profile: PublicProfile)
         visible: true,
       },
     ],
+  });
+}
+
+function moveSection(
+  profile: PublicProfile,
+  setProfile: (profile: PublicProfile) => void,
+  sectionId: string,
+  direction: -1 | 1,
+) {
+  const sections = [...profile.sections].sort((a, b) => a.order - b.order);
+  const index = sections.findIndex((section) => section.id === sectionId);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= sections.length) return;
+  const current = sections[index];
+  const next = sections[nextIndex];
+  sections[index] = next;
+  sections[nextIndex] = current;
+  setProfile({
+    ...profile,
+    sections: sections.map((section, sectionIndex) => ({
+      ...section,
+      order: sectionIndex + 1,
+    })),
   });
 }
 

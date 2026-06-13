@@ -41,9 +41,13 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = (await request.json().catch(() => null)) as {
+      company?: string;
       displayName?: string;
       headline?: string;
+      location?: string;
+      professionalRole?: string;
       sections?: unknown;
+      summary?: string;
       userKey?: string;
       visibility?: string;
     } | null;
@@ -53,9 +57,13 @@ export async function PATCH(request: Request) {
     }
 
     const profile = await updateOwnerProfile(userKey, {
+      company: body?.company,
       displayName: body?.displayName,
       headline: body?.headline,
+      location: body?.location,
+      professionalRole: body?.professionalRole,
       sections: Array.isArray(body?.sections) ? body.sections : undefined,
+      summary: body?.summary,
       visibility: body?.visibility,
     });
     return NextResponse.json({ profile });

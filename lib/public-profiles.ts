@@ -231,24 +231,39 @@ export async function getOwnerProfile(userKey: string) {
 export async function updateOwnerProfile(
   userKey: string,
   values: {
+    company?: string;
     displayName?: string;
     headline?: string;
+    location?: string;
+    professionalRole?: string;
     sections?: PublicProfileSection[];
+    summary?: string;
     visibility?: string;
   },
 ) {
   const supabase = getSupabaseAdminClient();
-  const visibility = normalizeVisibility(values.visibility);
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof values.company === "string") updatePayload.company = values.company.trim();
+  if (typeof values.displayName === "string") updatePayload.display_name = values.displayName.trim();
+  if (typeof values.headline === "string") updatePayload.headline = values.headline.trim();
+  if (typeof values.location === "string") updatePayload.location = values.location.trim();
+  if (typeof values.professionalRole === "string") {
+    updatePayload.professional_role = values.professionalRole.trim();
+  }
+  if (Array.isArray(values.sections)) updatePayload.sections = values.sections;
+  if (typeof values.summary === "string") updatePayload.summary = values.summary.trim();
+  if (typeof values.visibility === "string") {
+    const visibility = normalizeVisibility(values.visibility);
+    updatePayload.is_public = visibility === "public";
+    updatePayload.visibility = visibility;
+  }
+
   const { data, error } = await supabase
     .from("public_profiles")
-    .update({
-      display_name: values.displayName,
-      headline: values.headline,
-      is_public: visibility === "public",
-      sections: values.sections,
-      updated_at: new Date().toISOString(),
-      visibility,
-    })
+    .update(updatePayload)
     .eq("user_key", userKey)
     .select("*")
     .single<PublicProfileRow>();
