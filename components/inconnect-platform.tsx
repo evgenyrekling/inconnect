@@ -210,7 +210,7 @@ const PRIMARY_CTA_CLASS =
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
 const navItems = [
-  { label: "Network", href: "/network-coming-soon" },
+  { label: "Network", href: "/network" },
 ];
 type DropdownNavItem = {
   href: string;
@@ -4706,6 +4706,8 @@ function AssessmentResults({
         forceExpanded={forceExpandedExport}
       />
 
+      <PublicProfileCreationCard assessment={assessment} />
+
       <ProfileSnapshotSection assessment={assessment} />
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -4853,6 +4855,109 @@ function AssessmentCardLogo() {
         </div>
       )}
     </div>
+  );
+}
+
+function PublicProfileCreationCard({
+  assessment,
+}: {
+  assessment: ProfileIntelligenceAssessment;
+}) {
+  const [message, setMessage] = useState("");
+  const [profileUrl, setProfileUrl] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  async function handleCreateProfile() {
+    if (!assessment.userKey) {
+      setMessage("Profile could not be created because user identity is missing.");
+      return;
+    }
+
+    setIsCreating(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/public-profiles", {
+        body: JSON.stringify({ userKey: assessment.userKey }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        profile?: { slug: string };
+      } | null;
+
+      if (!response.ok || !payload?.profile?.slug) {
+        throw new Error(payload?.error || "Profile could not be created.");
+      }
+
+      const nextUrl = `${window.location.origin}/p/${payload.profile.slug}`;
+      setProfileUrl(nextUrl);
+      setMessage("Your profile has been created.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Profile could not be created.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!profileUrl) return;
+    const copied = await copyTextToClipboard(profileUrl);
+    setMessage(copied ? "Profile link copied." : "Could not copy profile link.");
+  }
+
+  return (
+    <section className="rounded-lg border border-[#0A66C2]/20 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+        INConnect Network
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
+        Your INConnect Profile is ready.
+      </h2>
+      <p className="mt-3 text-sm leading-6 text-[#666666]">
+        Create a professional public profile from your strongest assessment
+        insights. You control what is visible. Profiles are unlisted by default.
+      </p>
+      {!profileUrl ? (
+        <button
+          className={classNames(
+            "mt-5 inline-flex h-11 items-center justify-center rounded-lg px-4 text-sm",
+            PRIMARY_CTA_CLASS,
+          )}
+          disabled={isCreating}
+          onClick={handleCreateProfile}
+          type="button"
+        >
+          {isCreating ? "Creating Profile..." : "Create My Profile"}
+        </button>
+      ) : (
+        <div className="mt-5 flex flex-wrap gap-3">
+          <a
+            className={classNames(
+              "inline-flex h-11 items-center justify-center rounded-lg px-4 text-sm",
+              PRIMARY_CTA_CLASS,
+            )}
+            href={profileUrl}
+          >
+            View Profile
+          </a>
+          <a
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] px-4 text-sm font-semibold text-[#0A66C2]"
+            href="/profile/edit"
+          >
+            Edit Visibility
+          </a>
+          <button
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] px-4 text-sm font-semibold text-[#0A66C2]"
+            onClick={handleCopyLink}
+            type="button"
+          >
+            Copy Profile Link
+          </button>
+        </div>
+      )}
+      {message && <p className="mt-4 text-sm font-semibold text-[#0A66C2]">{message}</p>}
+    </section>
   );
 }
 
