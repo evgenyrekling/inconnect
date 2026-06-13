@@ -12,7 +12,7 @@ type StoredIdentity = {
 
 const STORAGE_KEY = "inconnect:returning-user";
 
-export function ProfileEditClient() {
+export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [message, setMessage] = useState("");
@@ -23,14 +23,12 @@ export function ProfileEditClient() {
   useEffect(() => {
     const stored = readIdentity();
     setIdentity(stored);
-    if (stored?.userKey) void loadProfile(stored.userKey, stored.email);
-  }, []);
+    if (stored?.userKey) void loadProfile(stored.userKey, stored.email, profileSlug);
+  }, [profileSlug]);
 
-  async function loadProfile(userKey: string, email = identity?.email ?? "") {
-    const params = new URLSearchParams({
-      email,
-      userKey,
-    });
+  async function loadProfile(userKey: string, email = identity?.email ?? "", slug = profileSlug) {
+    const params = new URLSearchParams({ email, userKey });
+    if (slug) params.set("slug", slug);
     const response = await fetch(`/api/public-profiles?${params.toString()}`);
     const payload = (await response.json()) as { profile: PublicProfile | null };
     setProfile(payload.profile);
@@ -67,6 +65,7 @@ export function ProfileEditClient() {
         location: nextProfile.location,
         professionalRole: nextProfile.professionalRole,
         sections: nextProfile.sections,
+        slug: profileSlug,
         summary: nextProfile.summary,
         email: identity.email,
         userKey: identity.userKey,
@@ -82,7 +81,7 @@ export function ProfileEditClient() {
       return;
     }
     setProfile(payload.profile);
-    setMessage("Profile saved.");
+    setMessage("Profile updated.");
   }
 
   async function deleteProfile() {
@@ -92,6 +91,7 @@ export function ProfileEditClient() {
     await fetch(
       `/api/public-profiles?${new URLSearchParams({
         email: identity.email,
+        ...(profileSlug ? { slug: profileSlug } : {}),
         userKey: identity.userKey,
       }).toString()}`,
       {
@@ -122,6 +122,7 @@ export function ProfileEditClient() {
       const formData = new FormData();
       formData.append("userKey", identity.userKey);
       formData.append("email", identity.email);
+      if (profileSlug) formData.append("slug", profileSlug);
       formData.append("file", webpFile);
 
       const response = await fetch("/api/public-profiles/photo", {
@@ -159,6 +160,7 @@ export function ProfileEditClient() {
     const response = await fetch(
       `/api/public-profiles/photo?${new URLSearchParams({
         email: identity.email,
+        ...(profileSlug ? { slug: profileSlug } : {}),
         userKey: identity.userKey,
       }).toString()}`,
       { method: "DELETE" },

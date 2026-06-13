@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     });
 
     const generated = await generateManualProfile(input);
-    const existingProfile = await findExistingPublicProfile(normalizedEmail, user.user_key);
+    const existingProfile = await findExistingPublicProfile(normalizedEmail, user.id, user.user_key);
     const slug = existingProfile?.slug ?? (await ensureUniqueProfileSlug(slugify(input.name)));
     const profilePayload: Record<string, unknown> = {
       company: input.company,
@@ -98,7 +98,6 @@ export async function POST(request: Request) {
       interests: [],
       is_public: existingProfile?.is_public ?? false,
       location: input.location,
-      owner_normalized_email: normalizedEmail,
       professional_role: input.role,
       sections: normalizeGeneratedSections(generated, input),
       slug,
@@ -191,12 +190,12 @@ async function generateManualProfile(input: ManualProfileInput) {
   return response.output_parsed as GeneratedProfile;
 }
 
-async function findExistingPublicProfile(normalizedEmail: string, userKey: string) {
+async function findExistingPublicProfile(_normalizedEmail: string, userId: string, userKey: string) {
   const supabase = getSupabaseAdminClient();
   const { data: emailProfile } = await supabase
     .from("public_profiles")
     .select("id, slug, visibility, is_public")
-    .eq("owner_normalized_email", normalizedEmail)
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle<{ id: string; is_public: boolean | null; slug: string; visibility: string | null }>();

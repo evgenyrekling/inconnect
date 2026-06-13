@@ -2,14 +2,25 @@ import { NextResponse } from "next/server";
 import {
   createPublicProfileFromLatestAssessment,
   deleteOwnerProfile,
+  deleteOwnerProfileBySlug,
+  getEditableProfileBySlug,
   getOwnerProfile,
   updateOwnerProfile,
+  updateOwnerProfileBySlug,
 } from "@/lib/public-profiles";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email")?.trim();
+  const slug = searchParams.get("slug")?.trim();
   const userKey = searchParams.get("userKey")?.trim();
+  if (slug) {
+    if (!userKey && !email) {
+      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
+    }
+    const profile = await getEditableProfileBySlug(slug, { email, userKey });
+    return NextResponse.json({ profile });
+  }
   if (!userKey && !email) {
     return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
   }
@@ -49,17 +60,19 @@ export async function PATCH(request: Request) {
       location?: string;
       professionalRole?: string;
       sections?: unknown;
+      slug?: string;
       summary?: string;
       userKey?: string;
       visibility?: string;
     } | null;
     const email = body?.email?.trim();
+    const slug = body?.slug?.trim();
     const userKey = body?.userKey?.trim();
     if (!userKey && !email) {
       return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
-    const profile = await updateOwnerProfile({ email, userKey }, {
+    const values = {
       company: body?.company,
       displayName: body?.displayName,
       headline: body?.headline,
@@ -68,7 +81,10 @@ export async function PATCH(request: Request) {
       sections: Array.isArray(body?.sections) ? body.sections : undefined,
       summary: body?.summary,
       visibility: body?.visibility,
-    });
+    };
+    const profile = slug
+      ? await updateOwnerProfileBySlug(slug, { email, userKey }, values)
+      : await updateOwnerProfile({ email, userKey }, values);
     return NextResponse.json({ profile });
   } catch (error) {
     console.error("Public profile update failed", error);
@@ -85,12 +101,17 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const email = searchParams.get("email")?.trim();
+    const slug = searchParams.get("slug")?.trim();
     const userKey = searchParams.get("userKey")?.trim();
     if (!userKey && !email) {
       return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
-    await deleteOwnerProfile({ email, userKey });
+    if (slug) {
+      await deleteOwnerProfileBySlug(slug, { email, userKey });
+    } else {
+      await deleteOwnerProfile({ email, userKey });
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Public profile delete failed", error);

@@ -14,15 +14,30 @@ const STORAGE_KEY = "inconnect:returning-user";
 
 export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
+  const [verifiedOwnerProfile, setVerifiedOwnerProfile] = useState<PublicProfile | null>(null);
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    setIdentity(readIdentity());
-  }, []);
+    const storedIdentity = readIdentity();
+    setIdentity(storedIdentity);
+    if (!storedIdentity?.email && !storedIdentity?.userKey) return;
+    const params = new URLSearchParams({
+      email: storedIdentity.email,
+      slug: profile.slug,
+      userKey: storedIdentity.userKey,
+    });
+    void fetch(`/api/public-profiles?${params.toString()}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { profile?: PublicProfile | null } | null) => {
+        if (payload?.profile?.slug === profile.slug) setVerifiedOwnerProfile(payload.profile);
+      })
+      .catch(() => undefined);
+  }, [profile.slug]);
 
-  const isOwner = isProfileOwner(identity, profile);
+  const activeProfile = verifiedOwnerProfile ?? profile;
+  const isOwner = Boolean(verifiedOwnerProfile) || isProfileOwner(identity, profile);
   if (!isOwner) return null;
 
   async function copyProfileLink() {
@@ -45,7 +60,12 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     setIsBusy(true);
     setMessage("");
     const response = await fetch("/api/public-profiles", {
-      body: JSON.stringify({ email: identity.email, userKey: identity.userKey, visibility }),
+      body: JSON.stringify({
+        email: identity.email,
+        slug: activeProfile.slug,
+        userKey: identity.userKey,
+        visibility,
+      }),
       headers: { "Content-Type": "application/json" },
       method: "PATCH",
     });
@@ -64,6 +84,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     const response = await fetch(
       `/api/public-profiles?${new URLSearchParams({
         email: identity.email,
+        slug: activeProfile.slug,
         userKey: identity.userKey,
       }).toString()}`,
       { method: "DELETE" },
@@ -85,7 +106,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
             Owner Controls
           </p>
           <p className="mt-1 text-sm text-[#475569]">
-            Visibility: <span className="font-semibold capitalize">{profile.visibility}</span>
+            Visibility: <span className="font-semibold capitalize">{activeProfile.visibility}</span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -97,20 +118,20 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
               Share
             </button>
           )}
-          <a className="rounded-lg bg-[#4A6FD0] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href="/profile/edit">
+          <a className="rounded-lg bg-[#4A6FD0] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href={`/p/${activeProfile.slug}/edit`}>
             Edit Profile
           </a>
-          {profile.visibility !== "public" && (
+          {activeProfile.visibility !== "public" && (
             <button className="rounded-lg border border-[#C8D7EA] bg-white px-3 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#4A6FD0] hover:text-[#0A66C2]" disabled={isBusy} onClick={() => updateVisibility("public")} type="button">
               Make Public
             </button>
           )}
-          {profile.visibility !== "unlisted" && (
+          {activeProfile.visibility !== "unlisted" && (
             <button className="rounded-lg border border-[#C8D7EA] bg-white px-3 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#4A6FD0] hover:text-[#0A66C2]" disabled={isBusy} onClick={() => updateVisibility("unlisted")} type="button">
               Make Unlisted
             </button>
           )}
-          {profile.visibility !== "private" && (
+          {activeProfile.visibility !== "private" && (
             <button className="rounded-lg border border-[#F4B4B4] bg-white px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50" disabled={isBusy} onClick={() => updateVisibility("private")} type="button">
               Make Private
             </button>
@@ -299,16 +320,8 @@ function readIdentity() {
 
 function isProfileOwner(identity: StoredIdentity | null, profile: PublicProfile) {
   if (!identity) return false;
-  const normalizedIdentityEmail = normalizeClientEmail(identity.email);
   return Boolean(
     (identity.userKey && identity.userKey === profile.userKey) ||
-      (identity.userId && profile.userId && identity.userId === profile.userId) ||
-      (normalizedIdentityEmail &&
-        profile.ownerNormalizedEmail &&
-        normalizedIdentityEmail === profile.ownerNormalizedEmail),
+      (identity.userId && profile.userId && identity.userId === profile.userId),
   );
-}
-
-function normalizeClientEmail(email: string) {
-  return email.trim().toLowerCase();
 }

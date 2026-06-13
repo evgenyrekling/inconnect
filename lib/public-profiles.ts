@@ -24,7 +24,6 @@ export type PublicProfile = {
   location: string;
   professionalArchetype: unknown;
   professionalRole: string;
-  ownerNormalizedEmail: string;
   profilePhotoStoragePath: string;
   profilePhotoUrl: string;
   sections: PublicProfileSection[];
@@ -49,7 +48,6 @@ type PublicProfileRow = {
   location: string | null;
   professional_archetype: unknown;
   professional_role: string | null;
-  owner_normalized_email: string | null;
   profile_photo_storage_path: string | null;
   profile_photo_url: string | null;
   sections: unknown;
@@ -100,6 +98,14 @@ type UserProfileRow = {
   user_key: string | null;
 };
 
+type OwnerUserRow = {
+  email: string | null;
+  id: string;
+  is_admin: boolean | null;
+  normalized_email: string | null;
+  user_key: string;
+};
+
 export async function createPublicProfileFromLatestAssessment(userKey: string) {
   const supabase = getSupabaseAdminClient();
 
@@ -109,8 +115,7 @@ export async function createPublicProfileFromLatestAssessment(userKey: string) {
     .eq("user_key", userKey)
     .maybeSingle<UserRow>();
 
-  const ownerNormalizedEmail = getOwnerNormalizedEmail(user ?? null, null);
-  const existingProfile = await getExistingOwnerProfile(userKey, ownerNormalizedEmail);
+  const existingProfile = await getExistingOwnerProfile(userKey);
 
   const { data: userProfile } = await supabase
     .from("user_profiles")
@@ -225,6 +230,14 @@ export async function getOwnerProfile(values: { email?: string; userKey?: string
   return profile ? mapPublicProfileRow(profile) : null;
 }
 
+export async function getEditableProfileBySlug(
+  slug: string,
+  identity: { email?: string; userKey?: string },
+) {
+  const result = await getEditableProfileRowBySlug(slug, identity);
+  return result.profile ? mapPublicProfileRow(result.profile) : null;
+}
+
 export async function updateOwnerProfile(
   identity: { email?: string; userKey?: string },
   values: {
@@ -241,30 +254,40 @@ export async function updateOwnerProfile(
   const supabase = getSupabaseAdminClient();
   const ownerProfile = await getOwnerProfileRow(identity);
   if (!ownerProfile) throw new Error("Owner profile was not found.");
-
-  const updatePayload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (typeof values.company === "string") updatePayload.company = values.company.trim();
-  if (typeof values.displayName === "string") updatePayload.display_name = values.displayName.trim();
-  if (typeof values.headline === "string") updatePayload.headline = values.headline.trim();
-  if (typeof values.location === "string") updatePayload.location = values.location.trim();
-  if (typeof values.professionalRole === "string") {
-    updatePayload.professional_role = values.professionalRole.trim();
-  }
-  if (Array.isArray(values.sections)) updatePayload.sections = values.sections;
-  if (typeof values.summary === "string") updatePayload.summary = values.summary.trim();
-  if (typeof values.visibility === "string") {
-    const visibility = normalizeVisibility(values.visibility);
-    updatePayload.is_public = visibility === "public";
-    updatePayload.visibility = visibility;
-  }
+  const updatePayload = buildProfileUpdatePayload(values);
 
   const { data, error } = await supabase
     .from("public_profiles")
     .update(updatePayload)
     .eq("id", ownerProfile.id)
+    .select("*")
+    .single<PublicProfileRow>();
+
+  if (error) throw new Error(error.message || "Profile update failed.");
+  return mapPublicProfileRow(data);
+}
+
+export async function updateOwnerProfileBySlug(
+  slug: string,
+  identity: { email?: string; userKey?: string },
+  values: {
+    company?: string;
+    displayName?: string;
+    headline?: string;
+    location?: string;
+    professionalRole?: string;
+    sections?: PublicProfileSection[];
+    summary?: string;
+    visibility?: string;
+  },
+) {
+  const ownerProfile = await getEditableProfileBySlug(slug, identity);
+  if (!ownerProfile) throw new Error("Owner profile was not found or edit access was denied.");
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("public_profiles")
+    .update(buildProfileUpdatePayload(values))
+    .eq("slug", slug)
     .select("*")
     .single<PublicProfileRow>();
 
@@ -280,31 +303,40 @@ export async function deleteOwnerProfile(identity: { email?: string; userKey?: s
   if (error) throw new Error(error.message || "Profile delete failed.");
 }
 
-async function getExistingOwnerProfile(userKey: string, ownerNormalizedEmail: string) {
-  return getOwnerProfileRow({ email: ownerNormalizedEmail, userKey });
+export async function deleteOwnerProfileBySlug(
+  slug: string,
+  identity: { email?: string; userKey?: string },
+) {
+  const supabase = getSupabaseAdminClient();
+  const result = await getEditableProfileRowBySlug(slug, identity);
+  if (!result.profile) throw new Error("Owner profile was not found or edit access was denied.");
+  const { error } = await supabase.from("public_profiles").delete().eq("id", result.profile.id);
+  if (error) throw new Error(error.message || "Profile delete failed.");
+}
+
+async function getExistingOwnerProfile(userKey: string) {
+  return getOwnerProfileRow({ userKey });
 }
 
 async function getOwnerProfileRow(values: { email?: string; userKey?: string }) {
   const supabase = getSupabaseAdminClient();
-  const normalizedEmail = values.email ? normalizeEmail(values.email) : "";
+  const currentUser = await getIdentityUser(values);
 
-  if (normalizedEmail) {
+  if (currentUser) {
+    const profileFilters = [
+      `user_id.eq.${currentUser.id}`,
+      currentUser.user_key ? `user_key.eq.${currentUser.user_key}` : "",
+    ].filter(Boolean);
     const { data, error } = await supabase
       .from("public_profiles")
       .select("*")
-      .eq("owner_normalized_email", normalizedEmail)
+      .or(profileFilters.join(","))
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle<PublicProfileRow>();
 
-    if (error) {
-      console.error("Owner public profile normalized_email lookup failed", {
-        error,
-        normalizedEmail,
-      });
-    } else if (data) {
-      return data;
-    }
+    if (error) console.error("Owner public profile user lookup failed", { error, currentUser });
+    if (data) return data;
   }
 
   if (!values.userKey) return null;
@@ -326,6 +358,130 @@ async function getOwnerProfileRow(values: { email?: string; userKey?: string }) 
   }
 
   return data ?? null;
+}
+
+async function getEditableProfileRowBySlug(
+  slug: string,
+  identity: { email?: string; userKey?: string },
+) {
+  const supabase = getSupabaseAdminClient();
+  const normalizedIdentityEmail = identity.email ? normalizeEmail(identity.email) : "";
+  const { data: profile, error: profileError } = await supabase
+    .from("public_profiles")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle<PublicProfileRow>();
+
+  if (profileError) {
+    console.error("Public profile slug edit lookup failed", { error: profileError, slug });
+    return { profile: null };
+  }
+
+  if (!profile) return { profile: null };
+
+  const currentUser = await getIdentityUser(identity);
+  const ownerUser = profile.user_id
+    ? await getUserById(profile.user_id)
+    : profile.user_key
+      ? await getUserByKey(profile.user_key)
+      : null;
+  const ownerNormalizedEmail =
+    getString(ownerUser?.normalized_email) || getString(ownerUser?.email);
+  const normalizedOwnerEmail = ownerNormalizedEmail ? normalizeEmail(ownerNormalizedEmail) : "";
+  const ownerEmail = getString(ownerUser?.email) || normalizedOwnerEmail;
+  const currentEmail = getString(currentUser?.email) || normalizedIdentityEmail;
+  const normalizedCurrentEmail =
+    getString(currentUser?.normalized_email) || (currentEmail ? normalizeEmail(currentEmail) : "");
+
+  const checks = [
+    {
+      matched: Boolean(currentUser?.id && profile.user_id && currentUser.id === profile.user_id),
+      reason: "currentUser.id matched public_profiles.user_id",
+    },
+    {
+      matched: Boolean(currentUser?.user_key && profile.user_key && currentUser.user_key === profile.user_key),
+      reason: "currentUser.user_key matched public_profiles.user_key",
+    },
+    {
+      matched: Boolean(normalizedCurrentEmail && normalizedOwnerEmail && normalizedCurrentEmail === normalizedOwnerEmail),
+      reason: "currentUser.normalized_email matched owner normalized_email",
+    },
+    {
+      matched: Boolean(currentEmail && ownerEmail && normalizeEmail(currentEmail) === normalizeEmail(ownerEmail)),
+      reason: "currentUser.email matched owner email",
+    },
+    {
+      matched: Boolean(currentUser?.is_admin),
+      reason: "currentUser is admin",
+    },
+  ];
+  const match = checks.find((check) => check.matched);
+
+  console.info("INConnect public profile owner detection", {
+    currentUserEmail: currentUser?.email ?? identity.email ?? null,
+    currentUserId: currentUser?.id ?? null,
+    currentUserKey: currentUser?.user_key ?? identity.userKey ?? null,
+    matched: Boolean(match),
+    matchReason: match?.reason ?? "no owner match",
+    ownerUserEmail: ownerUser?.email ?? null,
+    profileSlug: slug,
+    profileUserId: profile.user_id,
+    profileUserKey: profile.user_key,
+  });
+
+  return { profile: match ? profile : null };
+}
+
+async function getIdentityUser(identity: { email?: string; userKey?: string }) {
+  const normalizedEmail = identity.email ? normalizeEmail(identity.email) : "";
+  if (normalizedEmail) {
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, user_key, email, normalized_email, is_admin")
+      .eq("normalized_email", normalizedEmail)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .returns<OwnerUserRow[]>();
+    if (error) console.error("Public profile current user email lookup failed", error);
+    if (data?.[0]) return data[0];
+  }
+
+  if (!identity.userKey) return null;
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, user_key, email, normalized_email, is_admin")
+    .eq("user_key", identity.userKey)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .returns<OwnerUserRow[]>();
+  if (error) console.error("Public profile current user key lookup failed", error);
+  return data?.[0] ?? null;
+}
+
+async function getUserById(userId: string) {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, user_key, email, normalized_email, is_admin")
+    .eq("id", userId)
+    .maybeSingle<OwnerUserRow>();
+  if (error) console.error("Public profile owner user lookup failed", error);
+  return data ?? null;
+}
+
+async function getUserByKey(userKey: string) {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, user_key, email, normalized_email, is_admin")
+    .eq("user_key", userKey)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .returns<OwnerUserRow[]>();
+  if (error) console.error("Public profile owner user_key lookup failed", error);
+  return data?.[0] ?? null;
 }
 
 function buildPublicProfilePayload({
@@ -422,7 +578,6 @@ function buildPublicProfilePayload({
     industries,
     interests,
     location,
-    owner_normalized_email: getOwnerNormalizedEmail(user, userProfile),
     professional_archetype: archetype,
     professional_role: professionalRole,
     sections,
@@ -466,7 +621,6 @@ function mapPublicProfileRow(row: PublicProfileRow): PublicProfile {
     location: row.location ?? "",
     professionalArchetype: row.professional_archetype,
     professionalRole: row.professional_role ?? "",
-    ownerNormalizedEmail: row.owner_normalized_email ?? "",
     profilePhotoStoragePath: row.profile_photo_storage_path ?? "",
     profilePhotoUrl: row.profile_photo_url ?? "",
     sections: normalizeSections(row.sections),
@@ -512,12 +666,36 @@ function normalizeVisibility(value?: string) {
     : "unlisted";
 }
 
-function getOwnerNormalizedEmail(user: UserRow | null, userProfile: UserProfileRow | null) {
-  const email =
-    getString(user?.normalized_email) ||
-    getString(user?.email) ||
-    getString(userProfile?.email);
-  return email ? normalizeEmail(email) : "";
+function buildProfileUpdatePayload(values: {
+  company?: string;
+  displayName?: string;
+  headline?: string;
+  location?: string;
+  professionalRole?: string;
+  sections?: PublicProfileSection[];
+  summary?: string;
+  visibility?: string;
+}) {
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof values.company === "string") updatePayload.company = values.company.trim();
+  if (typeof values.displayName === "string") updatePayload.display_name = values.displayName.trim();
+  if (typeof values.headline === "string") updatePayload.headline = values.headline.trim();
+  if (typeof values.location === "string") updatePayload.location = values.location.trim();
+  if (typeof values.professionalRole === "string") {
+    updatePayload.professional_role = values.professionalRole.trim();
+  }
+  if (Array.isArray(values.sections)) updatePayload.sections = values.sections;
+  if (typeof values.summary === "string") updatePayload.summary = values.summary.trim();
+  if (typeof values.visibility === "string") {
+    const visibility = normalizeVisibility(values.visibility);
+    updatePayload.is_public = visibility === "public";
+    updatePayload.visibility = visibility;
+  }
+
+  return updatePayload;
 }
 
 function cleanPublicText(value: string, fallback = "") {
