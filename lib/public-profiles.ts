@@ -23,10 +23,13 @@ export type PublicProfile = {
   location: string;
   professionalArchetype: unknown;
   professionalRole: string;
+  profilePhotoStoragePath: string;
+  profilePhotoUrl: string;
   sections: PublicProfileSection[];
   slug: string;
   strengths: string[];
   summary: string;
+  userId: string;
   userKey: string;
   visibility: "public" | "unlisted" | "private" | string;
 };
@@ -44,10 +47,13 @@ type PublicProfileRow = {
   location: string | null;
   professional_archetype: unknown;
   professional_role: string | null;
+  profile_photo_storage_path: string | null;
+  profile_photo_url: string | null;
   sections: unknown;
   slug: string;
   strengths: unknown;
   summary: string | null;
+  user_id: string | null;
   user_key: string | null;
   visibility: string | null;
 };
@@ -415,10 +421,13 @@ function mapPublicProfileRow(row: PublicProfileRow): PublicProfile {
     location: row.location ?? "",
     professionalArchetype: row.professional_archetype,
     professionalRole: row.professional_role ?? "",
+    profilePhotoStoragePath: row.profile_photo_storage_path ?? "",
+    profilePhotoUrl: row.profile_photo_url ?? "",
     sections: normalizeSections(row.sections),
     slug: row.slug,
     strengths: getStringArray(row.strengths),
     summary: row.summary ?? "",
+    userId: row.user_id ?? "",
     userKey: row.user_key ?? "",
     visibility: row.visibility ?? "unlisted",
   };

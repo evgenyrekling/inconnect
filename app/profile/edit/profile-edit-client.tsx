@@ -15,6 +15,8 @@ export function ProfileEditClient() {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [message, setMessage] = useState("");
+  const [photoMessage, setPhotoMessage] = useState("");
+  const [isPhotoSaving, setIsPhotoSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -89,6 +91,72 @@ export function ProfileEditClient() {
     setMessage("Profile deleted.");
   }
 
+  async function uploadProfilePhoto(file: File | null) {
+    if (!identity?.userKey || !profile || !file) return;
+    setPhotoMessage("");
+    setIsPhotoSaving(true);
+
+    try {
+      if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+        setPhotoMessage("Use a jpg, jpeg, png, or webp image.");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setPhotoMessage("Use an image smaller than 5 MB.");
+        return;
+      }
+
+      const webpFile = await convertImageToWebp(file);
+      const formData = new FormData();
+      formData.append("userKey", identity.userKey);
+      formData.append("file", webpFile);
+
+      const response = await fetch("/api/public-profiles/photo", {
+        body: formData,
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        profilePhotoStoragePath?: string;
+        profilePhotoUrl?: string;
+      } | null;
+
+      if (!response.ok || !payload?.profilePhotoUrl) {
+        setPhotoMessage(payload?.error ?? "Profile photo could not be uploaded.");
+        return;
+      }
+
+      setProfile({
+        ...profile,
+        profilePhotoStoragePath: payload.profilePhotoStoragePath ?? "",
+        profilePhotoUrl: payload.profilePhotoUrl,
+      });
+      setPhotoMessage("Profile photo saved.");
+    } catch (error) {
+      setPhotoMessage(error instanceof Error ? error.message : "Profile photo could not be uploaded.");
+    } finally {
+      setIsPhotoSaving(false);
+    }
+  }
+
+  async function removeProfilePhoto() {
+    if (!identity?.userKey || !profile) return;
+    setPhotoMessage("");
+    setIsPhotoSaving(true);
+    const response = await fetch(
+      `/api/public-profiles/photo?userKey=${encodeURIComponent(identity.userKey)}`,
+      { method: "DELETE" },
+    );
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    setIsPhotoSaving(false);
+    if (!response.ok) {
+      setPhotoMessage(payload?.error ?? "Profile photo could not be removed.");
+      return;
+    }
+    setProfile({ ...profile, profilePhotoStoragePath: "", profilePhotoUrl: "" });
+    setPhotoMessage("Profile photo removed.");
+  }
+
   if (!identity) {
     return (
       <section className="px-5 py-12 sm:px-8 lg:px-10">
@@ -121,6 +189,36 @@ export function ProfileEditClient() {
             </button>
           ) : (
             <div className="mt-6 grid gap-4">
+              <div className="rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-4">
+                <p className="text-sm font-semibold">Profile Photo</p>
+                <div className="mt-4 flex flex-wrap items-center gap-4">
+                  <ProfilePhotoPreview name={profile.displayName} url={profile.profilePhotoUrl} />
+                  <div className="grid gap-2">
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]">
+                      {profile.profilePhotoUrl ? "Replace Photo" : "Upload Photo"}
+                      <input
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        className="sr-only"
+                        disabled={isPhotoSaving}
+                        onChange={(event) => {
+                          void uploadProfilePhoto(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = "";
+                        }}
+                        type="file"
+                      />
+                    </label>
+                    {profile.profilePhotoUrl && (
+                      <button className="rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-600" disabled={isPhotoSaving} onClick={removeProfilePhoto} type="button">
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-[#666666]">
+                  JPG, PNG, or WebP. Maximum 5 MB. Photos are stored as WebP.
+                </p>
+                {photoMessage && <p className="mt-3 text-sm font-semibold text-[#0A66C2]">{photoMessage}</p>}
+              </div>
               <label className="grid gap-2 text-sm font-semibold">
                 Display name
                 <input className="rounded-lg border border-[#D9DDE3] px-3 py-2" value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} />
@@ -204,6 +302,25 @@ export function ProfileEditClient() {
   );
 }
 
+function ProfilePhotoPreview({ name, url }: { name: string; url: string }) {
+  const initial = name.trim().charAt(0).toUpperCase() || "I";
+  if (url) {
+    return (
+      <img
+        alt={`${name} profile photo`}
+        className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-[0_8px_24px_rgba(10,25,47,0.12)] sm:h-[120px] sm:w-[120px]"
+        src={url}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-[#0A192F] text-3xl font-semibold text-white shadow-[0_8px_24px_rgba(10,25,47,0.12)] sm:h-[120px] sm:w-[120px]">
+      {initial}
+    </div>
+  );
+}
+
 function SectionEditor({
   onChange,
   onDelete,
@@ -248,6 +365,29 @@ function SectionEditor({
       </div>
     </article>
   );
+}
+
+async function convertImageToWebp(file: File) {
+  if (file.type === "image/webp") {
+    return new File([file], "profile-photo.webp", { type: "image/webp" });
+  }
+
+  const bitmap = await createImageBitmap(file);
+  const maxSize = 900;
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Image could not be prepared.");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", 0.9);
+  });
+  if (!blob) throw new Error("Image could not be converted to WebP.");
+  return new File([blob], "profile-photo.webp", { type: "image/webp" });
 }
 
 function addSection(profile: PublicProfile, setProfile: (profile: PublicProfile) => void) {

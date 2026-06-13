@@ -251,3 +251,8 @@ insert into storage.buckets (id, name, public)
 values ('airport-briefing-images', 'airport-briefing-images', true)
 on conflict (id) do update
 set public = true;
+
+insert into storage.buckets (id, name, public)
+values ('profile-photos', 'profile-photos', true)
+on conflict (id) do update
+set public = true;

@@ -192,19 +192,22 @@ export function ProfileDisplay({
   return (
     <>
       <section className="bg-[#0A192F] px-5 py-14 text-white sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-            INConnect Profile
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">{profile.displayName}</h1>
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-white/78">{profile.headline}</p>
-          <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/72">
-            {profile.professionalRole && <span>{profile.professionalRole}</span>}
-            {profile.company && <span>{profile.company}</span>}
-            {profile.location && <span>{profile.location}</span>}
-            {typeof profile.authorityScore === "number" && (
-              <span>{profile.authorityScore}/100 Authority Score</span>
-            )}
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 sm:flex-row sm:items-center">
+          <ProfileHeaderPhoto name={profile.displayName} url={profile.profilePhotoUrl} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
+              INConnect Profile
+            </p>
+            <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">{profile.displayName}</h1>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-white/78">{profile.headline}</p>
+            <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/72">
+              {profile.professionalRole && <span>{profile.professionalRole}</span>}
+              {profile.company && <span>{profile.company}</span>}
+              {profile.location && <span>{profile.location}</span>}
+              {typeof profile.authorityScore === "number" && (
+                <span>{profile.authorityScore}/100 Authority Score</span>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -222,6 +225,25 @@ export function ProfileDisplay({
         </div>
       </section>
     </>
+  );
+}
+
+function ProfileHeaderPhoto({ name, url }: { name: string; url: string }) {
+  const initial = name.trim().charAt(0).toUpperCase() || "I";
+  if (url) {
+    return (
+      <img
+        alt={`${name} profile photo`}
+        className="h-24 w-24 shrink-0 rounded-full border-4 border-white/20 object-cover shadow-[0_12px_32px_rgba(0,0,0,0.25)] sm:h-[120px] sm:w-[120px]"
+        src={url}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4 border-white/20 bg-white/10 text-3xl font-semibold text-white shadow-[0_12px_32px_rgba(0,0,0,0.25)] sm:h-[120px] sm:w-[120px]">
+      {initial}
+    </div>
   );
 }
 
