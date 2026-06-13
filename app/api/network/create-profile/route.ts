@@ -1,0 +1,330 @@
+import crypto from "node:crypto";
+import OpenAI from "openai";
+import { NextResponse } from "next/server";
+import { normalizeEmail } from "@/lib/identity";
+import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { upsertUserIdentity } from "@/lib/user-profile-store";
+
+export const runtime = "nodejs";
+
+type ManualProfileInput = {
+  company: string;
+  email: string;
+  expertise: string[];
+  industries: string[];
+  location: string;
+  name: string;
+  problemsSolved: string;
+  role: string;
+  yearsOfExperience: string;
+};
+
+type GeneratedProfile = {
+  headline: string;
+  sections: Array<{
+    content: string;
+    id: string;
+    items: string[];
+    order: number;
+    title: string;
+    visible: boolean;
+  }>;
+  strengths: string[];
+  summary: string;
+};
+
+const generatedProfileSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["headline", "summary", "strengths", "sections"],
+  properties: {
+    headline: { type: "string" },
+    summary: { type: "string" },
+    strengths: { type: "array", items: { type: "string" }, maxItems: 8 },
+    sections: {
+      type: "array",
+      minItems: 4,
+      maxItems: 7,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "title", "content", "items", "order", "visible"],
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          content: { type: "string" },
+          items: { type: "array", items: { type: "string" }, maxItems: 8 },
+          order: { type: "number" },
+          visible: { type: "boolean" },
+        },
+      },
+    },
+  },
+} as const;
+
+export async function POST(request: Request) {
+  const payload = (await request.json().catch(() => null)) as unknown;
+  const input = normalizeManualProfileInput(payload);
+  if (!input) {
+    return NextResponse.json(
+      { error: "Name, email, location, company, role, industries, expertise, experience, and problems solved are required." },
+      { status: 400 },
+    );
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: "Profile generation is not configured yet." }, { status: 500 });
+  }
+
+  try {
+    const supabase = getSupabaseAdminClient();
+    const normalizedEmail = normalizeEmail(input.email);
+    const isAdminUser = getAdminEmails().includes(normalizedEmail);
+    const { user } = await upsertUserIdentity(supabase, {
+      email: input.email,
+      isAdminUser,
+      planType: isAdminUser ? "admin" : "free",
+    });
+
+    const generated = await generateManualProfile(input);
+    const existingProfile = await findExistingPublicProfile(normalizedEmail, user.user_key);
+    const slug = existingProfile?.slug ?? (await ensureUniqueProfileSlug(slugify(input.name)));
+    const profilePayload: Record<string, unknown> = {
+      company: input.company,
+      display_name: input.name,
+      expertise: input.expertise,
+      headline: cleanText(generated.headline).slice(0, 260),
+      industries: input.industries,
+      interests: [],
+      is_public: existingProfile?.is_public ?? false,
+      location: input.location,
+      owner_normalized_email: normalizedEmail,
+      professional_role: input.role,
+      sections: normalizeGeneratedSections(generated, input),
+      slug,
+      strengths: generated.strengths,
+      summary: cleanText(generated.summary),
+      updated_at: new Date().toISOString(),
+      user_id: user.id,
+      user_key: user.user_key,
+      visibility: existingProfile?.visibility ?? "unlisted",
+    };
+    if (!existingProfile) profilePayload.owner_edit_token = crypto.randomBytes(24).toString("hex");
+
+    const query = existingProfile
+      ? supabase.from("public_profiles").update(profilePayload).eq("id", existingProfile.id)
+      : supabase.from("public_profiles").insert(profilePayload);
+    const { data, error } = await query.select("slug, visibility, is_public").single<{
+      is_public: boolean | null;
+      slug: string;
+      visibility: string | null;
+    }>();
+
+    if (error) {
+      console.error("Manual public profile insert/update failed", { error, profilePayload });
+      return NextResponse.json(
+        { error: error.message || "Manual profile could not be created." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      profile: {
+        isPublic: Boolean(data.is_public),
+        slug: data.slug,
+        url: `/p/${data.slug}`,
+        visibility: data.visibility ?? "unlisted",
+      },
+      userKey: user.user_key,
+    });
+  } catch (error) {
+    console.error("Manual public profile creation failed", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Manual profile could not be created." },
+      { status: 500 },
+    );
+  }
+}
+
+async function generateManualProfile(input: ManualProfileInput) {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const response = await openai.responses.parse({
+    model: "gpt-4o-mini",
+    temperature: 0.65,
+    max_output_tokens: 1200,
+    input: [
+      {
+        role: "system",
+        content:
+          "You are INConnect, a Professional Intelligence Platform. Generate concise, credible public professional profile copy. Do not invent employers, degrees, awards, clients, metrics, or unverifiable claims. Use the user's inputs only.",
+      },
+      {
+        role: "user",
+        content: [
+          "Generate an INConnect public profile from these manual inputs.",
+          `Name: ${input.name}`,
+          `Email: ${input.email}`,
+          `Location: ${input.location}`,
+          `Company: ${input.company}`,
+          `Current role: ${input.role}`,
+          `Industries: ${input.industries.join(", ")}`,
+          `Expertise: ${input.expertise.join(", ")}`,
+          `Years of experience: ${input.yearsOfExperience}`,
+          `Problems solved: ${input.problemsSolved}`,
+          "",
+          "Create a professional headline, a short summary, strengths, and profile sections.",
+          "Sections should be suitable for a shareable professional profile.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "inconnect_manual_public_profile",
+        strict: true,
+        schema: generatedProfileSchema,
+      },
+    },
+  });
+
+  if (!response.output_parsed) throw new Error("Profile response format error.");
+  return response.output_parsed as GeneratedProfile;
+}
+
+async function findExistingPublicProfile(normalizedEmail: string, userKey: string) {
+  const supabase = getSupabaseAdminClient();
+  const { data: emailProfile } = await supabase
+    .from("public_profiles")
+    .select("id, slug, visibility, is_public")
+    .eq("owner_normalized_email", normalizedEmail)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; is_public: boolean | null; slug: string; visibility: string | null }>();
+
+  if (emailProfile) return emailProfile;
+
+  const { data: keyProfile } = await supabase
+    .from("public_profiles")
+    .select("id, slug, visibility, is_public")
+    .eq("user_key", userKey)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; is_public: boolean | null; slug: string; visibility: string | null }>();
+
+  return keyProfile;
+}
+
+async function ensureUniqueProfileSlug(value: string) {
+  const supabase = getSupabaseAdminClient();
+  const baseSlug = value || `profile-${Date.now()}`;
+  let slug = baseSlug;
+  let suffix = 2;
+
+  while (true) {
+    const { data } = await supabase
+      .from("public_profiles")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!data) return slug;
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+}
+
+function normalizeGeneratedSections(generated: GeneratedProfile, input: ManualProfileInput) {
+  const sections = generated.sections.map((section, index) => ({
+    content: cleanText(section.content),
+    id: cleanText(section.id) || `section-${index + 1}`,
+    items: normalizeStringArray(section.items),
+    order: Number(section.order) || index + 1,
+    title: cleanText(section.title) || "Profile Section",
+    visible: typeof section.visible === "boolean" ? section.visible : true,
+  }));
+
+  return sections.length > 0
+    ? sections
+    : [
+        {
+          content: generated.summary,
+          id: "summary",
+          items: [],
+          order: 1,
+          title: "Professional Summary",
+          visible: true,
+        },
+        {
+          content: "Core expertise areas.",
+          id: "expertise",
+          items: input.expertise,
+          order: 2,
+          title: "Expertise",
+          visible: true,
+        },
+      ];
+}
+
+function normalizeManualProfileInput(payload: unknown): ManualProfileInput | null {
+  const record = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+  const input = {
+    company: getString(record.company),
+    email: getString(record.email),
+    expertise: normalizeStringArray(record.expertise),
+    industries: normalizeStringArray(record.industries),
+    location: getString(record.location),
+    name: getString(record.name),
+    problemsSolved: getString(record.problemsSolved),
+    role: getString(record.role),
+    yearsOfExperience: getString(record.yearsOfExperience),
+  };
+
+  if (
+    !input.name ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) ||
+    !input.location ||
+    !input.company ||
+    !input.role ||
+    input.industries.length === 0 ||
+    input.expertise.length === 0 ||
+    !input.yearsOfExperience ||
+    !input.problemsSolved
+  ) {
+    return null;
+  }
+
+  return input;
+}
+
+function normalizeStringArray(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => getString(item)).filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanText(value: string) {
+  return value.trim();
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function getAdminEmails() {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
+}

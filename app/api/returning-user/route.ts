@@ -62,11 +62,12 @@ export async function GET(request: NextRequest) {
   const userQuery = supabase
     .from("users")
     .select("user_key, email, linkedin_url, plan_type, is_admin")
+    .order("updated_at", { ascending: false })
     .limit(1);
-  const { data: user, error: userError } = await (email
+  const { data: userRows, error: userError } = await (email
     ? userQuery.eq("normalized_email", normalizeEmail(email))
     : userQuery.eq("user_key", userKey ?? ""))
-    .maybeSingle<UserRow>();
+    .returns<UserRow[]>();
 
   if (userError) {
     console.error("Returning user lookup failed", userError);
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const user = userRows?.[0] ?? null;
   const profile = user
     ? await getUserProfile(supabase, {
         email: user.email,

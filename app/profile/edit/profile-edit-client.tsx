@@ -6,6 +6,7 @@ import type { PublicProfile, PublicProfileSection } from "@/lib/public-profiles"
 type StoredIdentity = {
   email: string;
   name?: string;
+  userId?: string;
   userKey: string;
 };
 
@@ -22,11 +23,15 @@ export function ProfileEditClient() {
   useEffect(() => {
     const stored = readIdentity();
     setIdentity(stored);
-    if (stored?.userKey) void loadProfile(stored.userKey);
+    if (stored?.userKey) void loadProfile(stored.userKey, stored.email);
   }, []);
 
-  async function loadProfile(userKey: string) {
-    const response = await fetch(`/api/public-profiles?userKey=${encodeURIComponent(userKey)}`);
+  async function loadProfile(userKey: string, email = identity?.email ?? "") {
+    const params = new URLSearchParams({
+      email,
+      userKey,
+    });
+    const response = await fetch(`/api/public-profiles?${params.toString()}`);
     const payload = (await response.json()) as { profile: PublicProfile | null };
     setProfile(payload.profile);
   }
@@ -63,6 +68,7 @@ export function ProfileEditClient() {
         professionalRole: nextProfile.professionalRole,
         sections: nextProfile.sections,
         summary: nextProfile.summary,
+        email: identity.email,
         userKey: identity.userKey,
         visibility: nextProfile.visibility,
       }),
@@ -83,9 +89,15 @@ export function ProfileEditClient() {
     if (!identity?.userKey || !profile) return;
     if (!window.confirm("Delete your INConnect profile?")) return;
     setIsSaving(true);
-    await fetch(`/api/public-profiles?userKey=${encodeURIComponent(identity.userKey)}`, {
+    await fetch(
+      `/api/public-profiles?${new URLSearchParams({
+        email: identity.email,
+        userKey: identity.userKey,
+      }).toString()}`,
+      {
       method: "DELETE",
-    });
+      },
+    );
     setIsSaving(false);
     setProfile(null);
     setMessage("Profile deleted.");
@@ -109,6 +121,7 @@ export function ProfileEditClient() {
       const webpFile = await convertImageToWebp(file);
       const formData = new FormData();
       formData.append("userKey", identity.userKey);
+      formData.append("email", identity.email);
       formData.append("file", webpFile);
 
       const response = await fetch("/api/public-profiles/photo", {
@@ -144,7 +157,10 @@ export function ProfileEditClient() {
     setPhotoMessage("");
     setIsPhotoSaving(true);
     const response = await fetch(
-      `/api/public-profiles/photo?userKey=${encodeURIComponent(identity.userKey)}`,
+      `/api/public-profiles/photo?${new URLSearchParams({
+        email: identity.email,
+        userKey: identity.userKey,
+      }).toString()}`,
       { method: "DELETE" },
     );
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;

@@ -8,12 +8,13 @@ import {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const email = searchParams.get("email")?.trim();
   const userKey = searchParams.get("userKey")?.trim();
-  if (!userKey) {
-    return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+  if (!userKey && !email) {
+    return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
   }
 
-  const profile = await getOwnerProfile(userKey);
+  const profile = await getOwnerProfile({ email, userKey });
   return NextResponse.json({ profile });
 }
 
@@ -43,6 +44,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json().catch(() => null)) as {
       company?: string;
       displayName?: string;
+      email?: string;
       headline?: string;
       location?: string;
       professionalRole?: string;
@@ -51,12 +53,13 @@ export async function PATCH(request: Request) {
       userKey?: string;
       visibility?: string;
     } | null;
+    const email = body?.email?.trim();
     const userKey = body?.userKey?.trim();
-    if (!userKey) {
-      return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+    if (!userKey && !email) {
+      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
-    const profile = await updateOwnerProfile(userKey, {
+    const profile = await updateOwnerProfile({ email, userKey }, {
       company: body?.company,
       displayName: body?.displayName,
       headline: body?.headline,
@@ -81,12 +84,13 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email")?.trim();
     const userKey = searchParams.get("userKey")?.trim();
-    if (!userKey) {
-      return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+    if (!userKey && !email) {
+      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
-    await deleteOwnerProfile(userKey);
+    await deleteOwnerProfile({ email, userKey });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Public profile delete failed", error);

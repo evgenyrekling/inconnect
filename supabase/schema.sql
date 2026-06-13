@@ -184,8 +184,38 @@ create table if not exists public.professional_connections (
   created_at timestamptz default now()
 );
 
+create table if not exists public.public_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete cascade,
+  user_key text,
+  slug text unique not null,
+  display_name text,
+  headline text,
+  location text,
+  company text,
+  professional_role text,
+  owner_normalized_email text,
+  summary text,
+  industries jsonb default '[]'::jsonb,
+  expertise jsonb default '[]'::jsonb,
+  strengths jsonb default '[]'::jsonb,
+  interests jsonb default '[]'::jsonb,
+  professional_archetype jsonb,
+  authority_score integer,
+  sections jsonb,
+  visibility text default 'unlisted',
+  is_public boolean default false,
+  owner_edit_token text,
+  profile_photo_url text,
+  profile_photo_storage_path text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create index if not exists users_user_key_idx on public.users (user_key);
-create index if not exists users_normalized_email_idx on public.users (normalized_email);
+create unique index if not exists users_normalized_email_unique_idx
+  on public.users (normalized_email)
+  where normalized_email is not null;
 create index if not exists assessments_user_key_created_at_idx
   on public.assessments (user_key, created_at desc);
 create index if not exists usage_limits_user_key_period_idx
@@ -234,6 +264,18 @@ create index if not exists professional_connections_status_idx
   on public.professional_connections (status);
 create unique index if not exists professional_connections_source_target_idx
   on public.professional_connections (source_user_id, target_user_id);
+create unique index if not exists public_profiles_slug_idx
+  on public.public_profiles (slug);
+create index if not exists public_profiles_user_id_idx
+  on public.public_profiles (user_id);
+create index if not exists public_profiles_user_key_idx
+  on public.public_profiles (user_key);
+create index if not exists public_profiles_owner_normalized_email_idx
+  on public.public_profiles (owner_normalized_email);
+create index if not exists public_profiles_visibility_idx
+  on public.public_profiles (visibility);
+create index if not exists public_profiles_is_public_idx
+  on public.public_profiles (is_public);
 
 comment on table public.professional_connections is
   'Private professional connection graph foundation for business matchmaking, mutual connections, partner discovery, opportunity matching, and company network intelligence.';

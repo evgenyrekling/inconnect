@@ -23,18 +23,61 @@ export default async function NetworkProfilesPage() {
           </Link>
           <h1 className="mt-8 text-4xl font-semibold">Professional Profiles</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
-            Public INConnect profiles created from user-approved professional
-            intelligence.
+            Build a professional profile you can share with colleagues, customers,
+            partners, and recruiters.
           </p>
         </div>
       </section>
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
-          {profiles.length === 0 ? (
-            <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 text-sm text-[#666666]">
-              No public profiles are listed yet.
+          <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
+              Build Your INConnect Profile
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold">Create a professional profile</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#666666]">
+              Create a professional profile you can share with colleagues, customers,
+              partners, and recruiters.
+            </p>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <article className="rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Option 1
+                </p>
+                <h3 className="mt-3 text-xl font-semibold">Build from LinkedIn PDF</h3>
+                <p className="mt-2 text-sm leading-6 text-[#666666]">
+                  Upload your LinkedIn Profile PDF and let INConnect build your profile
+                  from your assessment.
+                </p>
+                <Link className="mt-5 inline-flex rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href="/assessment">
+                  Build from LinkedIn PDF
+                </Link>
+              </article>
+              <article className="rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Option 2
+                </p>
+                <h3 className="mt-3 text-xl font-semibold">Build Manually</h3>
+                <p className="mt-2 text-sm leading-6 text-[#666666]">
+                  Enter your professional details and generate an unlisted INConnect
+                  profile with AI.
+                </p>
+                <Link className="mt-5 inline-flex rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href="/network/create-profile">
+                  Build Manually
+                </Link>
+              </article>
             </div>
-          ) : (
+          </div>
+
+          {profiles.length > 0 && (
+            <>
+              <div className="mt-12">
+                <h2 className="text-3xl font-semibold">Public Profiles</h2>
+                <p className="mt-3 text-sm leading-6 text-[#666666]">
+                  Explore public INConnect profiles created from user-approved
+                  professional intelligence.
+                </p>
+              </div>
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {profiles.map((profile) => (
                 <Link
@@ -67,6 +110,7 @@ export default async function NetworkProfilesPage() {
                 </Link>
               ))}
             </div>
+            </>
           )}
         </div>
       </section>

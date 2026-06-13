@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeEmail } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
@@ -7,6 +8,7 @@ const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"
 
 type PhotoProfileRow = {
   id: string;
+  owner_normalized_email: string | null;
   profile_photo_storage_path: string | null;
   user_id: string | null;
   user_key: string | null;
@@ -15,11 +17,15 @@ type PhotoProfileRow = {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
+    const email = formData.get("email");
     const userKey = formData.get("userKey");
     const file = formData.get("file");
 
-    if (typeof userKey !== "string" || !userKey.trim()) {
-      return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+    if (
+      (typeof userKey !== "string" || !userKey.trim()) &&
+      (typeof email !== "string" || !email.trim())
+    ) {
+      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
     if (!(file instanceof File)) {
@@ -41,14 +47,17 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdminClient();
-    const profile = await getPhotoProfile(userKey.trim());
+    const profile = await getPhotoProfile({
+      email: typeof email === "string" ? email : "",
+      userKey: typeof userKey === "string" ? userKey : "",
+    });
     if (!profile) {
       return NextResponse.json({ error: "Public profile was not found." }, { status: 404 });
     }
 
     await ensureProfilePhotosBucket();
 
-    const ownerPathSegment = profile.user_id || profile.user_key || userKey.trim();
+    const ownerPathSegment = profile.user_id || profile.user_key || profile.owner_normalized_email || "profile";
     const objectPath = `${ownerPathSegment}/profile-photo.webp`;
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const { error: uploadError } = await supabase.storage
@@ -79,7 +88,7 @@ export async function POST(request: Request) {
         profile_photo_url: publicUrl,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_key", userKey.trim());
+      .eq("id", profile.id);
 
     if (updateError) {
       console.error("PROFILE PHOTO PROFILE UPDATE ERROR", updateError);
@@ -105,13 +114,14 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email")?.trim();
     const userKey = searchParams.get("userKey")?.trim();
-    if (!userKey) {
-      return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+    if (!userKey && !email) {
+      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
     }
 
     const supabase = getSupabaseAdminClient();
-    const profile = await getPhotoProfile(userKey);
+    const profile = await getPhotoProfile({ email, userKey });
     if (!profile) {
       return NextResponse.json({ error: "Public profile was not found." }, { status: 404 });
     }
@@ -132,7 +142,7 @@ export async function DELETE(request: Request) {
         profile_photo_url: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_key", userKey);
+      .eq("id", profile.id);
 
     if (updateError) {
       console.error("PROFILE PHOTO CLEAR ERROR", updateError);
@@ -152,12 +162,35 @@ export async function DELETE(request: Request) {
   }
 }
 
-async function getPhotoProfile(userKey: string) {
+async function getPhotoProfile(values: { email?: string; userKey?: string }) {
   const supabase = getSupabaseAdminClient();
+  const normalizedEmail = values.email ? normalizeEmail(values.email) : "";
+
+  if (normalizedEmail) {
+    const { data, error } = await supabase
+      .from("public_profiles")
+      .select("id, user_id, user_key, owner_normalized_email, profile_photo_storage_path")
+      .eq("owner_normalized_email", normalizedEmail)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<PhotoProfileRow>();
+
+    if (error) {
+      console.error("PROFILE PHOTO OWNER EMAIL LOOKUP ERROR", error);
+      throw new Error(error.message || "Public profile lookup failed.");
+    }
+
+    if (data) return data;
+  }
+
+  if (!values.userKey) return null;
+
   const { data, error } = await supabase
     .from("public_profiles")
-    .select("id, user_id, user_key, profile_photo_storage_path")
-    .eq("user_key", userKey)
+    .select("id, user_id, user_key, owner_normalized_email, profile_photo_storage_path")
+    .eq("user_key", values.userKey)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle<PhotoProfileRow>();
 
   if (error) {

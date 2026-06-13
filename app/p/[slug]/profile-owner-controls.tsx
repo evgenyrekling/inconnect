@@ -6,6 +6,7 @@ import type { PublicProfile, PublicProfileSection } from "@/lib/public-profiles"
 type StoredIdentity = {
   email: string;
   name?: string;
+  userId?: string;
   userKey: string;
 };
 
@@ -21,7 +22,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     setIdentity(readIdentity());
   }, []);
 
-  const isOwner = Boolean(identity?.userKey && identity.userKey === profile.userKey);
+  const isOwner = isProfileOwner(identity, profile);
   if (!isOwner) return null;
 
   async function copyProfileLink() {
@@ -44,7 +45,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     setIsBusy(true);
     setMessage("");
     const response = await fetch("/api/public-profiles", {
-      body: JSON.stringify({ userKey: identity.userKey, visibility }),
+      body: JSON.stringify({ email: identity.email, userKey: identity.userKey, visibility }),
       headers: { "Content-Type": "application/json" },
       method: "PATCH",
     });
@@ -61,7 +62,10 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     if (!identity?.userKey) return;
     setIsBusy(true);
     const response = await fetch(
-      `/api/public-profiles?userKey=${encodeURIComponent(identity.userKey)}`,
+      `/api/public-profiles?${new URLSearchParams({
+        email: identity.email,
+        userKey: identity.userKey,
+      }).toString()}`,
       { method: "DELETE" },
     );
     setIsBusy(false);
@@ -146,10 +150,14 @@ export function PrivateProfileOwnerGate({ slug }: { slug: string }) {
   useEffect(() => {
     const identity = readIdentity();
     if (!identity?.userKey) return;
-    void fetch(`/api/public-profiles?userKey=${encodeURIComponent(identity.userKey)}`)
+    const params = new URLSearchParams({
+      email: identity.email,
+      userKey: identity.userKey,
+    });
+    void fetch(`/api/public-profiles?${params.toString()}`)
       .then((response) => response.json())
       .then((payload: { profile: PublicProfile | null }) => {
-        if (payload.profile?.slug === slug) {
+        if (payload.profile?.slug === slug && isProfileOwner(identity, payload.profile)) {
           setProfile(payload.profile);
           setIsOwner(true);
         }
@@ -287,4 +295,20 @@ function readIdentity() {
   } catch {
     return null;
   }
+}
+
+function isProfileOwner(identity: StoredIdentity | null, profile: PublicProfile) {
+  if (!identity) return false;
+  const normalizedIdentityEmail = normalizeClientEmail(identity.email);
+  return Boolean(
+    (identity.userKey && identity.userKey === profile.userKey) ||
+      (identity.userId && profile.userId && identity.userId === profile.userId) ||
+      (normalizedIdentityEmail &&
+        profile.ownerNormalizedEmail &&
+        normalizedIdentityEmail === profile.ownerNormalizedEmail),
+  );
+}
+
+function normalizeClientEmail(email: string) {
+  return email.trim().toLowerCase();
 }

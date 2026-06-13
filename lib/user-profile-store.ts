@@ -199,7 +199,7 @@ export async function findUserByEmailOrKey(
   const normalizedEmail = normalizeEmail(values.email);
 
   try {
-    const { data: emailUser, error: emailError } = await supabase
+    const { data: emailUsers, error: emailError } = await supabase
       .from("users")
       .select(
         "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
@@ -207,7 +207,7 @@ export async function findUserByEmailOrKey(
       .eq("normalized_email", normalizedEmail)
       .order("updated_at", { ascending: false })
       .limit(1)
-      .maybeSingle<UserRow>();
+      .returns<UserRow[]>();
 
     if (emailError) {
       console.error("INConnect Supabase users email lookup error", {
@@ -216,7 +216,7 @@ export async function findUserByEmailOrKey(
       });
       throw emailError;
     }
-    if (emailUser) return emailUser;
+    if (emailUsers?.[0]) return emailUsers[0];
 
     if (!values.userKey) return null;
 
