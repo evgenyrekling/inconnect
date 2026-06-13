@@ -108,7 +108,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
           )}
           {profile.visibility !== "private" && (
             <button className="rounded-lg border border-[#F4B4B4] bg-white px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50" disabled={isBusy} onClick={() => updateVisibility("private")} type="button">
-              Hide Profile
+              Make Private
             </button>
           )}
           <button className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700" disabled={isBusy} onClick={() => setShowDeleteConfirm(true)} type="button">

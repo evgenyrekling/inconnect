@@ -38,17 +38,30 @@ export default async function NetworkProfilesPage() {
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {profiles.map((profile) => (
                 <Link
-                  className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition hover:-translate-y-0.5 hover:border-[#0A66C2]/40"
+                  className="flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition hover:-translate-y-0.5 hover:border-[#0A66C2]/40"
                   href={`/p/${profile.slug}`}
                   key={profile.id}
                 >
-                  <h2 className="text-xl font-semibold">{profile.displayName}</h2>
+                  <div className="flex items-start gap-4">
+                    <DirectoryAvatar name={profile.displayName} url={profile.profilePhotoUrl} />
+                    <div>
+                      <h2 className="text-xl font-semibold">{profile.displayName}</h2>
+                      {profile.location && (
+                        <p className="mt-1 text-sm font-semibold text-[#0A66C2]">
+                          {profile.location}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <p className="mt-2 text-sm leading-6 text-[#666666]">{profile.headline}</p>
-                  <p className="mt-3 text-sm font-semibold text-[#0A66C2]">
-                    {profile.location || profile.professionalRole}
-                  </p>
-                  <TagRow items={[...profile.industries, ...profile.expertise].slice(0, 5)} />
-                  <span className="mt-5 inline-flex text-sm font-semibold text-[#0A66C2]">
+                  {!profile.location && profile.professionalRole && (
+                    <p className="mt-3 text-sm font-semibold text-[#0A66C2]">
+                      {profile.professionalRole}
+                    </p>
+                  )}
+                  <TagRow label="Industries" items={profile.industries.slice(0, 4)} />
+                  <TagRow label="Expertise" items={profile.expertise.slice(0, 5)} />
+                  <span className="mt-auto inline-flex w-fit rounded-lg bg-[#4A6FD0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]">
                     View Profile
                   </span>
                 </Link>
@@ -62,15 +75,37 @@ export default async function NetworkProfilesPage() {
   );
 }
 
-function TagRow({ items }: { items: string[] }) {
+function DirectoryAvatar({ name, url }: { name: string; url: string }) {
+  const initial = name.trim().charAt(0).toUpperCase() || "I";
+  if (url) {
+    return (
+      <img
+        alt={`${name} profile photo`}
+        className="h-16 w-16 shrink-0 rounded-full border-2 border-[#E8F1FB] object-cover"
+        src={url}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-[#E8F1FB] bg-[#0A192F] text-xl font-semibold text-white">
+      {initial}
+    </div>
+  );
+}
+
+function TagRow({ items, label }: { items: string[]; label: string }) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-4 flex flex-wrap gap-2">
-      {items.map((item) => (
-        <span className="rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]" key={item}>
-          {item}
-        </span>
-      ))}
+    <div className="mt-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span className="rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]" key={item}>
+            {item}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

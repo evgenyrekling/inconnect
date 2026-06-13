@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       .from(PROFILE_PHOTOS_BUCKET)
       .getPublicUrl(objectPath);
 
-    const publicUrl = publicUrlData.publicUrl;
+    const publicUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
     const { error: updateError } = await supabase
       .from("public_profiles")
       .update({
