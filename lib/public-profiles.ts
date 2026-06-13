@@ -53,9 +53,39 @@ type PublicProfileRow = {
 };
 
 type AssessmentRow = {
-  analysis: unknown;
+  ai_response: unknown;
+  authority_score: number | null;
+  core_positioning: string | null;
+  created_at: string;
+  expertise_domains: unknown;
+  market_position: string | null;
+  positioning_snapshot: unknown;
   professional_archetype: unknown;
-  total_score: number | null;
+  share_text: string | null;
+  top_competencies: unknown;
+  user_id: string | null;
+  user_key: string | null;
+};
+
+type UserRow = {
+  email: string | null;
+  id: string;
+  linkedin_url: string | null;
+  user_key: string;
+};
+
+type UserProfileRow = {
+  current_company: string | null;
+  email: string | null;
+  expertise_domains: unknown;
+  industries: unknown;
+  interests: unknown;
+  latest_authority_score: number | null;
+  location: string | null;
+  name: string | null;
+  professional_archetype: unknown;
+  professional_role: string | null;
+  top_skills: unknown;
   user_id: string | null;
   user_key: string | null;
 };
@@ -68,10 +98,33 @@ export async function createPublicProfileFromLatestAssessment(userKey: string) {
     .eq("user_key", userKey)
     .maybeSingle<PublicProfileRow>();
 
+  const { data: user } = await supabase
+    .from("users")
+    .select("id, user_key, email, linkedin_url")
+    .eq("user_key", userKey)
+    .maybeSingle<UserRow>();
+
+  const { data: userProfile } = await supabase
+    .from("user_profiles")
+    .select(
+      "user_id, user_key, name, email, professional_role, current_company, location, industries, interests, top_skills, expertise_domains, professional_archetype, latest_authority_score",
+    )
+    .eq("user_key", userKey)
+    .maybeSingle<UserProfileRow>();
+
   const { data: assessment, error } = await supabase
     .from("assessments")
-    .select("analysis, professional_archetype, total_score, user_id, user_key")
-    .eq("user_key", userKey)
+    .select(
+      "user_id, user_key, authority_score, market_position, core_positioning, positioning_snapshot, professional_archetype, top_competencies, expertise_domains, ai_response, share_text, created_at",
+    )
+    .or(
+      [
+        `user_key.eq.${userKey}`,
+        user?.id ? `user_id.eq.${user.id}` : "",
+      ]
+        .filter(Boolean)
+        .join(","),
+    )
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle<AssessmentRow>();
@@ -79,7 +132,12 @@ export async function createPublicProfileFromLatestAssessment(userKey: string) {
   if (error) throw new Error(error.message || "Latest assessment lookup failed.");
   if (!assessment) throw new Error("No assessment found for this user.");
 
-  const profilePayload = buildPublicProfilePayload(assessment, existingProfile?.slug);
+  const profilePayload = buildPublicProfilePayload({
+    assessment,
+    existingSlug: existingProfile?.slug,
+    user: user ?? null,
+    userProfile: userProfile ?? null,
+  });
 
   if (existingProfile) {
     const { data, error: updateError } = await supabase
@@ -205,27 +263,67 @@ export async function deleteOwnerProfile(userKey: string) {
   if (error) throw new Error(error.message || "Profile delete failed.");
 }
 
-function buildPublicProfilePayload(assessment: AssessmentRow, existingSlug?: string | null) {
-  const analysis = asRecord(assessment.analysis);
-  const snapshot = asRecord(analysis.profileSnapshot);
-  const displayName = cleanPublicText(getString(snapshot.name), "INConnect Professional");
-  const professionalRole = cleanPublicText(getString(snapshot.currentRole), "");
-  const company = cleanPublicText(getString(snapshot.currentCompany), "");
-  const location = cleanPublicText(getString(snapshot.location), "");
-  const industries = getStringArray(snapshot.topIndustries || analysis.keyExpertiseDomains).slice(0, 6);
-  const expertise = getStringArray(analysis.keyExpertiseDomains || snapshot.topSkills).slice(0, 8);
-  const strengths = [
-    ...getStringArray(analysis.topCompetencies).slice(0, 5),
-    ...getStringArray(analysis.positiveHighlights).slice(0, 3),
-  ].slice(0, 8);
-  const archetype = assessment.professional_archetype || analysis.professionalArchetype || null;
+function buildPublicProfilePayload({
+  assessment,
+  existingSlug,
+  user,
+  userProfile,
+}: {
+  assessment: AssessmentRow;
+  existingSlug?: string | null;
+  user: UserRow | null;
+  userProfile: UserProfileRow | null;
+}) {
+  const aiResponse = asRecord(assessment.ai_response);
+  const snapshot = asRecord(assessment.positioning_snapshot || aiResponse.profileSnapshot);
+  const displayName = cleanPublicText(
+    getString(userProfile?.name) || getString(snapshot.name),
+    "INConnect Professional",
+  );
+  const professionalRole = cleanPublicText(
+    getString(userProfile?.professional_role) || getString(snapshot.currentRole),
+    "",
+  );
+  const company = cleanPublicText(
+    getString(userProfile?.current_company) || getString(snapshot.currentCompany),
+    "",
+  );
+  const location = cleanPublicText(
+    getString(userProfile?.location) || getString(snapshot.location),
+    "",
+  );
+  const industries = uniqueStrings([
+    ...getStringArray(userProfile?.industries),
+    ...getStringArray(snapshot.topIndustries),
+    ...getStringArray(aiResponse.keyExpertiseDomains),
+  ]).slice(0, 6);
+  const expertise = uniqueStrings([
+    ...getStringArray(assessment.expertise_domains),
+    ...getStringArray(userProfile?.expertise_domains),
+    ...getStringArray(userProfile?.top_skills),
+    ...getStringArray(aiResponse.keyExpertiseDomains),
+    ...getStringArray(snapshot.topSkills),
+  ]).slice(0, 8);
+  const strengths = uniqueStrings([
+    ...getStringArray(assessment.top_competencies),
+    ...getStringArray(aiResponse.topCompetencies),
+    ...getStringArray(aiResponse.positiveHighlights),
+  ]).slice(0, 8);
+  const interests = uniqueStrings(getStringArray(userProfile?.interests)).slice(0, 8);
+  const archetype =
+    assessment.professional_archetype ||
+    userProfile?.professional_archetype ||
+    aiResponse.professionalArchetype ||
+    null;
   const archetypeRecord = asRecord(archetype);
   const headline =
-    cleanPublicText(getString(analysis.corePositioning), "") ||
+    cleanPublicText(assessment.core_positioning ?? "", "") ||
+    cleanPublicText(getString(aiResponse.corePositioning), "") ||
     [professionalRole, industries[0], expertise[0]].filter(Boolean).join(" | ");
   const summary =
-    cleanPublicText(getString(analysis.marketPosition), "") ||
-    cleanPublicText(getString(analysis.whatMakesYouUnique), "") ||
+    cleanPublicText(assessment.market_position ?? "", "") ||
+    cleanPublicText(getString(aiResponse.marketPosition), "") ||
+    cleanPublicText(getString(aiResponse.whatMakesYouUnique), "") ||
     `${displayName} brings visible expertise across ${expertise.slice(0, 3).join(", ")}.`;
   const sections: PublicProfileSection[] = [
     section("summary", "Professional Summary", summary, [], 1),
@@ -241,20 +339,23 @@ function buildPublicProfilePayload(assessment: AssessmentRow, existingSlug?: str
       [],
       5,
     ),
-    section("interests", "Interests", "Professional interests will expand as INConnect Network grows.", [], 6),
-    section("thought-leadership", "Thought Leadership", cleanPublicText(getString(analysis.whatMakesYouUnique), ""), [], 7),
-    section("business-focus", "Business Focus", cleanPublicText(getString(analysis.businessImpact), "Future business focus will be added by the profile owner."), [], 8),
+    section("interests", "Interests", "Professional interests connected to this profile.", interests, 6),
+    section("thought-leadership", "Thought Leadership", cleanPublicText(getString(aiResponse.whatMakesYouUnique), ""), [], 7),
+    section("business-focus", "Business Focus", cleanPublicText(getString(aiResponse.businessImpact), "Future business focus will be added by the profile owner."), [], 8),
     section("connect", "Contact / Connect CTA", "Connection requests through INConnect are coming soon.", [], 9),
-  ];
+  ].filter((profileSection) => profileSection.content || profileSection.items.length > 0);
 
   return {
-    authority_score: assessment.total_score,
+    authority_score:
+      assessment.authority_score ??
+      userProfile?.latest_authority_score ??
+      getNumber(aiResponse.totalScore),
     company,
     display_name: displayName,
     expertise,
     headline: headline.slice(0, 260),
     industries,
-    interests: [],
+    interests,
     location,
     professional_archetype: archetype,
     professional_role: professionalRole,
@@ -262,8 +363,8 @@ function buildPublicProfilePayload(assessment: AssessmentRow, existingSlug?: str
     slug: existingSlug || slugify(displayName),
     strengths,
     summary,
-    user_id: assessment.user_id,
-    user_key: assessment.user_key,
+    user_id: assessment.user_id ?? userProfile?.user_id ?? user?.id ?? null,
+    user_key: assessment.user_key ?? userProfile?.user_key ?? user?.user_key ?? "",
   };
 }
 
@@ -354,6 +455,14 @@ function getString(value: unknown) {
 function getStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => getString(item)).filter(Boolean);
+}
+
+function getNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
