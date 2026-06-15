@@ -10,6 +10,7 @@ type CreatedProfile = {
 };
 
 const STORAGE_KEY = "inconnect:returning-user";
+const UNIFIED_STORAGE_KEY = "inconnect_identity";
 
 export function CreateNetworkProfileClient() {
   const [step, setStep] = useState(1);
@@ -239,6 +240,14 @@ function splitList(value: string) {
 function saveIdentity(identity: { email: string; name: string; userKey: string }) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(identity));
+    window.localStorage.setItem(
+      UNIFIED_STORAGE_KEY,
+      JSON.stringify({
+        ...identity,
+        normalizedEmail: identity.email.trim().toLowerCase(),
+        signedInAt: new Date().toISOString(),
+      }),
+    );
   } catch {
     // localStorage can be unavailable in private browsing.
   }
@@ -246,7 +255,7 @@ function saveIdentity(identity: { email: string; name: string; userKey: string }
 
 function readIdentity() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(UNIFIED_STORAGE_KEY) ?? window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as { email: string; userKey: string };
   } catch {

@@ -6,23 +6,6 @@ set normalized_email = lower(trim(email))
 where email is not null
   and (normalized_email is null or normalized_email <> lower(trim(email)));
 
-alter table public.public_profiles
-  add column if not exists owner_normalized_email text;
-
-update public.public_profiles pp
-set owner_normalized_email = u.normalized_email
-from public.users u
-where pp.user_id = u.id
-  and u.normalized_email is not null
-  and (pp.owner_normalized_email is null or pp.owner_normalized_email <> u.normalized_email);
-
-update public.public_profiles pp
-set owner_normalized_email = u.normalized_email
-from public.users u
-where pp.user_key = u.user_key
-  and u.normalized_email is not null
-  and (pp.owner_normalized_email is null or pp.owner_normalized_email <> u.normalized_email);
-
 create temporary table if not exists tmp_inconnect_user_canonical as
 with user_scores as (
   select
@@ -109,12 +92,10 @@ where ins.user_id = c.duplicate_id
 update public.public_profiles pp
 set user_id = c.canonical_id,
     user_key = c.canonical_user_key,
-    owner_normalized_email = c.normalized_email,
     updated_at = now()
 from tmp_inconnect_user_canonical c
 where pp.user_id = c.duplicate_id
-   or pp.user_key = c.duplicate_user_key
-   or pp.owner_normalized_email = c.normalized_email;
+   or pp.user_key = c.duplicate_user_key;
 
 update public.professional_connections pc
 set source_user_id = c.canonical_id
@@ -141,9 +122,6 @@ drop index if exists public.users_normalized_email_idx;
 create unique index if not exists users_normalized_email_unique_idx
   on public.users (normalized_email)
   where normalized_email is not null;
-
-create index if not exists public_profiles_owner_normalized_email_idx
-  on public.public_profiles (owner_normalized_email);
 
 drop table if exists tmp_inconnect_user_canonical;
 

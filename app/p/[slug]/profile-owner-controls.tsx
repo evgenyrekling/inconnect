@@ -11,6 +11,7 @@ type StoredIdentity = {
 };
 
 const STORAGE_KEY = "inconnect:returning-user";
+const UNIFIED_STORAGE_KEY = "inconnect_identity";
 
 export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
@@ -309,7 +310,7 @@ function ProfileSectionCard({
 
 function readIdentity() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(UNIFIED_STORAGE_KEY) ?? window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredIdentity;
     return parsed?.userKey && parsed?.email ? parsed : null;

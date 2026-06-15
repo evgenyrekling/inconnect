@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createUserKey,
-  normalizeEmail,
-  normalizeLinkedInUrl,
-} from "@/lib/identity";
+import { normalizeEmail, normalizeLinkedInUrl } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +20,7 @@ type CsvContact = {
 type UserRow = {
   id: string;
   user_key: string;
+  name: string | null;
   email: string;
   linkedin_url: string | null;
   normalized_email: string;
@@ -194,49 +192,12 @@ async function ensureAdminUser(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   adminEmail: string,
 ) {
-  const existingAdmin = await findUserByNormalizedEmail(supabase, adminEmail);
-  const timestamp = new Date().toISOString();
-
-  if (existingAdmin) {
-    const patch: Record<string, unknown> = {};
-    if (!existingAdmin.is_admin) patch.is_admin = true;
-    if (existingAdmin.plan_type !== "admin") patch.plan_type = "admin";
-
-    if (Object.keys(patch).length === 0) return existingAdmin;
-
-    patch.updated_at = timestamp;
-    const { data, error } = await supabase
-      .from("users")
-      .update(patch)
-      .eq("id", existingAdmin.id)
-      .select(
-        "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
-      )
-      .single<UserRow>();
-
-    if (error) throw new Error(`Admin user could not be updated: ${error.message}`);
-    return data;
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .insert({
-      email: adminEmail,
-      is_admin: true,
-      linkedin_url: null,
-      normalized_email: adminEmail,
-      normalized_linkedin_url: null,
-      plan_type: "admin",
-      updated_at: timestamp,
-      user_key: createUserKey(adminEmail),
-    })
-    .select(
-      "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
-    )
-    .single<UserRow>();
-
-  if (error) throw new Error(`Admin user could not be created: ${error.message}`);
-  return data;
+  const { user } = await getOrCreateUserByEmail(supabase, {
+    email: adminEmail,
+    isAdminUser: true,
+    planType: "admin",
+  });
+  return user;
 }
 
 async function upsertImportedUser(
@@ -244,55 +205,21 @@ async function upsertImportedUser(
   contact: CsvContact,
   normalizedContactEmail: string,
 ) {
-  const existingUser = await findUserByNormalizedEmail(supabase, normalizedContactEmail);
-  const timestamp = new Date().toISOString();
   const linkedinUrl = cleanText(contact.linkedinUrl, 500);
-  const normalizedLinkedInUrl = linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : "";
+  const existingUser = await findUserByNormalizedEmail(supabase, normalizedContactEmail);
+  const { user, debug } = await getOrCreateUserByEmail(supabase, {
+    email: contact.email,
+    isAdminUser: false,
+    linkedinUrl,
+    name: contact.name,
+    planType: "imported",
+  });
 
-  if (existingUser) {
-    const patch: Record<string, unknown> = {};
-    if (!existingUser.linkedin_url && linkedinUrl) {
-      patch.linkedin_url = linkedinUrl;
-      patch.normalized_linkedin_url = normalizedLinkedInUrl || null;
-    }
-
-    if (Object.keys(patch).length === 0) {
-      return { created: false, updated: false, user: existingUser };
-    }
-
-    patch.updated_at = timestamp;
-    const { data, error } = await supabase
-      .from("users")
-      .update(patch)
-      .eq("id", existingUser.id)
-      .select(
-        "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
-      )
-      .single<UserRow>();
-
-    if (error) throw new Error(`User update failed: ${error.message}`);
-    return { created: false, updated: true, user: data };
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .insert({
-      email: contact.email.trim(),
-      is_admin: false,
-      linkedin_url: linkedinUrl || null,
-      normalized_email: normalizedContactEmail,
-      normalized_linkedin_url: normalizedLinkedInUrl || null,
-      plan_type: "imported",
-      updated_at: timestamp,
-      user_key: createUserKey(normalizedContactEmail),
-    })
-    .select(
-      "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
-    )
-    .single<UserRow>();
-
-  if (error) throw new Error(`User creation failed: ${error.message}`);
-  return { created: true, updated: false, user: data };
+  return {
+    created: debug.userCreated,
+    updated: Boolean(existingUser) && debug.fieldsUpdated.includes("users"),
+    user,
+  };
 }
 
 async function upsertImportedUserProfile(
@@ -419,7 +346,7 @@ async function findUserByNormalizedEmail(
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
+      "id, user_key, name, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
     )
     .eq("normalized_email", normalizedEmail)
     .order("updated_at", { ascending: false })

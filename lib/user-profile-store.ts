@@ -77,6 +77,7 @@ export type UserProfileDebug = {
 type UserRow = {
   id: string;
   user_key: string;
+  name: string | null;
   email: string;
   linkedin_url: string | null;
   normalized_email: string;
@@ -202,7 +203,7 @@ export async function findUserByEmailOrKey(
     const { data: emailUsers, error: emailError } = await supabase
       .from("users")
       .select(
-        "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
+        "id, user_key, name, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
       )
       .eq("normalized_email", normalizedEmail)
       .order("updated_at", { ascending: false })
@@ -223,7 +224,7 @@ export async function findUserByEmailOrKey(
     const { data: keyUser, error: keyError } = await supabase
       .from("users")
       .select(
-        "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
+        "id, user_key, name, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
       )
       .eq("user_key", values.userKey)
       .maybeSingle<UserRow>();
@@ -247,12 +248,28 @@ export async function upsertUserIdentity(
     email: string;
     isAdminUser: boolean;
     linkedinUrl?: string;
+    name?: string;
     planType: string;
+    userKey?: string;
+  },
+) {
+  return getOrCreateUserByEmail(supabase, values);
+}
+
+export async function getOrCreateUserByEmail(
+  supabase: SupabaseAdminClient,
+  values: {
+    email: string;
+    isAdminUser?: boolean;
+    linkedinUrl?: string;
+    name?: string;
+    planType?: string;
     userKey?: string;
   },
 ) {
   const normalizedEmail = normalizeEmail(values.email);
   const linkedinUrl = cleanText(values.linkedinUrl);
+  const name = cleanProfileText(values.name);
   const normalizedLinkedInUrl = linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : "";
   const nextUserKey = values.userKey ?? createUserKey(normalizedEmail, "");
   const existingUser = await findUserByEmailOrKey(supabase, {
@@ -284,16 +301,19 @@ export async function upsertUserIdentity(
       const nextLinkedInUrl = linkedinUrl || existingUser.linkedin_url || null;
       const nextNormalizedLinkedInUrl =
         normalizedLinkedInUrl || existingUser.normalized_linkedin_url || null;
-      const userUpdatePayload = {
+      const userUpdatePayload: Record<string, unknown> = {
         user_key: shouldUpdateUserKey ? nextUserKey : previousUserKey,
         email: values.email.trim(),
-        linkedin_url: nextLinkedInUrl,
         normalized_email: normalizedEmail,
-        normalized_linkedin_url: nextNormalizedLinkedInUrl,
         is_admin: values.isAdminUser || Boolean(existingUser.is_admin),
         plan_type: planType,
         updated_at: timestamp,
       };
+      if (!existingUser.name && name) userUpdatePayload.name = name;
+      if (!existingUser.linkedin_url && nextLinkedInUrl) {
+        userUpdatePayload.linkedin_url = nextLinkedInUrl;
+        userUpdatePayload.normalized_linkedin_url = nextNormalizedLinkedInUrl;
+      }
 
       console.info("INConnect Supabase users update payload", {
         userFound: true,
@@ -307,7 +327,7 @@ export async function upsertUserIdentity(
         .update(userUpdatePayload)
         .eq("id", existingUser.id)
         .select(
-          "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
+          "id, user_key, name, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
         )
         .single<UserRow>();
 
@@ -338,6 +358,7 @@ export async function upsertUserIdentity(
 
     const userInsertPayload = {
       user_key: nextUserKey,
+      name: name || null,
       email: values.email.trim(),
       linkedin_url: linkedinUrl || null,
       normalized_email: normalizedEmail,
@@ -357,7 +378,7 @@ export async function upsertUserIdentity(
       .from("users")
       .insert(userInsertPayload)
       .select(
-        "id, user_key, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
+        "id, user_key, name, email, linkedin_url, normalized_email, normalized_linkedin_url, plan_type, is_admin",
       )
       .single<UserRow>();
 
@@ -397,6 +418,11 @@ export async function upsertProfileFromAssessment(
   },
 ) {
   const snapshot = values.assessment.profileSnapshot;
+  await updateUserNameIfMissing(
+    supabase,
+    values.user.id,
+    cleanProfileText(snapshot.name),
+  );
   const patch: ProfilePatch = {
     user_id: values.user.id,
     user_key: values.user.user_key,
@@ -426,6 +452,22 @@ export async function upsertProfileFromAssessment(
   };
 
   return upsertUserProfile(supabase, patch);
+}
+
+async function updateUserNameIfMissing(
+  supabase: SupabaseAdminClient,
+  userId: string,
+  name: string,
+) {
+  if (!name) return;
+  const { error } = await supabase
+    .from("users")
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .is("name", null);
+  if (error) {
+    console.error("INConnect users name enrichment failed", { error, userId });
+  }
 }
 
 export async function upsertProfileFromHeadlineGenerator(

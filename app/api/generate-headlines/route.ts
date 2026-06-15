@@ -5,7 +5,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
   isUserProfileStorageError,
   upsertProfileFromHeadlineGenerator,
-  upsertUserIdentity,
+  getOrCreateUserByEmail,
 } from "@/lib/user-profile-store";
 
 export const runtime = "nodejs";
@@ -106,9 +106,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdminClient();
     const isAdminUser = getAdminEmails().includes(normalizeEmail(input.email));
-    const { user, debug: identityProfileDebug } = await upsertUserIdentity(supabase, {
+    const { user, debug: identityProfileDebug } = await getOrCreateUserByEmail(supabase, {
       email: input.email,
       isAdminUser,
+      name: input.name,
       planType: isAdminUser ? "admin" : "free",
     });
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

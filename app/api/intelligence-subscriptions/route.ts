@@ -4,7 +4,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
   isUserProfileStorageError,
   upsertProfileFromIntelligenceSubscription,
-  upsertUserIdentity,
+  getOrCreateUserByEmail,
 } from "@/lib/user-profile-store";
 
 export const runtime = "nodejs";
@@ -110,9 +110,10 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdminClient();
     const normalizedEmail = normalizeEmail(input.email);
     const isAdminUser = getAdminEmails().includes(normalizedEmail);
-    const { user } = await upsertUserIdentity(supabase, {
+    const { user } = await getOrCreateUserByEmail(supabase, {
       email: input.email,
       isAdminUser,
+      name: input.name,
       planType: isAdminUser ? "admin" : "free",
       userKey: input.userKey,
     });

@@ -8,7 +8,6 @@ create table if not exists public.public_profiles (
   location text,
   company text,
   professional_role text,
-  owner_normalized_email text,
   summary text,
   industries jsonb default '[]'::jsonb,
   expertise jsonb default '[]'::jsonb,
@@ -33,7 +32,6 @@ alter table public.public_profiles
   add column if not exists location text,
   add column if not exists company text,
   add column if not exists professional_role text,
-  add column if not exists owner_normalized_email text,
   add column if not exists summary text,
   add column if not exists industries jsonb default '[]'::jsonb,
   add column if not exists expertise jsonb default '[]'::jsonb,
@@ -56,9 +54,6 @@ create index if not exists public_profiles_user_id_idx
 
 create index if not exists public_profiles_user_key_idx
   on public.public_profiles (user_key);
-
-create index if not exists public_profiles_owner_normalized_email_idx
-  on public.public_profiles (owner_normalized_email);
 
 create index if not exists public_profiles_visibility_idx
   on public.public_profiles (visibility);

@@ -3,6 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   user_key text unique not null,
+  name text,
   email text not null,
   linkedin_url text,
   normalized_email text not null,
@@ -194,7 +195,6 @@ create table if not exists public.public_profiles (
   location text,
   company text,
   professional_role text,
-  owner_normalized_email text,
   summary text,
   industries jsonb default '[]'::jsonb,
   expertise jsonb default '[]'::jsonb,
@@ -270,8 +270,6 @@ create index if not exists public_profiles_user_id_idx
   on public.public_profiles (user_id);
 create index if not exists public_profiles_user_key_idx
   on public.public_profiles (user_key);
-create index if not exists public_profiles_owner_normalized_email_idx
-  on public.public_profiles (owner_normalized_email);
 create index if not exists public_profiles_visibility_idx
   on public.public_profiles (visibility);
 create index if not exists public_profiles_is_public_idx

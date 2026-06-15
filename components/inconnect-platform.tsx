@@ -67,11 +67,14 @@ type LimitState = {
   message: string;
 };
 type StoredReturningIdentity = {
+  userId?: string;
   userKey: string;
   name?: string;
   email: string;
+  normalizedEmail?: string;
   linkedinUrl: string;
   latestAssessmentId?: string;
+  signedInAt?: string;
 };
 type AssessmentHistoryEntry = {
   id: string;
@@ -192,6 +195,7 @@ const ASSESSMENT_IMAGE_FILENAME = "inconnect-profile-intelligence-assessment.png
 const ADSENSE_PUBLISHER_ID = "ca-pub-6306589054094473";
 const ADS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ADS === "true";
 const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
+const UNIFIED_IDENTITY_STORAGE_KEY = "inconnect_identity";
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const HEADLINE_GENERATIONS_STORAGE_KEY = "inconnect:headline-generations";
 const ABOUT_GENERATIONS_STORAGE_KEY = "inconnect:about-generations";
@@ -498,7 +502,9 @@ function classNames(...classes: Array<string | false | null | undefined>) {
 
 function readStoredReturningIdentity(): StoredReturningIdentity | null {
   try {
-    const raw = window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(UNIFIED_IDENTITY_STORAGE_KEY) ??
+      window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     return isStoredReturningIdentity(parsed) ? parsed : null;
@@ -509,7 +515,9 @@ function readStoredReturningIdentity(): StoredReturningIdentity | null {
 
 function storeReturningIdentity(identity: StoredReturningIdentity) {
   try {
-    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(identity));
+    const normalizedIdentity = normalizeStoredIdentity(identity);
+    window.localStorage.setItem(UNIFIED_IDENTITY_STORAGE_KEY, JSON.stringify(normalizedIdentity));
+    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(normalizedIdentity));
     window.dispatchEvent(new Event("inconnect:identity-changed"));
   } catch {
     // localStorage can be unavailable in private browsing or embedded contexts.
@@ -519,6 +527,7 @@ function storeReturningIdentity(identity: StoredReturningIdentity) {
 function clearReturningIdentity() {
   try {
     window.localStorage.removeItem(RETURNING_USER_STORAGE_KEY);
+    window.localStorage.removeItem(UNIFIED_IDENTITY_STORAGE_KEY);
     window.dispatchEvent(new Event("inconnect:identity-changed"));
   } catch {
     // localStorage can be unavailable in private browsing or embedded contexts.
@@ -533,9 +542,17 @@ function isStoredReturningIdentity(value: unknown): value is StoredReturningIden
     typeof value.userKey === "string" &&
     "email" in value &&
     typeof value.email === "string" &&
-    "linkedinUrl" in value &&
-    typeof value.linkedinUrl === "string"
+    (("linkedinUrl" in value && typeof value.linkedinUrl === "string") ||
+      !("linkedinUrl" in value))
   );
+}
+
+function normalizeStoredIdentity(identity: StoredReturningIdentity): StoredReturningIdentity {
+  return {
+    ...identity,
+    normalizedEmail: identity.normalizedEmail ?? identity.email.trim().toLowerCase(),
+    signedInAt: identity.signedInAt ?? new Date().toISOString(),
+  };
 }
 
 function isValidEmail(email: string) {
@@ -770,9 +787,17 @@ function readReturningUserIdentityPayload(
   if (!userKey || !email) return null;
 
   return {
+    userId:
+      "userId" in user && typeof user.userId === "string"
+        ? user.userId
+        : fallback.userId ?? "",
     userKey,
     name,
     email,
+    normalizedEmail:
+      "normalizedEmail" in user && typeof user.normalizedEmail === "string"
+        ? user.normalizedEmail
+        : fallback.normalizedEmail ?? email.trim().toLowerCase(),
     linkedinUrl,
     latestAssessmentId:
       "latestAssessmentId" in value && typeof value.latestAssessmentId === "string"
@@ -1259,13 +1284,15 @@ async function resolveAccountIdentity({
     email,
     linkedinUrl: "",
     name,
+    normalizedEmail: email.trim().toLowerCase(),
     userKey: await createClientUserKey(email),
   };
 
   try {
-    const params = new URLSearchParams({ email });
-    const response = await fetch(`/api/returning-user?${params.toString()}`, {
-      cache: "no-store",
+    const response = await fetch("/api/identity", {
+      body: JSON.stringify({ email, name }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
     });
     const payload = (await response.json().catch(() => null)) as unknown;
 
@@ -1281,6 +1308,8 @@ async function resolveAccountIdentity({
           : undefined,
       linkedinUrl: payload.user.linkedinUrl || "",
       name: payload.user.name || name,
+      normalizedEmail: payload.user.normalizedEmail || email.trim().toLowerCase(),
+      userId: payload.user.userId || "",
       userKey: payload.user.userKey || fallbackIdentity.userKey,
     };
   } catch {
@@ -1294,6 +1323,8 @@ function isReturningUserIdentityPayload(value: unknown): value is {
     email?: string;
     linkedinUrl?: string;
     name?: string;
+    normalizedEmail?: string;
+    userId?: string;
     userKey?: string;
   };
 } {

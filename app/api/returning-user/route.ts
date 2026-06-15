@@ -19,8 +19,11 @@ type AssessmentRow = {
 };
 
 type UserRow = {
+  id: string;
   user_key: string;
+  name: string | null;
   email: string;
+  normalized_email: string | null;
   linkedin_url: string | null;
   plan_type: string | null;
   is_admin: boolean | null;
@@ -61,7 +64,7 @@ export async function GET(request: NextRequest) {
 
   const userQuery = supabase
     .from("users")
-    .select("user_key, email, linkedin_url, plan_type, is_admin")
+    .select("id, user_key, name, email, normalized_email, linkedin_url, plan_type, is_admin")
     .order("updated_at", { ascending: false })
     .limit(1);
   const { data: userRows, error: userError } = await (email
@@ -283,9 +286,11 @@ function getAssessmentScore(row: AssessmentRow) {
 
 function createUserPayload(user: UserRow, planType = getPlanType(user), name = "") {
   return {
+    userId: user.id,
     userKey: user.user_key,
-    name,
+    name: name || user.name || "",
     email: user.email,
+    normalizedEmail: user.normalized_email ?? normalizeEmail(user.email),
     linkedinUrl: user.linkedin_url ?? "",
     planType,
     isAdmin: planType === "admin",
@@ -294,9 +299,11 @@ function createUserPayload(user: UserRow, planType = getPlanType(user), name = "
 
 function createProfileOnlyUserPayload(profile: UserProfileRow | null) {
   return {
+    userId: "",
     userKey: profile?.user_key ?? "",
     name: profile?.name ?? "",
     email: profile?.email ?? "",
+    normalizedEmail: profile?.email ? normalizeEmail(profile.email) : "",
     linkedinUrl: profile?.linkedin_url ?? "",
     planType: "free",
     isAdmin: false,

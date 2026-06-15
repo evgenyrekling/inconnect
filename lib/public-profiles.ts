@@ -385,10 +385,12 @@ async function getEditableProfileRowBySlug(
     : profile.user_key
       ? await getUserByKey(profile.user_key)
       : null;
-  const ownerNormalizedEmail =
+  const linkedUserNormalizedEmail =
     getString(ownerUser?.normalized_email) || getString(ownerUser?.email);
-  const normalizedOwnerEmail = ownerNormalizedEmail ? normalizeEmail(ownerNormalizedEmail) : "";
-  const ownerEmail = getString(ownerUser?.email) || normalizedOwnerEmail;
+  const normalizedLinkedUserEmail = linkedUserNormalizedEmail
+    ? normalizeEmail(linkedUserNormalizedEmail)
+    : "";
+  const linkedUserEmail = getString(ownerUser?.email) || normalizedLinkedUserEmail;
   const currentEmail = getString(currentUser?.email) || normalizedIdentityEmail;
   const normalizedCurrentEmail =
     getString(currentUser?.normalized_email) || (currentEmail ? normalizeEmail(currentEmail) : "");
@@ -403,11 +405,11 @@ async function getEditableProfileRowBySlug(
       reason: "currentUser.user_key matched public_profiles.user_key",
     },
     {
-      matched: Boolean(normalizedCurrentEmail && normalizedOwnerEmail && normalizedCurrentEmail === normalizedOwnerEmail),
+      matched: Boolean(normalizedCurrentEmail && normalizedLinkedUserEmail && normalizedCurrentEmail === normalizedLinkedUserEmail),
       reason: "currentUser.normalized_email matched owner normalized_email",
     },
     {
-      matched: Boolean(currentEmail && ownerEmail && normalizeEmail(currentEmail) === normalizeEmail(ownerEmail)),
+      matched: Boolean(currentEmail && linkedUserEmail && normalizeEmail(currentEmail) === normalizeEmail(linkedUserEmail)),
       reason: "currentUser.email matched owner email",
     },
     {

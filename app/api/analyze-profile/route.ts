@@ -16,7 +16,7 @@ import {
   findUserByEmailOrKey,
   isUserProfileStorageError,
   upsertProfileFromAssessment,
-  upsertUserIdentity,
+  getOrCreateUserByEmail,
   type UserProfileDebug,
 } from "@/lib/user-profile-store";
 import { getCurrentWeeklyUsagePeriod } from "@/lib/usage-period";
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { user, debug: identityProfileDebug } = await upsertUserIdentity(supabase, {
+    const { user, debug: identityProfileDebug } = await getOrCreateUserByEmail(supabase, {
       email,
       linkedinUrl,
       isAdminUser,

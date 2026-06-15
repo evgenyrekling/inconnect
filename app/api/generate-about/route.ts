@@ -5,7 +5,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
   isUserProfileStorageError,
   upsertProfileFromAboutGenerator,
-  upsertUserIdentity,
+  getOrCreateUserByEmail,
   UserProfileStorageError,
   type AboutProfileInputs,
   type AboutProfileOutputs,
@@ -97,12 +97,13 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdminClient();
     const isAdminUser = getAdminEmails().includes(normalizeEmail(input.email));
-    let identityResult: Awaited<ReturnType<typeof upsertUserIdentity>>;
+    let identityResult: Awaited<ReturnType<typeof getOrCreateUserByEmail>>;
 
     try {
-      identityResult = await upsertUserIdentity(supabase, {
+      identityResult = await getOrCreateUserByEmail(supabase, {
         email: input.email,
         isAdminUser,
+        name: input.name,
         planType: isAdminUser ? "admin" : "free",
       });
     } catch (usersError) {

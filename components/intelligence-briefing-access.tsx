@@ -23,6 +23,9 @@ type StoredReturningIdentity = {
   latestAssessmentId?: string;
   linkedinUrl?: string;
   name?: string;
+  normalizedEmail?: string;
+  signedInAt?: string;
+  userId?: string;
   userKey: string;
 };
 
@@ -34,6 +37,7 @@ type IntelligenceSubscriptionResponse = {
 };
 
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
+const UNIFIED_IDENTITY_STORAGE_KEY = "inconnect_identity";
 
 export function IntelligenceBriefingAccess({
   consentLabel = "I agree that INConnect may store my information and send me relevant intelligence updates.",
@@ -240,6 +244,8 @@ async function saveIntelligenceInterest({
     latestAssessmentId: identity.latestAssessmentId,
     linkedinUrl: identity.linkedinUrl ?? "",
     name: identity.name,
+    normalizedEmail: payload.email.trim().toLowerCase(),
+    signedInAt: identity.signedInAt ?? new Date().toISOString(),
     userKey: payload.userKey,
   };
   storeReturningIdentity(nextIdentity);
@@ -248,7 +254,9 @@ async function saveIntelligenceInterest({
 
 function readStoredReturningIdentity(): StoredReturningIdentity | null {
   try {
-    const raw = window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(UNIFIED_IDENTITY_STORAGE_KEY) ??
+      window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     return isStoredReturningIdentity(parsed) ? parsed : null;
@@ -259,7 +267,13 @@ function readStoredReturningIdentity(): StoredReturningIdentity | null {
 
 function storeReturningIdentity(identity: StoredReturningIdentity) {
   try {
-    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(identity));
+    const normalizedIdentity = {
+      ...identity,
+      normalizedEmail: identity.normalizedEmail ?? identity.email.trim().toLowerCase(),
+      signedInAt: identity.signedInAt ?? new Date().toISOString(),
+    };
+    window.localStorage.setItem(UNIFIED_IDENTITY_STORAGE_KEY, JSON.stringify(normalizedIdentity));
+    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(normalizedIdentity));
   } catch {
     // localStorage can be unavailable in private browsing or embedded contexts.
   }
