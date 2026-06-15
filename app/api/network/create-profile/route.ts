@@ -8,15 +8,26 @@ import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
 export const runtime = "nodejs";
 
 type ManualProfileInput = {
+  about: string;
+  achievements: string;
   company: string;
+  contactLinks: string;
   email: string;
   expertise: string[];
+  headline: string;
   industries: string[];
+  languages: string[];
   location: string;
+  linkedinUrl: string;
   name: string;
   problemsSolved: string;
   role: string;
+  website: string;
   yearsOfExperience: string;
+  customSections: Array<{
+    title: string;
+    content: string;
+  }>;
 };
 
 type GeneratedProfile = {
@@ -67,7 +78,7 @@ export async function POST(request: Request) {
   const input = normalizeManualProfileInput(payload);
   if (!input) {
     return NextResponse.json(
-      { error: "Name, email, location, company, role, industries, expertise, experience, and problems solved are required." },
+      { error: "Full name, email, professional headline, current company, current role, and country / location are required." },
       { status: 400 },
     );
   }
@@ -83,6 +94,7 @@ export async function POST(request: Request) {
     const { user } = await getOrCreateUserByEmail(supabase, {
       email: input.email,
       isAdminUser,
+      linkedinUrl: input.linkedinUrl,
       name: input.name,
       planType: isAdminUser ? "admin" : "free",
     });
@@ -94,7 +106,7 @@ export async function POST(request: Request) {
       company: input.company,
       display_name: input.name,
       expertise: input.expertise,
-      headline: cleanText(generated.headline).slice(0, 260),
+      headline: cleanText(input.headline || generated.headline).slice(0, 260),
       industries: input.industries,
       interests: [],
       is_public: existingProfile?.is_public ?? false,
@@ -103,7 +115,7 @@ export async function POST(request: Request) {
       sections: normalizeGeneratedSections(generated, input),
       slug,
       strengths: generated.strengths,
-      summary: cleanText(generated.summary),
+      summary: cleanText(input.about || generated.summary),
       updated_at: new Date().toISOString(),
       user_id: user.id,
       user_key: user.user_key,
@@ -167,10 +179,20 @@ async function generateManualProfile(input: ManualProfileInput) {
           `Location: ${input.location}`,
           `Company: ${input.company}`,
           `Current role: ${input.role}`,
+          `Professional headline: ${input.headline}`,
+          `LinkedIn URL: ${input.linkedinUrl || "Not provided"}`,
           `Industries: ${input.industries.join(", ")}`,
           `Expertise: ${input.expertise.join(", ")}`,
           `Years of experience: ${input.yearsOfExperience}`,
           `Problems solved: ${input.problemsSolved}`,
+          `About: ${input.about}`,
+          `Achievements: ${input.achievements}`,
+          `Languages: ${input.languages.join(", ")}`,
+          `Website: ${input.website}`,
+          `Contact links: ${input.contactLinks}`,
+          `Custom sections: ${input.customSections
+            .map((section) => `${section.title}: ${section.content}`)
+            .join(" | ")}`,
           "",
           "Create a professional headline, a short summary, strengths, and profile sections.",
           "Sections should be suitable for a shareable professional profile.",
@@ -241,9 +263,53 @@ function normalizeGeneratedSections(generated: GeneratedProfile, input: ManualPr
     title: cleanText(section.title) || "Profile Section",
     visible: typeof section.visible === "boolean" ? section.visible : true,
   }));
+  const optionalSections = [
+    input.achievements
+      ? {
+          content: input.achievements,
+          id: "achievements",
+          items: normalizeStringArray(input.achievements),
+          order: sections.length + 1,
+          title: "Achievements",
+          visible: true,
+        }
+      : null,
+    input.languages.length
+      ? {
+          content: "Languages this professional works in.",
+          id: "languages",
+          items: input.languages,
+          order: sections.length + 2,
+          title: "Languages",
+          visible: true,
+        }
+      : null,
+    input.website || input.contactLinks || input.linkedinUrl
+      ? {
+          content: [input.website, input.linkedinUrl, input.contactLinks].filter(Boolean).join("\n"),
+          id: "contact-links",
+          items: [input.website, input.linkedinUrl, ...normalizeStringArray(input.contactLinks)].filter(Boolean),
+          order: sections.length + 3,
+          title: "Contact Links",
+          visible: true,
+        }
+      : null,
+    ...input.customSections.map((section, index) => ({
+      content: section.content,
+      id: `custom-${index + 1}`,
+      items: [],
+      order: sections.length + 4 + index,
+      title: section.title,
+      visible: true,
+    })),
+  ].filter((section): section is GeneratedProfile["sections"][number] => Boolean(section));
+  const allSections = [...sections, ...optionalSections].map((section, index) => ({
+    ...section,
+    order: index + 1,
+  }));
 
-  return sections.length > 0
-    ? sections
+  return allSections.length > 0
+    ? allSections
     : [
         {
           content: generated.summary,
@@ -267,32 +333,51 @@ function normalizeGeneratedSections(generated: GeneratedProfile, input: ManualPr
 function normalizeManualProfileInput(payload: unknown): ManualProfileInput | null {
   const record = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
   const input = {
+    about: getString(record.about),
+    achievements: getString(record.achievements),
     company: getString(record.company),
+    contactLinks: getString(record.contactLinks),
     email: getString(record.email),
     expertise: normalizeStringArray(record.expertise),
+    headline: getString(record.headline),
     industries: normalizeStringArray(record.industries),
+    languages: normalizeStringArray(record.languages),
     location: getString(record.location),
+    linkedinUrl: getString(record.linkedinUrl),
     name: getString(record.name),
     problemsSolved: getString(record.problemsSolved),
     role: getString(record.role),
+    website: getString(record.website),
     yearsOfExperience: getString(record.yearsOfExperience),
+    customSections: normalizeCustomSections(record.customSections),
   };
 
   if (
     !input.name ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) ||
+    !input.headline ||
     !input.location ||
     !input.company ||
-    !input.role ||
-    input.industries.length === 0 ||
-    input.expertise.length === 0 ||
-    !input.yearsOfExperience ||
-    !input.problemsSolved
+    !input.role
   ) {
     return null;
   }
 
   return input;
+}
+
+function normalizeCustomSections(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const record = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : {};
+      return {
+        content: getString(record.content),
+        title: getString(record.title),
+      };
+    })
+    .filter((section) => section.title && section.content)
+    .slice(0, 5);
 }
 
 function normalizeStringArray(value: unknown) {

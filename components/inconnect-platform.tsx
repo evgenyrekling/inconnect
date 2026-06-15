@@ -1672,7 +1672,7 @@ function HeroSection() {
             Discover opportunities, stay informed, improve your professional
             presence, and connect with the right people.
           </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a
               className={classNames(
                 "inline-flex h-12 items-center justify-center rounded-lg px-5",
@@ -1683,13 +1683,16 @@ function HeroSection() {
               Explore Intelligence
             </a>
             <a
-              className={classNames(
-                "inline-flex h-12 items-center justify-center rounded-lg px-5",
-                PRIMARY_CTA_CLASS,
-              )}
+              className="inline-flex h-12 items-center justify-center rounded-lg border border-white/40 bg-white/10 px-5 text-sm font-semibold text-white transition hover:border-white/70 hover:bg-white/16"
+              href="/network/profiles"
+            >
+              Build Your Profile
+            </a>
+            <a
+              className="inline-flex h-12 items-center justify-center rounded-lg px-2 text-sm font-semibold text-[#B9D9FF] transition hover:text-white"
               href="/assessment"
             >
-              Improve Your Profile
+              Try LinkedIn Tools
             </a>
           </div>
         </div>
