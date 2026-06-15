@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import {
   createPublicProfileFromLatestAssessment,
   deleteOwnerProfile,
@@ -85,6 +86,9 @@ export async function PATCH(request: Request) {
     const profile = slug
       ? await updateOwnerProfileBySlug(slug, { email, userKey }, values)
       : await updateOwnerProfile({ email, userKey }, values);
+    revalidatePath(`/p/${profile.slug}`);
+    revalidatePath("/network/profile");
+    revalidatePath("/network/profiles");
     return NextResponse.json({ profile });
   } catch (error) {
     console.error("Public profile update failed", error);

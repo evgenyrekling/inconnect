@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import type { PublicProfile, PublicProfileSection } from "@/lib/public-profiles";
 
 type StoredIdentity = {
@@ -14,18 +16,28 @@ const STORAGE_KEY = "inconnect:returning-user";
 const UNIFIED_STORAGE_KEY = "inconnect_identity";
 
 export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
+  const router = useRouter();
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [message, setMessage] = useState("");
   const [photoMessage, setPhotoMessage] = useState("");
+  const [savedProfilePath, setSavedProfilePath] = useState("");
   const [isPhotoSaving, setIsPhotoSaving] = useState(false);
+  const [isRedirectPending, setIsRedirectPending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const stored = readIdentity();
     setIdentity(stored);
     if (stored?.userKey) void loadProfile(stored.userKey, stored.email, profileSlug);
   }, [profileSlug]);
+
+  useEffect(() => {
+    return () => {
+      clearRedirectTimer();
+    };
+  }, []);
 
   async function loadProfile(userKey: string, email = identity?.email ?? "", slug = profileSlug) {
     const params = new URLSearchParams({ email, userKey });
@@ -56,8 +68,11 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
 
   async function saveProfile(nextProfile = profile) {
     if (!identity?.userKey || !nextProfile) return;
+    clearRedirectTimer();
     setIsSaving(true);
+    setIsRedirectPending(false);
     setMessage("");
+    setSavedProfilePath("");
     const response = await fetch("/api/public-profiles", {
       body: JSON.stringify({
         company: nextProfile.company,
@@ -83,6 +98,24 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
     }
     setProfile(payload.profile);
     setMessage("Profile updated.");
+    const profilePath = `/p/${payload.profile.slug}`;
+    setSavedProfilePath(profilePath);
+    setIsRedirectPending(true);
+    router.refresh();
+    redirectTimeoutRef.current = setTimeout(() => {
+      router.push(profilePath);
+    }, 1000);
+  }
+
+  function continueEditing() {
+    clearRedirectTimer();
+    setIsRedirectPending(false);
+  }
+
+  function clearRedirectTimer() {
+    if (!redirectTimeoutRef.current) return;
+    clearTimeout(redirectTimeoutRef.current);
+    redirectTimeoutRef.current = null;
   }
 
   async function deleteProfile() {
@@ -286,7 +319,33 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
               </a>
             </div>
           )}
-          {message && <p className="mt-4 text-sm font-semibold text-[#0A66C2]">{message}</p>}
+          {message && (
+            <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-4">
+              <p className="text-sm font-semibold text-[#0A66C2]">{message}</p>
+              {savedProfilePath && (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    className="rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]"
+                    href={savedProfilePath}
+                  >
+                    View Updated Profile
+                  </Link>
+                  <button
+                    className="rounded-lg border border-[#D9DDE3] px-4 py-3 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2]"
+                    onClick={continueEditing}
+                    type="button"
+                  >
+                    Continue Editing
+                  </button>
+                </div>
+              )}
+              {isRedirectPending && (
+                <p className="mt-3 text-xs leading-5 text-[#666666]">
+                  Redirecting to your updated profile...
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {profile && (

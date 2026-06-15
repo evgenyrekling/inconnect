@@ -81,14 +81,16 @@ export default async function NetworkProfilesPage() {
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {profiles.map((profile) => (
                 <Link
-                  className="flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition hover:-translate-y-0.5 hover:border-[#0A66C2]/40"
+                  className="group flex h-full cursor-pointer flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] transition duration-200 hover:-translate-y-0.5 hover:border-[#0A66C2]/45 hover:shadow-[0_16px_36px_rgba(10,25,47,0.1)] focus:outline-none focus-visible:border-[#0A66C2] focus-visible:ring-2 focus-visible:ring-[#0A66C2]/20"
                   href={`/p/${profile.slug}`}
                   key={profile.id}
                 >
                   <div className="flex items-start gap-4">
                     <DirectoryAvatar name={profile.displayName} url={profile.profilePhotoUrl} />
                     <div>
-                      <h2 className="text-xl font-semibold">{profile.displayName}</h2>
+                      <h2 className="text-xl font-semibold transition group-hover:text-[#0A66C2]">
+                        {profile.displayName}
+                      </h2>
                       {profile.location && (
                         <p className="mt-1 text-sm font-semibold text-[#0A66C2]">
                           {profile.location}
@@ -104,9 +106,7 @@ export default async function NetworkProfilesPage() {
                   )}
                   <TagRow label="Industries" items={profile.industries.slice(0, 4)} />
                   <TagRow label="Expertise" items={profile.expertise.slice(0, 5)} />
-                  <span className="mt-auto inline-flex w-fit rounded-lg bg-[#4A6FD0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]">
-                    View Profile
-                  </span>
+                  <span className="sr-only">View {profile.displayName} profile</span>
                 </Link>
               ))}
             </div>
