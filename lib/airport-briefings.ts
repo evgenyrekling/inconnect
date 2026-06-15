@@ -1,6 +1,8 @@
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 export type AirportBriefing = {
+  airportName?: string;
+  category?: string;
   content: string;
   createdAt: string;
   excerpt: string;
@@ -8,8 +10,10 @@ export type AirportBriefing = {
   heroImagePrompt?: string;
   heroImageUrl: string;
   id?: string;
+  keywords?: string[];
   published?: boolean;
   publishedAt?: string;
+  readingTime?: string;
   researchSources?: unknown[];
   researchSummary?: string;
   seoDescription: string;
@@ -19,6 +23,8 @@ export type AirportBriefing = {
 };
 
 type AirportBriefingRow = {
+  airport_name: string | null;
+  category: string | null;
   id: string;
   slug: string;
   title: string;
@@ -26,6 +32,8 @@ type AirportBriefingRow = {
   content: string;
   hero_image_url: string | null;
   hero_image_prompt: string | null;
+  keywords: string[] | null;
+  reading_time: string | null;
   research_sources: unknown[] | null;
   research_summary: string | null;
   seo_title: string | null;
@@ -38,7 +46,13 @@ type AirportBriefingRow = {
 
 type AirportBriefingLegacyRow = Omit<
   AirportBriefingRow,
-  "published_at" | "research_sources" | "research_summary"
+  | "airport_name"
+  | "category"
+  | "keywords"
+  | "published_at"
+  | "reading_time"
+  | "research_sources"
+  | "research_summary"
 >;
 
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
@@ -47,22 +61,26 @@ const demoGeneratedAt = "2026-06-09T07:30:00.000Z";
 export const demoAirportBriefings: AirportBriefing[] = [
   {
     content: [
-      "Today, INConnect looks at baggage automation as one of the clearest operational signals in the smart airport market. Baggage is often discussed as a passenger-experience issue, but the deeper story is operational control: airports need better visibility, faster exception handling, and more predictable flow across increasingly complex terminal environments.",
+      "## INConnect Brief",
+      "Airport baggage automation is becoming one of the clearest operational signals in the smart airport market. The strongest story is no longer only faster bag movement, but better visibility across exceptions, transfer points, and terminal constraints.",
       "",
-      "RFID, automatic tag reading, conveyor intelligence, and control-room analytics are becoming part of the same conversation. The value is not only in moving bags faster. It is in understanding where friction appears, which processes create downstream pressure, and how airport teams can act before small issues become visible disruptions.",
+      "## Why It Matters",
+      "Baggage remains one of the most visible failure points in airport operations. Better automation gives airports and airlines more control over disruption, accountability, and passenger trust.",
       "",
-      "INConnect sees baggage automation as a practical bridge between today’s infrastructure constraints and tomorrow’s fully digital airport operations. The airports that treat baggage data as operational intelligence, not just tracking information, will be better positioned to improve reliability, coordinate with airlines, and justify future automation investments.",
+      "## INConnect View",
+      "INConnect sees baggage automation as a practical bridge between legacy infrastructure and digital airport operations. The winners will treat baggage data as operational intelligence, not only tracking information.",
     ].join("\n"),
     createdAt: demoGeneratedAt,
-    excerpt:
-      "A preview of Airport Automation Daily covering smart airports, baggage automation, RFID, AI, robotics, and passenger processing.",
+    category: "Baggage Handling",
+    excerpt: "A concise INConnect briefing on baggage automation as a practical smart airport signal.",
     generatedAt: demoGeneratedAt,
     heroImageUrl: DEFAULT_AIRPORT_HERO_IMAGE_URL,
+    readingTime: "1 Minute Read",
     seoDescription:
       "Airport Automation Daily preview from INConnect covering smart airports, baggage automation, RFID, AI, robotics, and passenger processing.",
-    seoTitle: "Airport Automation Daily | INConnect",
+    seoTitle: "Baggage Automation Signal | INConnect 1-Minute Briefing | Airport Automation Daily",
     slug: "airport-automation-daily-preview",
-    title: "INConnect 1-Minute Daily Digest Preview",
+    title: "Baggage Automation Signal | INConnect 1-Minute Briefing",
   },
 ];
 
@@ -72,7 +90,7 @@ export async function getPublishedAirportBriefings(limit?: number) {
     let query = supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
+        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, keywords, reading_time, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("published", true)
       .order("published_at", { ascending: false, nullsFirst: false })
@@ -109,7 +127,7 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
     const { data, error } = await supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, excerpt, content, hero_image_url, hero_image_prompt, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
+        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, keywords, reading_time, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("slug", slug)
       .eq("published", true)
@@ -210,6 +228,8 @@ export function formatAirportBriefingDate(value: string) {
 
 function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
   return {
+    airportName: row.airport_name ?? undefined,
+    category: row.category ?? undefined,
     content: row.content,
     createdAt: row.created_at,
     excerpt: row.excerpt,
@@ -217,8 +237,10 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
     heroImagePrompt: row.hero_image_prompt ?? undefined,
     heroImageUrl: row.hero_image_url || DEFAULT_AIRPORT_HERO_IMAGE_URL,
     id: row.id,
+    keywords: row.keywords ?? undefined,
     published: row.published,
     publishedAt: row.published_at ?? undefined,
+    readingTime: row.reading_time || "1 Minute Read",
     researchSources: row.research_sources ?? undefined,
     researchSummary: row.research_summary ?? undefined,
     seoDescription: row.seo_description || row.excerpt,
@@ -231,7 +253,11 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
 function mapAirportBriefingLegacyRow(row: AirportBriefingLegacyRow): AirportBriefing {
   return mapAirportBriefingRow({
     ...row,
+    airport_name: null,
+    category: null,
+    keywords: null,
     published_at: null,
+    reading_time: null,
     research_sources: null,
     research_summary: null,
   });
@@ -255,8 +281,8 @@ function isMissingColumnError(error: unknown) {
 function isDisplayableAirportBriefing(briefing: AirportBriefing) {
   const title = briefing.title.toLowerCase();
   const hasAirportKeyword =
-    /\b(airport|baggage|passenger processing|biometric|rfid|smart airport|terminal|aviation|airside)\b/i.test(
-      briefing.title,
+    /\b(airport|terminal|baggage|passenger processing|biometric|rfid|bhs|atr|airside|apron|ground support|gse|ground handling|cargo|security screening|e-?gate|self-service|kiosk|boarding|airport robotics|autonomous vehicle|airport ai|smart airport|digital airport|airport infrastructure)\b/i.test(
+      `${briefing.title} ${briefing.category ?? ""} ${briefing.keywords?.join(" ") ?? ""}`,
     );
   const hasOffTopicTitle =
     title.includes("linkedin optimization") ||

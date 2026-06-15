@@ -9,9 +9,9 @@ import {
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Airport Automation Daily | INConnect Intelligence",
+  title: "Airport Automation Daily | INConnect 1-Minute Briefing",
   description:
-    "Daily INConnect intelligence posts covering airports, airlines, BHS, RFID, passenger processing, biometrics, security, AI, LiDAR, robotics, and smart airport projects.",
+    "The one airport automation development worth knowing today from INConnect Intelligence.",
   path: "/intelligence/airport-automation",
 });
 
@@ -34,16 +34,17 @@ export default async function AirportAutomationIntelligencePage() {
             Back to Intelligence
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#057642]">
-            Active
+            Active Intelligence Stream
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
-            Airport Automation Daily
+            ✈️ Airport Automation Daily
           </h1>
+          <p className="mt-3 text-xl font-semibold text-[#0A66C2]">
+            INConnect 1-Minute Briefing
+          </p>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            Daily INConnect perspective posts for airport professionals
-            covering the most important developments in automation, baggage,
-            passenger processing, biometrics, security, AI, robotics, and smart
-            airport infrastructure.
+            The one airport automation development worth knowing today. One
+            topic, one insight, one minute.
           </p>
         </div>
       </section>
@@ -51,11 +52,11 @@ export default async function AirportAutomationIntelligencePage() {
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Latest daily post
+            Latest briefing
           </p>
           {!latestBriefing ? (
             <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 text-sm leading-6 text-[#666666]">
-              Airport Automation Daily posts will appear here after the
+              Airport Automation Daily briefings will appear here after the
               first scheduled generation run.
             </div>
           ) : (
@@ -103,8 +104,9 @@ function AirportBriefingCard({
       </div>
       <div className={classNames(featured ? "mt-5 lg:mt-0" : "mt-5")}>
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+          <span>{formatAirportCategory(briefing.category)}</span>
           <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
-          <span className="text-[#057642]">{getReadingTimeLabel(briefing.content)}</span>
+          <span className="text-[#057642]">1 Minute Read</span>
         </div>
         <h2 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
           <Link
@@ -114,16 +116,13 @@ function AirportBriefingCard({
             {briefing.title}
           </Link>
         </h2>
-        <p className="mt-3 flex-1 text-sm leading-6 text-[#666666]">
-          {briefing.excerpt}
-        </p>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-[#D9DDE3] pt-4 text-sm">
-          <span className="text-[#666666]">Airport Automation Daily</span>
+          <span className="text-[#666666]">INConnect Briefing</span>
           <Link
             className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
             href={`/intelligence/airport-automation/${briefing.slug}`}
           >
-            Read briefing
+            Read Briefing →
           </Link>
         </div>
       </div>
@@ -135,8 +134,18 @@ function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function getReadingTimeLabel(content: string) {
-  const words = content.trim().split(/\s+/).filter(Boolean).length;
-  const minutes = Math.max(1, Math.ceil(words / 250));
-  return `${minutes} min read`;
+function formatAirportCategory(category?: string) {
+  const labels: Record<string, string> = {
+    "Airside Operations": "🛫 Airside Operations",
+    "Airport Infrastructure": "🏗 Airport Infrastructure",
+    "Baggage Handling": "🛄 Baggage Handling",
+    Cargo: "📦 Cargo",
+    "Digital Airports": "📡 Digital Airports",
+    "Ground Support Equipment": "🚜 Ground Support Equipment",
+    "Passenger Processing": "👤 Passenger Processing",
+    Robotics: "🤖 Robotics",
+    Security: "🔒 Security",
+    "Vision & AI": "📷 Vision & AI",
+  };
+  return labels[category ?? ""] ?? "✈️ Airport Automation";
 }

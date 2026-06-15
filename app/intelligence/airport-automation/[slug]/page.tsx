@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IntelligenceBriefingAccess } from "@/components/intelligence-briefing-access";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   type AirportBriefing,
@@ -40,13 +39,13 @@ export async function generateMetadata({
   const canonicalUrl = `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`;
 
   return {
-    title: briefing.seoTitle,
+    title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
     description: briefing.seoDescription,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: briefing.seoTitle,
+      title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
       description: briefing.seoDescription,
       images: [
         {
@@ -65,7 +64,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       description: briefing.seoDescription,
       images: [briefing.heroImageUrl],
-      title: briefing.seoTitle,
+      title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
     },
   };
 }
@@ -79,8 +78,6 @@ export default async function AirportBriefingPage({
   if (!briefing) notFound();
 
   const displayContent = formatAirportPostForDisplay(briefing.content);
-  const previewContent = createBriefingPreview(displayContent);
-  const readingTime = getReadingTimeLabel(displayContent);
   const relatedBriefings = selectRelatedBriefings(
     briefing,
     await getPublishedAirportBriefings(),
@@ -125,7 +122,7 @@ export default async function AirportBriefingPage({
             </Link>
           </div>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Airport Automation Daily
+            {formatAirportCategory(briefing.category)}
           </p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
             {briefing.title}
@@ -133,7 +130,7 @@ export default async function AirportBriefingPage({
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
             <span>INConnect Intelligence</span>
-            <span className="font-semibold text-[#057642]">{readingTime}</span>
+            <span className="font-semibold text-[#057642]">1 Minute Read</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -149,13 +146,9 @@ export default async function AirportBriefingPage({
       </article>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <IntelligenceBriefingAccess
-          fullContent={displayContent}
-          intelligenceType="airport_automation"
-          previewContent={previewContent}
-          streamTitle="Airport Automation Daily"
-          unlockTitle="Unlock Full Post"
-        />
+        <div className="mx-auto max-w-3xl rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_12px_30px_rgba(10,25,47,0.06)] sm:p-8">
+          <AirportBriefingBody content={displayContent} />
+        </div>
       </section>
       <RelatedAirportBriefings briefings={relatedBriefings} />
       <script
@@ -167,10 +160,6 @@ export default async function AirportBriefingPage({
   );
 }
 
-function createBriefingPreview(content: string) {
-  return truncateMarkdownByWordCount(content.trim(), 220);
-}
-
 function formatAirportPostForDisplay(content: string) {
   return content
     .replace(/^##\s+Post\s*/i, "")
@@ -179,48 +168,6 @@ function formatAirportPostForDisplay(content: string) {
     .replace(/\n*##\s+(?:Source|Discussion Question)[\s\S]*$/i, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function truncateMarkdownByWordCount(content: string, wordLimit: number) {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const previewLines: string[] = [];
-  let visibleWords = 0;
-
-  for (const line of lines) {
-    const lineWords = countWords(line);
-
-    if (line.trim() && visibleWords + lineWords > wordLimit) {
-      const remainingWords = Math.max(1, wordLimit - visibleWords);
-      previewLines.push(truncateLineByWords(line, remainingWords));
-      break;
-    }
-
-    previewLines.push(line);
-    visibleWords += lineWords;
-
-    if (visibleWords >= wordLimit) break;
-  }
-
-  return previewLines.join("\n").trim();
-}
-
-function getReadingTimeLabel(content: string) {
-  const minutes = Math.max(1, Math.ceil(countWords(content) / 250));
-  return `${minutes} min read`;
-}
-
-function countWords(value: string) {
-  return value.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function truncateLineByWords(line: string, wordLimit: number) {
-  if (!line.trim()) return line;
-  const leadingMarker = line.match(/^(\s*(?:[-*]|\d+\.)\s+)(.*)$/);
-  const prefix = leadingMarker?.[1] ?? "";
-  const text = leadingMarker?.[2] ?? line.trim();
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length <= wordLimit) return line;
-  return `${prefix}${words.slice(0, wordLimit).join(" ")}...`;
 }
 
 function selectRelatedBriefings(currentBriefing: AirportBriefing, briefings: AirportBriefing[]) {
@@ -258,17 +205,14 @@ function RelatedAirportBriefings({
               </div>
               <div className="p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                  {formatAirportBriefingDate(briefing.generatedAt)}
+                  {formatAirportCategory(briefing.category)}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-[#057642]">
-                  {getReadingTimeLabel(briefing.content)}
+                  {formatAirportBriefingDate(briefing.generatedAt)} • 1 Minute Read
                 </p>
                 <h2 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
                   {briefing.title}
                 </h2>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#666666]">
-                  {briefing.excerpt}
-                </p>
               </div>
             </Link>
           ))}
@@ -276,4 +220,47 @@ function RelatedAirportBriefings({
       </div>
     </section>
   );
+}
+
+function AirportBriefingBody({ content }: { content: string }) {
+  const blocks = content.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+
+  return (
+    <div className="space-y-6">
+      {blocks.map((block) => {
+        if (block.startsWith("## ")) {
+          return (
+            <h2
+              className="text-xl font-semibold leading-snug text-[#191919]"
+              key={block}
+            >
+              {block.replace(/^##\s+/, "")}
+            </h2>
+          );
+        }
+
+        return (
+          <p className="text-base leading-8 text-[#444444]" key={block}>
+            {block}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatAirportCategory(category?: string) {
+  const labels: Record<string, string> = {
+    "Airside Operations": "🛫 Airside Operations",
+    "Airport Infrastructure": "🏗 Airport Infrastructure",
+    "Baggage Handling": "🛄 Baggage Handling",
+    Cargo: "📦 Cargo",
+    "Digital Airports": "📡 Digital Airports",
+    "Ground Support Equipment": "🚜 Ground Support Equipment",
+    "Passenger Processing": "👤 Passenger Processing",
+    Robotics: "🤖 Robotics",
+    Security: "🔒 Security",
+    "Vision & AI": "📷 Vision & AI",
+  };
+  return labels[category ?? ""] ?? "✈️ Airport Automation";
 }
