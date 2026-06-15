@@ -5,15 +5,13 @@ import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 type GeneratedAirportBriefing = {
   airportName: string;
   category: string;
+  content: string;
   excerpt: string;
-  inconnectBrief: string;
   keywords: string[];
   seoDescription: string;
   seoTitle: string;
   slug: string;
   title: string;
-  whyItMatters: string;
-  inconnectView: string;
 };
 
 type ExistingAirportBriefing = {
@@ -47,7 +45,7 @@ type AirportHeroImageResult = {
 
 type AirportBriefingQuality = {
   issues: string[];
-  sectionCount: number;
+  paragraphCount: number;
   wordCount: number;
 };
 
@@ -84,9 +82,6 @@ const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
 const MIN_AIRPORT_WORD_COUNT = 120;
 const MAX_AIRPORT_WORD_COUNT = 350;
-const MAX_INCONNECT_BRIEF_WORD_COUNT = 120;
-const MAX_WHY_IT_MATTERS_WORD_COUNT = 80;
-const MAX_INCONNECT_VIEW_WORD_COUNT = 80;
 const MAX_AIRPORT_RESEARCH_SOURCES = 5;
 const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
@@ -193,6 +188,20 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
   {
     angle:
+      "How biometrics are moving from isolated checkpoint verification into wider passenger identity orchestration across the terminal.",
+    category: "Biometrics",
+    signals: ["biometric", "facial recognition", "identity", "egate", "boarding"],
+    topic: "Biometric identity orchestration",
+  },
+  {
+    angle:
+      "Where self-service systems are changing bag drop, check-in, boarding, and passenger exception handling in airport terminals.",
+    category: "Self Service",
+    signals: ["self service", "kiosk", "bag drop", "boarding", "check in"],
+    topic: "Self-service passenger processing",
+  },
+  {
+    angle:
       "Why baggage handling modernization is becoming a core airport automation priority as airports pursue more reliable flow and fewer disruptions.",
     category: "Baggage Handling",
     signals: ["baggage", "bag drop", "handling", "sortation", "conveyor", "bhs"],
@@ -207,6 +216,13 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
   {
     angle:
+      "How asset tracking is improving control over airport equipment, baggage assets, ULDs, tools, and service-critical operational resources.",
+    category: "Asset Tracking",
+    signals: ["asset tracking", "tracking", "rfid", "uld", "equipment", "visibility"],
+    topic: "Airport asset tracking",
+  },
+  {
+    angle:
       "How autonomous vehicles are beginning to reshape airside logistics, apron movement, baggage transport, and airport service operations.",
     category: "Autonomous Vehicles",
     signals: ["autonomous", "vehicle", "driverless", "shuttle", "apron", "airside"],
@@ -214,10 +230,31 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
   {
     angle:
+      "How autonomous baggage transport is beginning to change the movement of bags, containers, and support equipment between terminal and apron processes.",
+    category: "Autonomous Vehicles",
+    signals: ["autonomous baggage", "autonomous tug", "baggage transport", "driverless", "container"],
+    topic: "Autonomous baggage transport",
+  },
+  {
+    angle:
       "How airside automation is changing apron coordination, aircraft turnaround, service sequencing, and operational visibility around aircraft stands.",
     category: "Airside Operations",
     signals: ["airside", "apron", "aircraft turnaround", "stand", "ramp", "turnaround"],
     topic: "Airside operations automation",
+  },
+  {
+    angle:
+      "How apron safety systems are using sensors, computer vision, and operational alerts to reduce collision risk around aircraft stands.",
+    category: "Apron Safety",
+    signals: ["apron safety", "stand", "collision", "aircraft turnaround", "computer vision"],
+    topic: "Computer vision for apron safety",
+  },
+  {
+    angle:
+      "How turnaround optimization is improving aircraft stand coordination, service sequencing, and visibility across ground handling tasks.",
+    category: "Turnaround Optimization",
+    signals: ["turnaround", "stand", "ground handling", "sequencing", "ramp"],
+    topic: "Aircraft turnaround optimization",
   },
   {
     angle:
@@ -235,15 +272,36 @@ const AIRPORT_TOPIC_CANDIDATES = [
   },
   {
     angle:
+      "Where LiDAR is being used to understand passenger flow, object movement, queue conditions, and airport operational safety.",
+    category: "LiDAR",
+    signals: ["lidar", "sensor", "flow", "queue", "detection"],
+    topic: "LiDAR for airport flow intelligence",
+  },
+  {
+    angle:
+      "How computer vision is being applied to passenger flow, baggage exceptions, apron safety, security monitoring, and operational awareness.",
+    category: "Computer Vision",
+    signals: ["computer vision", "vision", "camera", "detection", "analytics"],
+    topic: "Computer vision for airport operations",
+  },
+  {
+    angle:
       "How AI, sensors, analytics, computer vision, and LiDAR are moving airport teams toward predictive operations and better situational awareness.",
-    category: "AI & Analytics",
+    category: "AI Operations",
     signals: ["ai", "analytics", "sensor", "lidar", "vision", "predictive", "data"],
     topic: "AI and analytics for airport operations",
   },
   {
     angle:
+      "How terminal analytics are helping airport teams understand passenger movement, queue pressure, dwell time, and operational bottlenecks.",
+    category: "Terminal Analytics",
+    signals: ["terminal analytics", "queue", "passenger flow", "dwell", "bottleneck"],
+    topic: "Terminal analytics for passenger flow",
+  },
+  {
+    angle:
       "Where airport security automation is changing screening, surveillance, identity checks, queue management, and operational risk detection.",
-    category: "Airport Security",
+    category: "Security Screening",
     signals: ["security", "screening", "surveillance", "checkpoint", "identity", "risk"],
     topic: "Airport security automation",
   },
@@ -257,14 +315,14 @@ const AIRPORT_TOPIC_CANDIDATES = [
   {
     angle:
       "Why ground support equipment is becoming a practical automation frontier for turnaround reliability, safety, electrification, and airside efficiency.",
-    category: "Ground Support Equipment",
+    category: "Airside Automation",
     signals: ["gse", "ground support", "turnaround", "tug", "airside", "ramp"],
     topic: "Ground support equipment automation",
   },
   {
     angle:
       "How digital twins are helping airports model capacity, test operational changes, coordinate stakeholders, and improve infrastructure planning.",
-    category: "Digital Twins",
+    category: "Digital Twin",
     signals: ["digital twin", "simulation", "model", "capacity", "planning"],
     topic: "Digital twins for airport operations",
   },
@@ -278,27 +336,30 @@ const AIRPORT_TOPIC_CANDIDATES = [
   {
     angle:
       "How airport infrastructure modernization is creating the foundation for more connected, data-rich, and automated airport operations.",
-    category: "Infrastructure",
+    category: "Airport Operations",
     signals: ["infrastructure", "terminal", "project", "expansion", "modernization", "smart airport"],
     topic: "Airport infrastructure modernization",
   },
 ];
 
 const AIRPORT_CATEGORY_ROTATION: Record<number, string> = {
-  0: "Editor's Pick",
+  0: "Sustainability",
   1: "Passenger Processing",
   2: "Baggage Handling",
-  3: "Robotics",
-  4: "Vision & AI",
-  5: "Airside Operations",
-  6: "Cargo",
+  3: "Computer Vision",
+  4: "LiDAR",
+  5: "Airside Automation",
+  6: "Cargo Automation",
 };
 
 const AIRPORT_CATEGORY_ALIASES: Record<string, string> = {
-  "AI & Analytics": "Vision & AI",
-  "Airport Security": "Security",
+  "AI & Analytics": "AI Operations",
+  "Airport Security": "Security Screening",
   "Cargo Automation": "Cargo",
+  "Digital Twins": "Digital Twin",
+  "Ground Support Equipment": "Airside Automation",
   Infrastructure: "Airport Infrastructure",
+  "Vision & AI": "Computer Vision",
 };
 
 const AIRPORT_TITLE_KEYWORDS = [
@@ -365,9 +426,7 @@ const airportBriefingSchema = {
     "excerpt",
     "seoTitle",
     "seoDescription",
-    "inconnectBrief",
-    "whyItMatters",
-    "inconnectView",
+    "content",
   ],
   properties: {
     title: { type: "string" },
@@ -381,20 +440,16 @@ const airportBriefingSchema = {
     excerpt: { type: "string" },
     seoTitle: { type: "string" },
     seoDescription: { type: "string" },
-    inconnectBrief: { type: "string" },
-    whyItMatters: { type: "string" },
-    inconnectView: { type: "string" },
+    content: { type: "string" },
   },
 } as const;
 
 const airportBriefingExpansionSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["inconnectBrief", "whyItMatters", "inconnectView"],
+  required: ["content"],
   properties: {
-    inconnectBrief: { type: "string" },
-    whyItMatters: { type: "string" },
-    inconnectView: { type: "string" },
+    content: { type: "string" },
   },
 } as const;
 
@@ -993,15 +1048,15 @@ function chooseAirportBriefingTopic(
     .map((source) => `${source.title} ${source.excerpt}`)
     .join(" ")
     .toLowerCase();
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
   const recentCategories = new Set(
     topicHistory
       .filter((entry) => {
         if (!entry.published_at) return false;
         const publishedAt = new Date(entry.published_at).getTime();
-        return Number.isFinite(publishedAt) && publishedAt >= sevenDaysAgo;
+        return Number.isFinite(publishedAt) && publishedAt >= tenDaysAgo;
       })
-      .map((entry) => entry.category)
+      .map((entry) => normalizeAirportCategory(entry.category ?? ""))
       .filter((category): category is string => Boolean(category)),
   );
   const rejectedCategories = AIRPORT_TOPIC_CANDIDATES
@@ -1236,17 +1291,17 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "The content must cover one primary topic only.",
           "Prioritize a single new airport deployment, airport project, airport technology launch, airport modernization initiative, airport automation case study, or airport operator announcement.",
           "Examples of good topics: RFID Expansion at Major Airports, Humanoid Robots Enter Airport Operations, Autonomous GSE Trials, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
-          "Total briefing length across all fields should target 150-250 words and must stay between 120 and 350 words.",
-          "inconnectBrief must be at most 120 words.",
-          "whyItMatters must be at most 80 words.",
-          "inconnectView must be at most 80 words.",
+          "Write one flowing professional intelligence post only, 150-250 words target and 180-220 words ideal. The hard allowed range is 120-350 words.",
+          "Use exactly three concise paragraphs: paragraph 1 explains what happened, paragraph 2 explains why it is important for airports, paragraph 3 integrates the INConnect View naturally.",
+          "Every briefing must include a specific development, a specific technology, a specific operational implication, and an INConnect opinion.",
+          "Avoid generic language such as 'Airports are increasingly leveraging', 'Digital transformation continues', and 'The future is'.",
           "Prioritize freshness over length.",
-          "Do not include Source, Read original story, Discussion Question, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, or report-style commentary.",
+          "Do not include Why It Matters, Source, Key Takeaways, Discussion Question, Read Original Article, Summary, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, or report-style commentary.",
           "Do not use numbered lists or bullet lists.",
           "Tone must be professional, concise, insightful, opinionated, and airport industry focused.",
           "The entire post must represent the INConnect interpretation of the source context, not the original article.",
           "The title must use this exact pattern: [Specific Topic] | INConnect 1-Minute Briefing.",
-          "Return one category from: Baggage Handling, Passenger Processing, Robotics, Vision & AI, Ground Support Equipment, Airside Operations, Security, Digital Airports, Cargo, Airport Infrastructure.",
+          "Return one category from: Passenger Processing, Baggage Handling, RFID, Computer Vision, LiDAR, Robotics, Autonomous Vehicles, Airport Operations, Apron Safety, Airside Automation, Cargo Automation, Security Screening, Terminal Analytics, Digital Twin, AI Operations, Biometrics, Self Service, Sustainability, Asset Tracking, Turnaround Optimization.",
           "Use a keyword-based slug with the UTC date suffix, for example humanoid-robots-airport-baggage-operations-2026-06-11. Do not use only the date or only inconnect-1-minute-daily-digest.",
         ].join(" "),
       },
@@ -1278,9 +1333,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Set airportName to the airport/operator if clearly supported, otherwise use an empty string.",
           "Set keywords to 4-8 topic keywords for anti-repetition.",
           `Set slug to a concise keyword phrase ending in ${slugDate}.`,
-          "inconnectBrief: concise explanation of what happened, maximum 120 words, no filler.",
-          "whyItMatters: business and operational impact, maximum 80 words.",
-          "inconnectView: INConnect opinion about trends, future implications, and operational impact, maximum 80 words, no questions.",
+          "content: exactly three concise paragraphs with no Markdown headings. Paragraph 1: what happened. Paragraph 2: why it matters for airports. Paragraph 3: INConnect View integrated naturally.",
           "Do not include source links, source labels, discussion questions, bullets, or numbered lists.",
           "",
           "If sources are weak, choose the strongest airport automation signal and avoid unsupported company/project claims.",
@@ -1304,9 +1357,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
   const parsed = response.output_parsed as GeneratedAirportBriefing;
   if (
     !parsed.title ||
-    !parsed.inconnectBrief ||
-    !parsed.whyItMatters ||
-    !parsed.inconnectView
+    !parsed.content
   ) {
     throw new Error("Generated airport briefing was empty or incomplete.");
   }
@@ -1328,19 +1379,14 @@ async function prepareQualityCheckedAirportContent({
   research: BlogResearchResult;
   title: string;
 }) {
-  let briefingParts = {
-    inconnectBrief: generatedBriefing.inconnectBrief,
-    inconnectView: generatedBriefing.inconnectView,
-    whyItMatters: generatedBriefing.whyItMatters,
-  };
-  let content = buildAirportBriefingContent(briefingParts);
+  let content = cleanPostContent(generatedBriefing.content);
   let quality = getAirportBriefingQuality(content, research);
   const initialWordCount = quality.wordCount;
 
   console.info("INConnect airport briefing initial quality check", {
     issues: quality.issues,
     initialWordCount,
-    sectionCount: quality.sectionCount,
+    paragraphCount: quality.paragraphCount,
     title,
     wordCount: quality.wordCount,
   });
@@ -1352,19 +1398,18 @@ async function prepareQualityCheckedAirportContent({
       title,
       wordCount: quality.wordCount,
     });
-    briefingParts = await reviseAirportDigest({
-      briefingParts,
+    content = await reviseAirportDigest({
+      content,
       issues: quality.issues,
       research,
       revisionAttempt,
       title,
     });
-    content = buildAirportBriefingContent(briefingParts);
     quality = getAirportBriefingQuality(content, research);
     console.info("INConnect airport digest revision quality check", {
       issues: quality.issues,
       revisionAttempt,
-      sectionCount: quality.sectionCount,
+      paragraphCount: quality.paragraphCount,
       title,
       wordCount: quality.wordCount,
     });
@@ -1373,7 +1418,7 @@ async function prepareQualityCheckedAirportContent({
   console.info("INConnect airport briefing final quality check result", {
     issues: quality.issues,
     passed: quality.issues.length === 0,
-    sectionCount: quality.sectionCount,
+    paragraphCount: quality.paragraphCount,
     title,
     wordCount: quality.wordCount,
   });
@@ -1395,17 +1440,13 @@ async function prepareQualityCheckedAirportContent({
 }
 
 async function reviseAirportDigest({
-  briefingParts,
+  content,
   issues,
   research,
   revisionAttempt,
   title,
 }: {
-  briefingParts: {
-    inconnectBrief: string;
-    inconnectView: string;
-    whyItMatters: string;
-  };
+  content: string;
   issues: string[];
   research: BlogResearchResult;
   revisionAttempt: number;
@@ -1422,17 +1463,15 @@ async function reviseAirportDigest({
         content: [
           "You are revising an INConnect 1-Minute Briefing for airport professionals.",
           "Fix the listed quality issues exactly.",
-          "Return one primary topic only and target 150-250 words total, with an allowed range of 120-350 words.",
+          "Return one flowing professional intelligence post only and target 150-250 words total, with an allowed range of 120-350 words.",
           "If the current briefing is below 120 words, expand once with more INConnect perspective and airport-specific operational context.",
           "If the current briefing is above 350 words, shorten once while preserving the key point.",
-          "inconnectBrief must be at most 120 words.",
-          "whyItMatters must be at most 80 words.",
-          "inconnectView must be at most 80 words.",
-          "Return only the three structured fields. Do not include title, source links, discussion questions, headings, bullets, or numbered lists inside the fields.",
+          "Use exactly three concise paragraphs: what happened, airport importance, and INConnect View integrated naturally in the final paragraph.",
+          "Return only the post body in the content field. Do not include title, source links, discussion questions, headings, bullets, or numbered lists.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
-          "Do not add Source, Read original story, Discussion Question, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, external source lists, outbound links, or generic filler.",
+          "Do not add Why It Matters, Source, Read original story, Discussion Question, Key Takeaways, Summary, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, external source lists, outbound links, or generic filler.",
         ].join(" "),
       },
       {
@@ -1447,12 +1486,10 @@ async function reviseAirportDigest({
           "Research summary:",
           research.researchSummary,
           "",
-          "Current briefing fields:",
-          `INConnect Brief: ${briefingParts.inconnectBrief}`,
-          `Why It Matters: ${briefingParts.whyItMatters}`,
-          `INConnect View: ${briefingParts.inconnectView}`,
+          "Current briefing:",
+          content,
           "",
-          "Return structured JSON only with revised inconnectBrief, whyItMatters, and inconnectView fields.",
+          "Return structured JSON only with the revised post body in the content field.",
         ].join("\n"),
       },
     ],
@@ -1470,16 +1507,12 @@ async function reviseAirportDigest({
     throw new Error("Revised airport digest response format error.");
   }
 
-  const parsed = response.output_parsed as {
-    inconnectBrief: string;
-    inconnectView: string;
-    whyItMatters: string;
-  };
-  if (!parsed.inconnectBrief || !parsed.whyItMatters || !parsed.inconnectView) {
+  const parsed = response.output_parsed as { content: string };
+  if (!parsed.content) {
     throw new Error("Revised airport digest was empty or incomplete.");
   }
 
-  return parsed;
+  return cleanPostContent(parsed.content);
 }
 
 function getAirportBriefingQuality(
@@ -1493,10 +1526,7 @@ function getAirportBriefingQuality(
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-  const sectionCount = paragraphs.length;
-  const inconnectBrief = extractSectionContent(content, "INConnect Brief");
-  const whyItMatters = extractSectionContent(content, "Why It Matters");
-  const inconnectView = extractSectionContent(content, "INConnect View");
+  const paragraphCount = paragraphs.length;
 
   if (wordCount < MIN_AIRPORT_WORD_COUNT) {
     issues.push(`Briefing has ${wordCount} words; minimum is ${MIN_AIRPORT_WORD_COUNT}.`);
@@ -1506,30 +1536,8 @@ function getAirportBriefingQuality(
     issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (!inconnectBrief || !whyItMatters || !inconnectView) {
-    issues.push("Briefing must include INConnect Brief, Why It Matters, and INConnect View sections.");
-  }
-
-  if (countWords(stripMarkdown(inconnectBrief)) > MAX_INCONNECT_BRIEF_WORD_COUNT) {
-    issues.push(
-      `INConnect Brief has ${countWords(stripMarkdown(inconnectBrief))} words; maximum is ${MAX_INCONNECT_BRIEF_WORD_COUNT}.`,
-    );
-  }
-
-  if (countWords(stripMarkdown(whyItMatters)) > MAX_WHY_IT_MATTERS_WORD_COUNT) {
-    issues.push(
-      `Why It Matters has ${countWords(stripMarkdown(whyItMatters))} words; maximum is ${MAX_WHY_IT_MATTERS_WORD_COUNT}.`,
-    );
-  }
-
-  if (countWords(stripMarkdown(inconnectView)) > MAX_INCONNECT_VIEW_WORD_COUNT) {
-    issues.push(
-      `INConnect View has ${countWords(stripMarkdown(inconnectView))} words; maximum is ${MAX_INCONNECT_VIEW_WORD_COUNT}.`,
-    );
-  }
-
-  if (sectionCount < 3 || sectionCount > 6) {
-    issues.push("Briefing must stay compact with only the three required sections.");
+  if (paragraphCount < 2 || paragraphCount > 4) {
+    issues.push("Briefing must be one flowing post with 2-4 short paragraphs.");
   }
 
   if (research.researchSources.length < 3) {
@@ -1542,11 +1550,11 @@ function getAirportBriefingQuality(
     issues.push("Post must not include outbound links or Markdown links.");
   }
 
-  if (/^##\s+(?!INConnect Brief|Why It Matters|INConnect View)/im.test(content)) {
-    issues.push("Briefing includes an unsupported Markdown section heading.");
+  if (/^#{1,6}\s+/m.test(content)) {
+    issues.push("Briefing must not use Markdown section headings.");
   }
 
-  if (/source:|read original story|discussion question|\?|further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments|technology trends|development a|development b|development c/i.test(content)) {
+  if (/why it matters|source:|read original story|discussion question|\?|key takeaways|summary|further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments|technology trends|development a|development b|development c/i.test(content)) {
     issues.push("Post includes article, newsletter, or report-style sections.");
   }
 
@@ -1558,7 +1566,7 @@ function getAirportBriefingQuality(
     issues.push("Briefing includes non-airport LinkedIn, branding, career, or B2B sales content.");
   }
 
-  return { issues, sectionCount, wordCount };
+  return { issues, paragraphCount, wordCount };
 }
 
 async function generateAndUploadAirportHeroImage({
@@ -1793,34 +1801,15 @@ function createDefaultAirportTitle() {
   return `Airport Automation Signal | INConnect 1-Minute Briefing`;
 }
 
-function buildAirportBriefingContent({
-  inconnectBrief,
-  inconnectView,
-  whyItMatters,
-}: {
-  inconnectBrief: string;
-  inconnectView: string;
-  whyItMatters: string;
-}) {
-  return [
-    "## INConnect Brief",
-    cleanSectionText(inconnectBrief),
-    "",
-    "## Why It Matters",
-    cleanSectionText(whyItMatters),
-    "",
-    "## INConnect View",
-    cleanSectionText(inconnectView),
-  ].join("\n").trim();
-}
-
-function cleanSectionText(value: string) {
+function cleanPostContent(value: string) {
   return value
     .replace(/^#+\s+/gm, "")
     .replace(/^\s*(?:[-*]|\d+\.)\s+/gm, "")
+    .replace(/^\s*(?:INConnect Brief|Why It Matters|INConnect View|Summary|Key Takeaways|Source)\s*:?\s*/gim, "")
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\[[^\]]+\]\([^)]+\)/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 

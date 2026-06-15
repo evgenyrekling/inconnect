@@ -37,7 +37,7 @@ export default async function AirportAutomationIntelligencePage() {
             Active Intelligence Stream
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
-            ✈️ Airport Automation Daily
+            Airport Automation Daily
           </h1>
           <p className="mt-3 text-xl font-semibold text-[#0A66C2]">
             INConnect 1-Minute Briefing
@@ -65,7 +65,7 @@ export default async function AirportAutomationIntelligencePage() {
           {previousBriefings.length > 0 && (
             <>
               <p className="mt-10 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-                Previous posts
+                Previous briefings
               </p>
               <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                 {previousBriefings.map((briefing) => (
@@ -103,10 +103,10 @@ function AirportBriefingCard({
         />
       </div>
       <div className={classNames(featured ? "mt-5 lg:mt-0" : "mt-5")}>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
-          <span>{formatAirportCategory(briefing.category)}</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#057642]">
           <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
-          <span className="text-[#057642]">1 Minute Read</span>
+          <span>•</span>
+          <span>1 Minute Read</span>
         </div>
         <h2 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
           <Link
@@ -116,6 +116,9 @@ function AirportBriefingCard({
             {briefing.title}
           </Link>
         </h2>
+        <p className="mt-3 text-sm leading-6 text-[#666666]">
+          {briefing.excerpt}
+        </p>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-[#D9DDE3] pt-4 text-sm">
           <span className="text-[#666666]">INConnect Briefing</span>
           <Link
@@ -132,20 +135,4 @@ function AirportBriefingCard({
 
 function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function formatAirportCategory(category?: string) {
-  const labels: Record<string, string> = {
-    "Airside Operations": "🛫 Airside Operations",
-    "Airport Infrastructure": "🏗 Airport Infrastructure",
-    "Baggage Handling": "🛄 Baggage Handling",
-    Cargo: "📦 Cargo",
-    "Digital Airports": "📡 Digital Airports",
-    "Ground Support Equipment": "🚜 Ground Support Equipment",
-    "Passenger Processing": "👤 Passenger Processing",
-    Robotics: "🤖 Robotics",
-    Security: "🔒 Security",
-    "Vision & AI": "📷 Vision & AI",
-  };
-  return labels[category ?? ""] ?? "✈️ Airport Automation";
 }

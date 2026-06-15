@@ -61,14 +61,11 @@ const demoGeneratedAt = "2026-06-09T07:30:00.000Z";
 export const demoAirportBriefings: AirportBriefing[] = [
   {
     content: [
-      "## INConnect Brief",
-      "Airport baggage automation is becoming one of the clearest operational signals in the smart airport market. The strongest story is no longer only faster bag movement, but better visibility across exceptions, transfer points, and terminal constraints.",
+      "A new wave of baggage automation is putting more emphasis on operational visibility than speed alone. The strongest signal is the connection between RFID, automated tag reading, conveyor intelligence, and exception handling inside live airport environments.",
       "",
-      "## Why It Matters",
-      "Baggage remains one of the most visible failure points in airport operations. Better automation gives airports and airlines more control over disruption, accountability, and passenger trust.",
+      "For airports, this matters because baggage remains one of the most visible failure points in the passenger journey. When teams can see where bags slow down, which transfer points create pressure, and where exceptions begin, they can act before disruption reaches the traveler.",
       "",
-      "## INConnect View",
-      "INConnect sees baggage automation as a practical bridge between legacy infrastructure and digital airport operations. The winners will treat baggage data as operational intelligence, not only tracking information.",
+      "INConnect sees baggage automation as a practical bridge between legacy infrastructure and digital airport operations. The airports that treat baggage data as operational intelligence, not only tracking information, will be better positioned to improve reliability and justify the next layer of automation investment.",
     ].join("\n"),
     createdAt: demoGeneratedAt,
     category: "Baggage Handling",

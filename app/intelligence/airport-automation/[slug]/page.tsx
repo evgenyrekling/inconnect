@@ -37,15 +37,16 @@ export async function generateMetadata({
   }
 
   const canonicalUrl = `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`;
+  const title = briefing.seoTitle || `${briefing.title} | Airport Automation Daily`;
 
   return {
-    title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
+    title,
     description: briefing.seoDescription,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
+      title,
       description: briefing.seoDescription,
       images: [
         {
@@ -64,7 +65,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       description: briefing.seoDescription,
       images: [briefing.heroImageUrl],
-      title: briefing.seoTitle || `${briefing.title} | Airport Automation Daily`,
+      title,
     },
   };
 }
@@ -121,16 +122,13 @@ export default async function AirportBriefingPage({
               Airport Automation Archive
             </Link>
           </div>
-          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            {formatAirportCategory(briefing.category)}
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
+          <h1 className="mt-8 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
             {briefing.title}
           </h1>
-          <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
+          <div className="mt-5 flex flex-wrap gap-x-3 gap-y-2 text-sm font-semibold text-[#057642]">
             <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
-            <span>INConnect Intelligence</span>
-            <span className="font-semibold text-[#057642]">1 Minute Read</span>
+            <span>•</span>
+            <span>1 Minute Read</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -165,7 +163,8 @@ function formatAirportPostForDisplay(content: string) {
     .replace(/^##\s+Post\s*/i, "")
     .replace(/^Airport Automation Daily\s*\|[^\n]+\n*/i, "")
     .replace(/\n*Read original story:[\s\S]*$/i, "")
-    .replace(/\n*##\s+(?:Source|Discussion Question)[\s\S]*$/i, "")
+    .replace(/^##\s+(?:Source|Discussion Question|Why It Matters|INConnect View|INConnect Brief)\s*$/gim, "")
+    .replace(/^#{1,6}\s+/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -204,15 +203,15 @@ function RelatedAirportBriefings({
                 />
               </div>
               <div className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-                  {formatAirportCategory(briefing.category)}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-[#057642]">
+                <p className="text-xs font-semibold text-[#057642]">
                   {formatAirportBriefingDate(briefing.generatedAt)} • 1 Minute Read
                 </p>
                 <h2 className="mt-2 text-base font-semibold leading-snug text-[#191919] group-hover:text-[#0A66C2]">
                   {briefing.title}
                 </h2>
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#666666]">
+                  {briefing.excerpt}
+                </p>
               </div>
             </Link>
           ))}
@@ -227,40 +226,11 @@ function AirportBriefingBody({ content }: { content: string }) {
 
   return (
     <div className="space-y-6">
-      {blocks.map((block) => {
-        if (block.startsWith("## ")) {
-          return (
-            <h2
-              className="text-xl font-semibold leading-snug text-[#191919]"
-              key={block}
-            >
-              {block.replace(/^##\s+/, "")}
-            </h2>
-          );
-        }
-
-        return (
-          <p className="text-base leading-8 text-[#444444]" key={block}>
-            {block}
-          </p>
-        );
-      })}
+      {blocks.map((block) => (
+        <p className="text-base leading-8 text-[#444444]" key={block}>
+          {block}
+        </p>
+      ))}
     </div>
   );
-}
-
-function formatAirportCategory(category?: string) {
-  const labels: Record<string, string> = {
-    "Airside Operations": "🛫 Airside Operations",
-    "Airport Infrastructure": "🏗 Airport Infrastructure",
-    "Baggage Handling": "🛄 Baggage Handling",
-    Cargo: "📦 Cargo",
-    "Digital Airports": "📡 Digital Airports",
-    "Ground Support Equipment": "🚜 Ground Support Equipment",
-    "Passenger Processing": "👤 Passenger Processing",
-    Robotics: "🤖 Robotics",
-    Security: "🔒 Security",
-    "Vision & AI": "📷 Vision & AI",
-  };
-  return labels[category ?? ""] ?? "✈️ Airport Automation";
 }
