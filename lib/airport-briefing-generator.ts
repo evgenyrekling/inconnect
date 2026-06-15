@@ -82,8 +82,8 @@ const AIRPORT_IMAGE_BUCKET = "airport-briefing-images";
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
 const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const OPENAI_AIRPORT_IMAGE_SIZE = "1536x864";
-const MIN_AIRPORT_WORD_COUNT = 180;
-const MAX_AIRPORT_WORD_COUNT = 400;
+const MIN_AIRPORT_WORD_COUNT = 120;
+const MAX_AIRPORT_WORD_COUNT = 350;
 const MAX_INCONNECT_BRIEF_WORD_COUNT = 120;
 const MAX_WHY_IT_MATTERS_WORD_COUNT = 80;
 const MAX_INCONNECT_VIEW_WORD_COUNT = 80;
@@ -1236,7 +1236,7 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "The content must cover one primary topic only.",
           "Prioritize a single new airport deployment, airport project, airport technology launch, airport modernization initiative, airport automation case study, or airport operator announcement.",
           "Examples of good topics: RFID Expansion at Major Airports, Humanoid Robots Enter Airport Operations, Autonomous GSE Trials, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
-          "Total briefing length across all fields should be 220-350 words and must never exceed 400 words.",
+          "Total briefing length across all fields should target 150-250 words and must stay between 120 and 350 words.",
           "inconnectBrief must be at most 120 words.",
           "whyItMatters must be at most 80 words.",
           "inconnectView must be at most 80 words.",
@@ -1422,7 +1422,9 @@ async function reviseAirportDigest({
         content: [
           "You are revising an INConnect 1-Minute Briefing for airport professionals.",
           "Fix the listed quality issues exactly.",
-          "Return one primary topic only and keep the total briefing between 220 and 350 words, with an absolute maximum of 400 words.",
+          "Return one primary topic only and target 150-250 words total, with an allowed range of 120-350 words.",
+          "If the current briefing is below 120 words, expand once with more INConnect perspective and airport-specific operational context.",
+          "If the current briefing is above 350 words, shorten once while preserving the key point.",
           "inconnectBrief must be at most 120 words.",
           "whyItMatters must be at most 80 words.",
           "inconnectView must be at most 80 words.",
