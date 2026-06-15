@@ -213,15 +213,17 @@ const PRIMARY_CTA_CLASS =
   "bg-[#4A6FD0] font-semibold text-[#FFFFFF] transition-colors duration-200 ease-[ease] hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666] disabled:shadow-none";
 const PRIMARY_CTA_SHADOW = "shadow-[0_12px_28px_rgba(74,111,208,0.24)]";
 
-const navItems = [
-  { label: "Network", href: "/network" },
-];
 type DropdownNavItem = {
-  href: string;
+  href?: string;
   label: string;
+  onSelect?: () => void;
   status?: "Active" | "Coming Soon";
 };
 const intelligenceNavItems: DropdownNavItem[] = [
+  {
+    href: "/intelligence",
+    label: "Intelligence Overview",
+  },
   {
     href: "/intelligence/airport-automation",
     label: "Airport Automation Daily",
@@ -248,6 +250,10 @@ const toolNavItems: DropdownNavItem[] = [
   { label: "Headline Generator", href: "/headline-generator" },
   { label: "About Generator", href: "/about-generator" },
 ];
+
+type CurrentPublicProfileNavState = {
+  slug: string;
+} | null;
 
 const roleOptions = [
   "Specialist",
@@ -1003,69 +1009,8 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 export function Header({ showSocialProof = false }: { showSocialProof?: boolean }) {
-  return (
-    <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
-        <a href="/" aria-label="INConnect home">
-          <Logo markSize={46} />
-        </a>
-        <div className="flex items-center gap-3">
-          <nav className="hidden items-center gap-1 lg:flex">
-            <NavigationDropdown
-              href="/intelligence"
-              items={intelligenceNavItems}
-              label="Intelligence"
-            />
-            <NavigationDropdown
-              href="/assessment"
-              items={toolNavItems}
-              label="LinkedIn Tools"
-            />
-            {navItems.map((item) => (
-              <a
-                className="rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-                href={item.href}
-                key={item.label}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <AccountMenu />
-        </div>
-      </div>
-      <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
-        <NavigationDropdown
-          href="/intelligence"
-          items={intelligenceNavItems}
-          label="Intelligence"
-          mobile
-        />
-        <NavigationDropdown
-          href="/assessment"
-          items={toolNavItems}
-          label="LinkedIn Tools"
-          mobile
-        />
-        {navItems.map((item) => (
-          <a
-            className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666]"
-            href={item.href}
-            key={item.label}
-          >
-            {item.label}
-          </a>
-        ))}
-      </nav>
-      {showSocialProof && <UserCountSocialProof />}
-    </header>
-  );
-}
-
-function AccountMenu() {
   const [identity, setIdentity] = useState<StoredReturningIdentity | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isSignInOpen, setIsSignInOpen] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<CurrentPublicProfileNavState>(null);
 
   useEffect(() => {
     function refreshIdentity() {
@@ -1081,12 +1026,112 @@ function AccountMenu() {
     };
   }, []);
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadCurrentProfile() {
+      if (!identity?.email && !identity?.userKey) {
+        setCurrentProfile(null);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        if (identity.email) params.set("email", identity.email);
+        if (identity.userKey) params.set("userKey", identity.userKey);
+        const response = await fetch(`/api/public-profiles?${params.toString()}`);
+        const payload = (await response.json().catch(() => null)) as {
+          profile?: { slug?: string } | null;
+        } | null;
+        if (!isActive) return;
+        const slug = payload?.profile?.slug?.trim();
+        setCurrentProfile(slug ? { slug } : null);
+      } catch {
+        if (isActive) setCurrentProfile(null);
+      }
+    }
+
+    void loadCurrentProfile();
+    return () => {
+      isActive = false;
+    };
+  }, [identity?.email, identity?.userKey]);
+
+  const networkNavItems = getNetworkNavItems(currentProfile);
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-[#D9DDE3] bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
+        <a href="/" aria-label="INConnect home">
+          <Logo markSize={46} />
+        </a>
+        <div className="flex items-center gap-3">
+          <nav className="hidden items-center gap-1 lg:flex">
+            <NavigationDropdown
+              items={intelligenceNavItems}
+              label="Intelligence"
+            />
+            <NavigationDropdown
+              items={toolNavItems}
+              label="LinkedIn Tools"
+            />
+            <NavigationDropdown items={networkNavItems} label="Network" />
+          </nav>
+          <AccountMenu
+            currentProfile={currentProfile}
+            identity={identity}
+            onIdentityChange={setIdentity}
+          />
+        </div>
+      </div>
+      <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
+        <NavigationDropdown
+          items={intelligenceNavItems}
+          label="Intelligence"
+          mobile
+        />
+        <NavigationDropdown
+          items={toolNavItems}
+          label="LinkedIn Tools"
+          mobile
+        />
+        <NavigationDropdown items={networkNavItems} label="Network" mobile />
+      </nav>
+      {showSocialProof && <UserCountSocialProof />}
+    </header>
+  );
+}
+
+function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavItem[] {
+  return [
+    { href: "/network", label: "Network Overview" },
+    { href: "/network/profiles", label: "Professional Profiles" },
+    { href: "/network/create-profile", label: "Create My Profile" },
+    ...(profile
+      ? [
+          { href: `/p/${profile.slug}/edit`, label: "Profile Edit" },
+          { href: `/p/${profile.slug}`, label: "My Profile" },
+        ]
+      : []),
+  ];
+}
+
+function AccountMenu({
+  currentProfile,
+  identity,
+  onIdentityChange,
+}: {
+  currentProfile: CurrentPublicProfileNavState;
+  identity: StoredReturningIdentity | null;
+  onIdentityChange: (identity: StoredReturningIdentity | null) => void;
+}) {
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+
   const firstName = getFirstNameFromDisplayName(getIdentityDisplayName(identity));
 
   function handleLogout() {
     clearLocalAccountState();
-    setIdentity(null);
-    setIsDropdownOpen(false);
+    onIdentityChange(null);
     window.location.href = "/";
   }
 
@@ -1104,7 +1149,7 @@ function AccountMenu() {
           <AccountSignInModal
             onClose={() => setIsSignInOpen(false)}
             onSignedIn={(nextIdentity) => {
-              setIdentity(nextIdentity);
+              onIdentityChange(nextIdentity);
               setIsSignInOpen(false);
             }}
           />
@@ -1113,54 +1158,25 @@ function AccountMenu() {
     );
   }
 
+  const accountItems: DropdownNavItem[] = [
+    ...(currentProfile
+      ? [
+          { href: `/p/${currentProfile.slug}`, label: "My Profile" },
+          { href: `/p/${currentProfile.slug}/edit`, label: "Edit Profile" },
+        ]
+      : [{ href: "/network/create-profile", label: "Create My Profile" }]),
+    { href: "/my-intelligence", label: "My Intelligence" },
+    { label: "Sign Out", onSelect: handleLogout },
+  ];
+
   return (
-    <div
-      className="relative shrink-0"
-      onMouseEnter={() => setIsDropdownOpen(true)}
-      onMouseLeave={() => setIsDropdownOpen(false)}
-    >
-      <button
-        aria-expanded={isDropdownOpen}
-        className="flex items-center gap-2 rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2]/40 hover:bg-[#E8F1FB]"
-        onClick={() => setIsDropdownOpen((current) => !current)}
-        type="button"
-      >
-        Welcome, {firstName || "there"}
-        <ChevronDown
-          className={classNames(
-            "h-4 w-4 text-[#0A66C2] transition-transform",
-            isDropdownOpen && "rotate-180",
-          )}
-        />
-      </button>
-      {isDropdownOpen && (
-        <div className="absolute right-0 top-11 z-50 w-64 rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]">
-          <a
-            className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-            href="/my-profile"
-          >
-            My Profile
-          </a>
-          <a
-            className="block rounded-lg px-3 py-2 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
-            href="/my-intelligence"
-          >
-            My Intelligence
-          </a>
-          <button
-            className="mt-2 w-full rounded-lg border-t border-[#D9DDE3] px-3 py-2 text-left text-sm font-semibold text-[#B42318] transition hover:bg-[#FEF3F2]"
-            onClick={handleLogout}
-            type="button"
-          >
-            Logout
-          </button>
-          <p className="px-3 pb-2 pt-1 text-xs leading-5 text-[#666666]">
-            You can remove local identification now. Account deletion requests
-            will be supported from this menu later.
-          </p>
-        </div>
-      )}
-    </div>
+    <NavigationDropdown
+      align="right"
+      items={accountItems}
+      label={`Welcome, ${firstName || "there"}`}
+      menuFooter="You can remove local identification now. Account deletion requests will be supported from this menu later."
+      triggerClassName="border border-[#D9DDE3] text-[#191919] hover:border-[#0A66C2]/40"
+    />
   );
 }
 
@@ -1376,15 +1392,19 @@ function clearLocalAccountState() {
 }
 
 function NavigationDropdown({
-  href,
+  align = "left",
   items,
   label,
+  menuFooter,
   mobile = false,
+  triggerClassName,
 }: {
-  href: string;
+  align?: "left" | "right";
   items: DropdownNavItem[];
   label: string;
+  menuFooter?: string;
   mobile?: boolean;
+  triggerClassName?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -1458,30 +1478,25 @@ function NavigationDropdown({
       onMouseLeave={scheduleCloseMenu}
     >
       <div className="flex items-center">
-        <a
-          className={classNames(
-            "rounded-l-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]",
-            mobile && "shrink-0",
-          )}
-          href={href}
-        >
-          {label}
-        </a>
         <button
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          aria-label={`Toggle ${label} menu`}
-          className="rounded-r-lg px-2 py-2 text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]"
+          className={classNames(
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#666666] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2]",
+            mobile && "shrink-0",
+            triggerClassName,
+          )}
           onClick={() => setIsOpen((current) => !current)}
           onKeyDown={(event) => {
             if (event.key === "Escape") closeMenu();
-            if (event.key === "ArrowDown") {
+            if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
               event.preventDefault();
               openMenu();
             }
           }}
           type="button"
         >
+          {label}
           <ChevronDown
             className={classNames(
               "h-4 w-4 transition-transform",
@@ -1494,38 +1509,81 @@ function NavigationDropdown({
         <div
           className={classNames(
             "z-50",
-            mobile ? "mt-2 w-64" : "absolute left-0 top-full w-72 pt-2",
+            mobile
+              ? "mt-2 w-64"
+              : classNames(
+                  "absolute top-full w-72 pt-2",
+                  align === "right" ? "right-0" : "left-0",
+                ),
           )}
           role="menu"
         >
           <div className="rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]">
             {items.map((item) => (
-              <a
-                className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2] lg:py-2"
-                href={item.href}
-                key={item.href}
-                onClick={closeMenu}
-                role="menuitem"
-              >
-                <span>{item.label}</span>
-                {item.status && (
-                  <span
-                    className={classNames(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
-                      item.status === "Active"
-                        ? "bg-[#E6F4EA] text-[#057642]"
-                        : "bg-[#F3F2EF] text-[#666666]",
-                    )}
-                  >
-                    {item.status}
-                  </span>
-                )}
-              </a>
+              <DropdownMenuItem item={item} key={item.href ?? item.label} onClose={closeMenu} />
             ))}
+            {menuFooter && (
+              <p className="px-3 pb-2 pt-2 text-xs leading-5 text-[#666666]">
+                {menuFooter}
+              </p>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function DropdownMenuItem({
+  item,
+  onClose,
+}: {
+  item: DropdownNavItem;
+  onClose: () => void;
+}) {
+  const className =
+    "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-sm font-semibold text-[#444444] transition hover:bg-[#E8F1FB] hover:text-[#0A66C2] lg:py-2";
+  const content = (
+    <>
+      <span>{item.label}</span>
+      {item.status && (
+        <span
+          className={classNames(
+            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
+            item.status === "Active"
+              ? "bg-[#E6F4EA] text-[#057642]"
+              : "bg-[#F3F2EF] text-[#666666]",
+          )}
+        >
+          {item.status}
+        </span>
+      )}
+    </>
+  );
+
+  if (item.href) {
+    return (
+      <a className={className} href={item.href} onClick={onClose} role="menuitem">
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      className={classNames(
+        className,
+        item.label.toLowerCase().includes("sign out") && "text-[#B42318] hover:bg-[#FEF3F2]",
+      )}
+      onClick={() => {
+        onClose();
+        item.onSelect?.();
+      }}
+      role="menuitem"
+      type="button"
+    >
+      {content}
+    </button>
   );
 }
 
