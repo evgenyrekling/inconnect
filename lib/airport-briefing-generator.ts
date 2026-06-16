@@ -238,7 +238,7 @@ const AIRPORT_TOPIC_CANDIDATES = [
   {
     angle:
       "How airside automation is changing apron coordination, aircraft turnaround, service sequencing, and operational visibility around aircraft stands.",
-    category: "Airside Operations",
+    category: "Airside Automation",
     signals: ["airside", "apron", "aircraft turnaround", "stand", "ramp", "turnaround"],
     topic: "Airside operations automation",
   },
@@ -259,7 +259,7 @@ const AIRPORT_TOPIC_CANDIDATES = [
   {
     angle:
       "Why ground handling automation is becoming more important as airports and handlers look for safer, more reliable, and more coordinated turnaround processes.",
-    category: "Ground Handling",
+    category: "Turnaround Optimization",
     signals: ["ground handling", "ramp handling", "turnaround", "airside", "handler"],
     topic: "Ground handling automation",
   },
@@ -355,10 +355,12 @@ const AIRPORT_CATEGORY_ROTATION: Record<number, string> = {
 const AIRPORT_CATEGORY_ALIASES: Record<string, string> = {
   "AI & Analytics": "AI Operations",
   "Airport Security": "Security Screening",
-  "Cargo Automation": "Cargo",
   "Digital Twins": "Digital Twin",
+  "Ground Handling": "Turnaround Optimization",
   "Ground Support Equipment": "Airside Automation",
-  Infrastructure: "Airport Infrastructure",
+  Infrastructure: "Airport Operations",
+  "Airside Operations": "Airside Automation",
+  Cargo: "Cargo Automation",
   "Vision & AI": "Computer Vision",
 };
 
@@ -401,9 +403,8 @@ const AIRPORT_TITLE_CATEGORY_PATTERNS = [
   { category: "Passenger Processing", pattern: /\b(passenger processing|biometric|e-?gate|self[-\s]?service|kiosk|boarding|gate automation)\b/i },
   { category: "Baggage Handling", pattern: /\b(baggage|bhs|bag drop|sortation|conveyor)\b/i },
   { category: "RFID", pattern: /\b(rfid|atr|automatic tag reading)\b/i },
-  { category: "Ground Support Equipment", pattern: /\b(ground support equipment|ground support|gse|autonomous gse)\b/i },
-  { category: "Airside Operations", pattern: /\b(airside|apron|aircraft turnaround)\b/i },
-  { category: "Ground Handling", pattern: /\b(ground handling|ramp handling|turnaround)\b/i },
+  { category: "Airside Automation", pattern: /\b(ground support equipment|ground support|gse|autonomous gse|airside|apron|aircraft turnaround)\b/i },
+  { category: "Turnaround Optimization", pattern: /\b(ground handling|ramp handling|turnaround)\b/i },
   { category: "Autonomous Vehicles", pattern: /\b(autonomous vehicle|autonomous vehicles|driverless|autonomous shuttle)\b/i },
   { category: "Robotics", pattern: /\b(robotics|robot|humanoid)\b/i },
   { category: "AI & Analytics", pattern: /\b(airport ai|ai|analytics|sensor|sensors|lidar|computer vision)\b/i },
@@ -411,7 +412,7 @@ const AIRPORT_TITLE_CATEGORY_PATTERNS = [
   { category: "Cargo Automation", pattern: /\b(cargo|freight|air freight|warehouse automation)\b/i },
   { category: "Digital Twins", pattern: /\b(digital twin|simulation|airport model)\b/i },
   { category: "Sustainability", pattern: /\b(sustainability|electric|emissions|energy efficiency|carbon)\b/i },
-  { category: "Infrastructure", pattern: /\b(infrastructure|smart airport|digital airport|terminal modernization|airport infrastructure)\b/i },
+  { category: "Airport Operations", pattern: /\b(infrastructure|smart airport|digital airport|terminal modernization|airport infrastructure)\b/i },
 ];
 
 const airportBriefingSchema = {
@@ -1142,7 +1143,7 @@ function chooseAirportBriefingTopic(
     angle:
       selected?.angle ??
       "Airport automation signals across baggage, passenger processing, security, sensors, AI, and smart airport infrastructure.",
-    category: normalizeAirportCategory(selected?.category ?? "Airport Infrastructure"),
+    category: normalizeAirportCategory(selected?.category ?? "Airport Operations"),
     noveltyScore: selected?.noveltyScore ?? 0,
     rejectedCategories,
     topic: selected?.topic ?? "Airport automation market signal",
@@ -1380,7 +1381,7 @@ async function prepareQualityCheckedAirportContent({
   title: string;
 }) {
   let content = cleanPostContent(generatedBriefing.content);
-  let quality = getAirportBriefingQuality(content, research);
+  let quality = getAirportBriefingQuality(content);
   const initialWordCount = quality.wordCount;
 
   console.info("INConnect airport briefing initial quality check", {
@@ -1405,7 +1406,7 @@ async function prepareQualityCheckedAirportContent({
       revisionAttempt,
       title,
     });
-    quality = getAirportBriefingQuality(content, research);
+    quality = getAirportBriefingQuality(content);
     console.info("INConnect airport digest revision quality check", {
       issues: quality.issues,
       revisionAttempt,
@@ -1515,10 +1516,7 @@ async function reviseAirportDigest({
   return cleanPostContent(parsed.content);
 }
 
-function getAirportBriefingQuality(
-  content: string,
-  research: BlogResearchResult,
-): AirportBriefingQuality {
+function getAirportBriefingQuality(content: string): AirportBriefingQuality {
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const paragraphs = content
@@ -1536,14 +1534,8 @@ function getAirportBriefingQuality(
     issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (paragraphCount < 2 || paragraphCount > 4) {
-    issues.push("Briefing must be one flowing post with 2-4 short paragraphs.");
-  }
-
-  if (research.researchSources.length < 3) {
-    issues.push(
-      `Briefing has ${research.researchSources.length} research sources; minimum is 3.`,
-    );
+  if (paragraphCount !== 3) {
+    issues.push("Briefing must be one flowing post with exactly three short paragraphs.");
   }
 
   if (/https?:\/\/|\[[^\]]+\]\([^)]+\)/i.test(content)) {

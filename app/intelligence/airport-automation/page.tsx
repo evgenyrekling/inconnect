@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
@@ -105,7 +105,7 @@ function AirportBriefingCard({
       <div className={classNames(featured ? "mt-5 lg:mt-0" : "mt-5")}>
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#057642]">
           <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
-          <span>•</span>
+          <span>&middot;</span>
           <span>1 Minute Read</span>
         </div>
         <h2 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
@@ -125,7 +125,7 @@ function AirportBriefingCard({
             className="font-semibold text-[#0A66C2] transition hover:text-[#004182]"
             href={`/intelligence/airport-automation/${briefing.slug}`}
           >
-            Read Briefing →
+            Read Briefing &rarr;
           </Link>
         </div>
       </div>
@@ -136,3 +136,4 @@ function AirportBriefingCard({
 function classNames(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
+
