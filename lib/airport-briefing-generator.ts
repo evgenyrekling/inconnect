@@ -231,6 +231,23 @@ const AIRPORT_PLAYER_SIGNALS = [
   "nec",
 ];
 
+const AIRPORT_OFFICIAL_SITE_HINTS = [
+  "SITA: https://www.sita.aero",
+  "Vanderlande: https://www.vanderlande.com",
+  "BEUMER Group: https://www.beumergroup.com",
+  "Daifuku: https://www.daifuku.com",
+  "Materna IPS: https://www.materna-ips.com",
+  "Amadeus: https://amadeus.com",
+  "Collins Aerospace: https://www.collinsaerospace.com",
+  "Assaia: https://www.assaia.com",
+  "ADB SAFEGATE: https://adbsafegate.com",
+  "TSA: https://www.tsa.gov",
+  "IDEMIA: https://www.idemia.com",
+  "Thales: https://www.thalesgroup.com",
+  "NEC: https://www.nec.com",
+  "Smiths Detection: https://www.smithsdetection.com",
+];
+
 const AIRPORT_TOPIC_CANDIDATES = [
   {
     angle:
@@ -1391,7 +1408,9 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Do not invent airport projects, contracts, pilots, deployments, acquisitions, passenger statistics, financial figures, or company claims.",
           "If the source context does not support a specific claim, write at the category or trend level instead of naming a project.",
           "Do not copy source wording or structure.",
-          "Do not include source attribution, outbound links, external source lists, further reading sections, audience questions, or external Markdown links.",
+          "Do not include source attribution, source lists, further reading sections, audience questions, raw URLs, or links to news articles.",
+          "When mentioning a named airport, operator, agency, airline, or company, make the name bold. If an official website URL is clearly available from the source context or known official supplier domain, use an inline Markdown link on the bold name, for example [**SITA**](https://www.sita.aero).",
+          "Only link to official company, airport, operator, agency, or airline websites. Do not link to news articles, search pages, social media pages, or tracking URLs.",
           "Write for professionals in airports, airlines, BHS, RFID, passenger processing, biometrics, airport security, AI, LiDAR, robotics, and digital airport operations.",
           "The content must cover one primary topic only.",
           "Prioritize a single new airport deployment, airport project, airport technology launch, airport modernization initiative, airport automation case study, or airport operator announcement.",
@@ -1435,18 +1454,22 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
               `${index + 1}. ${source.title} | ${source.domain} | ${source.url} | ${source.excerpt}`,
           ),
           "",
+          "Official site hints for inline company links:",
+          ...AIRPORT_OFFICIAL_SITE_HINTS.map((hint) => `- ${hint}`),
+          "",
           "Return structured JSON only.",
           `Set title in this exact format: ${requiredTitleFormat}`,
           "Choose one specific airport automation development. Do not create a generic trend title.",
           "Base the post on the strongest recent airport project or deployment in the source context.",
           "Include where the development happened, such as the airport, operator, agency, or region, when supported.",
           "Include companies or main players involved, such as airport operators, airlines, technology vendors, integrators, handlers, suppliers, agencies, or infrastructure partners, when supported.",
+          "Bold every named airport, operator, airline, agency, and company. Use official-site Markdown links for those names when an official website is clearly available. Do not write raw URLs.",
           "Set category to the selected novelty category unless the source context clearly supports a stronger category.",
           "Set airportName to the airport/operator if clearly supported, otherwise use an empty string.",
           "Set keywords to 4-8 topic keywords for anti-repetition.",
           `Set slug to a concise keyword phrase ending in ${slugDate}.`,
           "content: exactly three concise paragraphs with no Markdown headings. Paragraph 1: what happened and the particular project/deployment if supported. Paragraph 2: why it matters for airports and the main players in this direction. Paragraph 3: INConnect View integrated naturally.",
-          "Do not include source links, source labels, discussion questions, bullets, or numbered lists.",
+          "Do not include source article links, source labels, discussion questions, bullets, or numbered lists.",
           "",
           "If sources are weak, choose the strongest airport automation signal and avoid unsupported company/project claims.",
         ].join("\n"),
@@ -1581,11 +1604,12 @@ async function reviseAirportDigest({
           "Use exactly three concise paragraphs: what happened with the particular project or deployment when supported, airport importance with the main players in this direction, and INConnect View integrated naturally in the final paragraph.",
           "Preserve concrete project context and relevant players from the research context whenever they are supported.",
           "If exact company or airport names are not supported, refer to the player types instead, such as airport operators, ground handlers, BHS integrators, RFID providers, biometric vendors, robotics suppliers, or GSE manufacturers.",
-          "Return only the post body in the content field. Do not include title, source links, discussion questions, headings, bullets, or numbered lists.",
+          "Bold every named airport, operator, airline, agency, and company. Use official-site Markdown links for those names when an official website is clearly available. Do not write raw URLs.",
+          "Return only the post body in the content field. Do not include title, source article links, discussion questions, headings, bullets, or numbered lists.",
           "Do not invent airport projects, contracts, deployments, or company claims.",
           "Do not add LinkedIn optimization, personal branding, B2B sales visibility, career growth, or generic AI-for-professionals content.",
           "Use only the provided research context.",
-          "Do not add Why It Matters, Source, Read original story, Discussion Question, Key Takeaways, Summary, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, external source lists, outbound links, or generic filler.",
+          "Do not add Why It Matters, Source, Read original story, Discussion Question, Key Takeaways, Summary, Suggested LinkedIn Post, Top Developments, Technology Trends, Business Opportunities, numbered lists, newsletter formatting, long-form article sections, external source lists, raw URLs, news article links, or generic filler.",
         ].join(" "),
       },
       {
@@ -1651,8 +1675,12 @@ function getAirportBriefingQuality(content: string): AirportBriefingQuality {
     issues.push("Briefing must be one flowing post with exactly three short paragraphs.");
   }
 
-  if (/https?:\/\/|\[[^\]]+\]\([^)]+\)/i.test(content)) {
-    issues.push("Post must not include outbound links or Markdown links.");
+  if (hasRawUrlOutsideMarkdownLink(content)) {
+    issues.push("Post must not include raw URLs. Use inline Markdown links only on official company or airport names.");
+  }
+
+  if (!hasValidMarkdownLinks(content)) {
+    issues.push("Markdown links must use valid http or https URLs and readable linked names.");
   }
 
   if (/^#{1,6}\s+/m.test(content)) {
@@ -1697,6 +1725,20 @@ function hasAirportPlayerContext(content: string) {
       .filter((signal) => !["airport", "airports"].includes(signal))
       .some((signal) => haystack.includes(signal))
   );
+}
+
+function hasRawUrlOutsideMarkdownLink(content: string) {
+  const withoutMarkdownUrls = content.replace(/\[[^\]]+\]\(https?:\/\/[^)\s]+\)/gi, "");
+  return /https?:\/\//i.test(withoutMarkdownUrls);
+}
+
+function hasValidMarkdownLinks(content: string) {
+  const matches = [...content.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)];
+  return matches.every((match) => {
+    const label = stripMarkdown(match[1] ?? "").trim();
+    const url = (match[2] ?? "").trim();
+    return label.length > 1 && /^https?:\/\/[^\s)]+$/i.test(url);
+  });
 }
 
 async function generateAndUploadAirportHeroImage({
@@ -1936,8 +1978,8 @@ function cleanPostContent(value: string) {
     .replace(/^#+\s+/gm, "")
     .replace(/^\s*(?:[-*]|\d+\.)\s+/gm, "")
     .replace(/^\s*(?:INConnect Brief|Why It Matters|INConnect View|Summary|Key Takeaways|Source)\s*:?\s*/gim, "")
-    .replace(/https?:\/\/\S+/gi, "")
-    .replace(/\[[^\]]+\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi, "[$1]($2)")
+    .replace(/(?<!\]\()https?:\/\/\S+/gi, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -2090,7 +2132,7 @@ function stripMarkdown(value: string) {
   return value
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`[^`]*`/g, " ")
-    .replace(/\[[^\]]+\]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[#>*_\-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

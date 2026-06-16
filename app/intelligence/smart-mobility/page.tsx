@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import { createSeoMetadata } from "@/lib/seo";
 
@@ -41,6 +42,11 @@ export default function SmartMobilityIntelligencePage() {
               intelligence stream in a future release.
             </p>
           </div>
+          <DigestSubscriptionCard
+            description="Join the early subscriber list for Smart Mobility Daily."
+            digestTitle="Smart Mobility Daily"
+            digestType="smart_mobility_daily"
+          />
         </div>
       </section>
       <Footer />

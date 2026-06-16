@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import { createSeoMetadata } from "@/lib/seo";
 
@@ -41,6 +42,11 @@ export default function IndustrialAutomationIntelligencePage() {
               intelligence stream in a future release.
             </p>
           </div>
+          <DigestSubscriptionCard
+            description="Join the early subscriber list for Industrial Automation Daily."
+            digestTitle="Industrial Automation Daily"
+            digestType="industrial_automation_daily"
+          />
         </div>
       </section>
       <Footer />

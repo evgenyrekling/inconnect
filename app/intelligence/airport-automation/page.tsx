@@ -1,5 +1,6 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   type AirportBriefing,
@@ -46,6 +47,11 @@ export default async function AirportAutomationIntelligencePage() {
             The one airport automation development worth knowing today. One
             topic, one insight, one minute.
           </p>
+          <DigestSubscriptionCard
+            description="Receive the latest airport automation project, deployment, and technology update by email."
+            digestTitle="Airport Automation Daily"
+            digestType="airport_automation_daily"
+          />
         </div>
       </section>
 

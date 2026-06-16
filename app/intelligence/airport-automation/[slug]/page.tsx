@@ -1,6 +1,8 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   type AirportBriefing,
@@ -144,8 +146,15 @@ export default async function AirportBriefingPage({
       </article>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-3xl rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_12px_30px_rgba(10,25,47,0.06)] sm:p-8">
-          <AirportBriefingBody content={displayContent} />
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_12px_30px_rgba(10,25,47,0.06)] sm:p-8">
+            <AirportBriefingBody content={displayContent} />
+          </div>
+          <DigestSubscriptionCard
+            description="Get each new Airport Automation Daily briefing in your inbox."
+            digestTitle="Airport Automation Daily"
+            digestType="airport_automation_daily"
+          />
         </div>
       </section>
       <RelatedAirportBriefings briefings={relatedBriefings} />
@@ -225,13 +234,65 @@ function AirportBriefingBody({ content }: { content: string }) {
   const blocks = content.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      {blocks.map((block) => (
-        <p className="text-base leading-8 text-[#444444]" key={block}>
-          {block}
+    <div className="space-y-7">
+      {blocks.map((block, index) => (
+        <p
+          className={classNames(
+            "text-[1.03rem] leading-8 text-[#3F3F3F]",
+            index === 0 && "text-lg leading-8 text-[#2B2B2B]",
+          )}
+          key={block}
+        >
+          <FormattedAirportText text={block} />
         </p>
       ))}
     </div>
   );
 }
+
+function FormattedAirportText({ text }: { text: string }) {
+  const nodes: ReactNode[] = [];
+  const tokenPattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*)/g;
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(tokenPattern)) {
+    if (match.index === undefined) continue;
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[2] && match[3]) {
+      nodes.push(
+        <a
+          className="font-semibold text-[#0A66C2] underline decoration-[#0A66C2]/25 underline-offset-4 transition hover:text-[#004182] hover:decoration-[#004182]"
+          href={match[3]}
+          key={`${match.index}-${match[3]}`}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <FormattedAirportText text={match[2]} />
+        </a>,
+      );
+    } else if (match[4]) {
+      nodes.push(
+        <strong className="font-semibold text-[#191919]" key={`${match.index}-${match[4]}`}>
+          {match[4]}
+        </strong>,
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return <>{nodes}</>;
+}
+
+function classNames(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 

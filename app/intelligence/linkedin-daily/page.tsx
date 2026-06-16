@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import { getPublishedBlogPosts } from "@/lib/blog-posts";
 import { createSeoMetadata } from "@/lib/seo";
@@ -39,6 +40,11 @@ export default async function LinkedInDailyIntelligencePage() {
             networking, content strategy, AI tools, thought leadership, and
             professional growth.
           </p>
+          <DigestSubscriptionCard
+            description="Receive each new LinkedIn Daily intelligence briefing by email."
+            digestTitle="LinkedIn Daily"
+            digestType="linkedin_daily"
+          />
         </div>
       </section>
 

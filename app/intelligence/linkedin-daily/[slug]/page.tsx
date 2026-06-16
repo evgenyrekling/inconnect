@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BlogArticleAccess } from "@/app/blog/[slug]/blog-article-access";
+import { DigestSubscriptionCard } from "@/components/digest-subscription-card";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   type BlogPost,
@@ -148,10 +149,17 @@ export default async function LinkedInDailyBriefingPage({
       </article>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <BlogArticleAccess
-          fullContent={articleContent}
-          previewContent={previewContent}
-        />
+        <div className="mx-auto max-w-[820px]">
+          <BlogArticleAccess
+            fullContent={articleContent}
+            previewContent={previewContent}
+          />
+          <DigestSubscriptionCard
+            description="Get each new LinkedIn Daily briefing in your inbox."
+            digestTitle="LinkedIn Daily"
+            digestType="linkedin_daily"
+          />
+        </div>
       </section>
       <RelatedLinkedInBriefings articles={relatedArticles} />
       <script
