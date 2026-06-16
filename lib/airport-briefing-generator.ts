@@ -66,6 +66,11 @@ type AirportTopicSelection = {
   topic: string;
 };
 
+type AirportBriefingConsistency = {
+  category: string;
+  issues: string[];
+};
+
 export class AirportBriefingGenerationError extends Error {
   constructor(
     public readonly stage: string,
@@ -1355,10 +1360,17 @@ async function generateAirportBriefingWithTitleValidation(
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     generatedBriefing = await generateAirportBriefing(research, attempt);
     const titleValidation = validateAirportTitle(generatedBriefing.title);
-    if (titleValidation.isValid) return generatedBriefing;
+    const consistency = validateAirportBriefingConsistency(generatedBriefing);
+    if (titleValidation.isValid && consistency.issues.length === 0) {
+      return {
+        ...generatedBriefing,
+        category: consistency.category,
+      };
+    }
 
     console.warn("INConnect airport briefing title rejected", {
       attempt,
+      consistencyIssues: consistency.issues,
       detectedCategory: titleValidation.detectedCategory,
       missingKeywordReason: titleValidation.missingKeywordReason,
       rejectedTitle: generatedBriefing.title,
@@ -1440,9 +1452,9 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           `Required title format: ${requiredTitleFormat}`,
           `Required slug date suffix: ${slugDate}`,
           `Generation attempt: ${attempt}`,
-          `Preferred category for today's rotation: ${preferredCategory}`,
-          `Selected novelty category: ${topicSelection.category}`,
-          `Selected novelty topic: ${topicSelection.topic}`,
+          `Preferred search category for today's rotation: ${preferredCategory}`,
+          `Novelty search category: ${topicSelection.category}`,
+          `Novelty search topic: ${topicSelection.topic}`,
           `Research angle: ${research.articleAngle}`,
           "",
           "Research summary:",
@@ -1461,10 +1473,13 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           `Set title in this exact format: ${requiredTitleFormat}`,
           "Choose one specific airport automation development. Do not create a generic trend title.",
           "Base the post on the strongest recent airport project or deployment in the source context.",
+          "The title, category, slug, keywords, excerpt, and content must all describe the same primary development. Do not use the novelty category in the title if the source development is actually about another topic.",
+          "The rotation category is only a search preference. It must never override the real source topic.",
+          "If the primary source is about robots, use a robotics title/category even if LiDAR or sensors are mentioned as supporting technology. If the primary source is about RFID, use RFID. If the primary source is about biometrics or e-gates, use passenger processing or biometrics.",
           "Include where the development happened, such as the airport, operator, agency, or region, when supported.",
           "Include companies or main players involved, such as airport operators, airlines, technology vendors, integrators, handlers, suppliers, agencies, or infrastructure partners, when supported.",
           "Bold every named airport, operator, airline, agency, and company. Use official-site Markdown links for those names when an official website is clearly available. Do not write raw URLs.",
-          "Set category to the selected novelty category unless the source context clearly supports a stronger category.",
+          "Set category to the actual primary source topic, not the selected novelty category.",
           "Set airportName to the airport/operator if clearly supported, otherwise use an empty string.",
           "Set keywords to 4-8 topic keywords for anti-repetition.",
           `Set slug to a concise keyword phrase ending in ${slugDate}.`,
@@ -1515,7 +1530,11 @@ async function prepareQualityCheckedAirportContent({
   title: string;
 }) {
   let content = cleanPostContent(generatedBriefing.content);
-  let quality = getAirportBriefingQuality(content);
+  let quality = getAirportBriefingQuality(content, {
+    category: generatedBriefing.category,
+    keywords: generatedBriefing.keywords,
+    title,
+  });
   const initialWordCount = quality.wordCount;
 
   console.info("INConnect airport briefing initial quality check", {
@@ -1540,7 +1559,11 @@ async function prepareQualityCheckedAirportContent({
       revisionAttempt,
       title,
     });
-    quality = getAirportBriefingQuality(content);
+    quality = getAirportBriefingQuality(content, {
+      category: generatedBriefing.category,
+      keywords: generatedBriefing.keywords,
+      title,
+    });
     console.info("INConnect airport digest revision quality check", {
       issues: quality.issues,
       revisionAttempt,
@@ -1603,6 +1626,8 @@ async function reviseAirportDigest({
           "If the current briefing is above 350 words, shorten once while preserving the key point.",
           "Use exactly three concise paragraphs: what happened with the particular project or deployment when supported, airport importance with the main players in this direction, and INConnect View integrated naturally in the final paragraph.",
           "Preserve concrete project context and relevant players from the research context whenever they are supported.",
+          "Keep the revised body aligned with the title topic. Do not shift from the title topic into a different supporting technology or side detail.",
+          "If the title is about robotics, the body must be primarily about robotics. If the title is about LiDAR, the body must be primarily about LiDAR, not robots that only happen to use LiDAR.",
           "If exact company or airport names are not supported, refer to the player types instead, such as airport operators, ground handlers, BHS integrators, RFID providers, biometric vendors, robotics suppliers, or GSE manufacturers.",
           "Bold every named airport, operator, airline, agency, and company. Use official-site Markdown links for those names when an official website is clearly available. Do not write raw URLs.",
           "Return only the post body in the content field. Do not include title, source article links, discussion questions, headings, bullets, or numbered lists.",
@@ -1653,7 +1678,10 @@ async function reviseAirportDigest({
   return cleanPostContent(parsed.content);
 }
 
-function getAirportBriefingQuality(content: string): AirportBriefingQuality {
+function getAirportBriefingQuality(
+  content: string,
+  context: Pick<GeneratedAirportBriefing, "category" | "keywords" | "title">,
+): AirportBriefingQuality {
   const issues: string[] = [];
   const wordCount = countWords(stripMarkdown(content));
   const paragraphs = content
@@ -1699,6 +1727,12 @@ function getAirportBriefingQuality(content: string): AirportBriefingQuality {
     issues.push("Post must mention the airport, operator, agency, airline, supplier, integrator, handler, or main player type involved.");
   }
 
+  const consistency = validateAirportBriefingConsistency({
+    ...context,
+    content,
+  });
+  issues.push(...consistency.issues);
+
   if (/^\s*\d+\./m.test(content)) {
     issues.push("Digest includes a numbered list.");
   }
@@ -1708,6 +1742,99 @@ function getAirportBriefingQuality(content: string): AirportBriefingQuality {
   }
 
   return { issues, paragraphCount, wordCount };
+}
+
+function validateAirportBriefingConsistency(
+  briefing: Pick<GeneratedAirportBriefing, "category" | "content" | "keywords" | "title">,
+): AirportBriefingConsistency {
+  const titleCategory = detectAirportTopicCategory(briefing.title);
+  const bodyCategory = detectAirportTopicCategory(briefing.content);
+  const normalizedCategory = normalizeAirportCategory(briefing.category || titleCategory);
+  const issues: string[] = [];
+  const category = titleCategory || bodyCategory || normalizedCategory;
+
+  if (titleCategory && bodyCategory && titleCategory !== bodyCategory) {
+    issues.push(
+      `Title topic (${titleCategory}) does not match content topic (${bodyCategory}).`,
+    );
+  }
+
+  if (titleCategory && normalizedCategory && normalizedCategory !== titleCategory) {
+    issues.push(
+      `Declared category (${normalizedCategory}) does not match title topic (${titleCategory}).`,
+    );
+  }
+
+  if (bodyCategory && normalizedCategory && normalizedCategory !== bodyCategory) {
+    issues.push(
+      `Declared category (${normalizedCategory}) does not match content topic (${bodyCategory}).`,
+    );
+  }
+
+  return {
+    category,
+    issues,
+  };
+}
+
+function detectAirportTopicCategory(value: string) {
+  const normalized = value.toLowerCase();
+  const detectors: Array<{ category: string; pattern: RegExp }> = [
+    {
+      category: "Robotics",
+      pattern: /\b(humanoid|robot|robotics|service robot|autonomous robot)\b/i,
+    },
+    {
+      category: "RFID",
+      pattern: /\b(rfid|automatic tag reading|atr|baggage tag|tag reader)\b/i,
+    },
+    {
+      category: "Baggage Handling",
+      pattern: /\b(baggage handling|baggage system|bhs|bag drop|sortation|conveyor)\b/i,
+    },
+    {
+      category: "Passenger Processing",
+      pattern: /\b(passenger processing|self-service|self service|kiosk|boarding|check-in|check in)\b/i,
+    },
+    {
+      category: "Biometrics",
+      pattern: /\b(biometric|facial recognition|identity verification|e-gate|egate)\b/i,
+    },
+    {
+      category: "Autonomous Vehicles",
+      pattern: /\b(autonomous vehicle|driverless|autonomous tug|autonomous shuttle)\b/i,
+    },
+    {
+      category: "Airside Automation",
+      pattern: /\b(gse|ground support|airside|apron|aircraft stand|ramp)\b/i,
+    },
+    {
+      category: "LiDAR",
+      pattern: /\b(lidar|laser scanning)\b/i,
+    },
+    {
+      category: "Computer Vision",
+      pattern: /\b(computer vision|camera analytics|vision system|video analytics)\b/i,
+    },
+    {
+      category: "Security Screening",
+      pattern: /\b(security screening|checkpoint|screening lane|security scanner)\b/i,
+    },
+    {
+      category: "Cargo Automation",
+      pattern: /\b(cargo|freight|uld|air freight)\b/i,
+    },
+    {
+      category: "Digital Twin",
+      pattern: /\b(digital twin|simulation model|operational model)\b/i,
+    },
+    {
+      category: "Terminal Analytics",
+      pattern: /\b(terminal analytics|passenger flow|queue analytics|dwell time)\b/i,
+    },
+  ];
+
+  return detectors.find(({ pattern }) => pattern.test(normalized))?.category ?? "";
 }
 
 function hasAirportProjectLanguage(content: string) {
