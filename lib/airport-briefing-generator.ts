@@ -87,16 +87,18 @@ const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
 
 const AIRPORT_RESEARCH_QUERIES = [
-  "airport automation news",
-  "airport baggage handling automation",
-  "smart airport technology",
-  "airport biometrics passenger processing",
-  "airport RFID baggage tracking",
-  "airport robotics news",
-  "airport AI operations",
-  "airport security automation",
-  "airport digital transformation",
-  "baggage handling system project airport",
+  "latest airport automation project airport deployment",
+  "airport technology deployment airport operator supplier",
+  "airport modernization project automation airport operator",
+  "airport baggage handling automation project airport supplier",
+  "airport biometrics passenger processing deployment airport",
+  "airport RFID baggage tracking project airport airline",
+  "airport robotics pilot airport operations",
+  "airport AI operations deployment airport",
+  "airport security automation project airport",
+  "smart airport project technology supplier airport",
+  "baggage handling system project airport supplier",
+  "airport self service kiosk biometric e-gate deployment",
   "SITA airport technology news",
   "Vanderlande airport automation news",
   "BEUMER airport baggage handling news",
@@ -176,6 +178,57 @@ const AIRPORT_PREFERRED_DOMAINS = [
   "materna-ips.com",
   "assaia.com",
   "adbsafegate.com",
+];
+
+const AIRPORT_PROJECT_SIGNALS = [
+  "announced",
+  "award",
+  "awarded",
+  "began",
+  "commissioned",
+  "contract",
+  "deploy",
+  "deployed",
+  "deployment",
+  "expanded",
+  "implementation",
+  "introduced",
+  "installed",
+  "launch",
+  "launched",
+  "modernization",
+  "pilot",
+  "project",
+  "rollout",
+  "selected",
+  "testing",
+  "trial",
+  "upgrade",
+  "upgraded",
+];
+
+const AIRPORT_PLAYER_SIGNALS = [
+  "airport",
+  "airports",
+  "airline",
+  "airlines",
+  "authority",
+  "operator",
+  "group",
+  "sita",
+  "vanderlande",
+  "beumer",
+  "daifuku",
+  "materna",
+  "assaia",
+  "adb safegate",
+  "amadeus",
+  "collins aerospace",
+  "tsa",
+  "smiths detection",
+  "idemia",
+  "thales",
+  "nec",
 ];
 
 const AIRPORT_TOPIC_CANDIDATES = [
@@ -868,10 +921,17 @@ async function researchAirportAutomationTopic(
     discoveredSources,
     existingBriefings,
   );
+  const primaryProjectSource = selectedSources.find(hasSpecificAirportProjectSignal);
 
   if (selectedSources.length < MIN_AIRPORT_RESEARCH_SOURCES) {
     throw new Error(
       `Airport web research found ${selectedSources.length} usable sources; at least ${MIN_AIRPORT_RESEARCH_SOURCES} are required.`,
+    );
+  }
+
+  if (!primaryProjectSource) {
+    throw new Error(
+      "Airport web research did not find a specific recent project, deployment, pilot, airport/operator announcement, or supplier-backed automation source.",
     );
   }
 
@@ -889,6 +949,11 @@ async function researchAirportAutomationTopic(
     rejectedCategories: topicSelection.rejectedCategories,
     selectedCategory: topicSelection.category,
     selectedTopic: topicSelection.topic,
+    primaryProjectSource: {
+      domain: primaryProjectSource.domain,
+      title: primaryProjectSource.title,
+      url: primaryProjectSource.url,
+    },
     sourceCount: selectedSources.length,
     sources: selectedSources.map((source) => ({
       domain: source.domain,
@@ -978,10 +1043,27 @@ function selectAirportResearchSources(
     .slice(0, MAX_AIRPORT_RESEARCH_SOURCES);
 }
 
+function hasSpecificAirportProjectSignal(source: BlogResearchSource) {
+  const haystack = createAirportSourceHaystack(source);
+  const hasProjectSignal = AIRPORT_PROJECT_SIGNALS.some((signal) =>
+    haystack.includes(signal),
+  );
+  const hasPlayerSignal = AIRPORT_PLAYER_SIGNALS
+    .filter((signal) => !["airport", "airports"].includes(signal))
+    .some((signal) => haystack.includes(signal));
+  const hasSpecificAirportName =
+    /\b[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,4}\s+(?:International\s+)?Airport\b/.test(
+      `${source.title} ${source.excerpt}`,
+    );
+  const hasSupplierSignal = AIRPORT_PREFERRED_DOMAINS.some((domain) =>
+    source.domain.endsWith(domain),
+  );
+
+  return hasProjectSignal && (hasSpecificAirportName || hasSupplierSignal || hasPlayerSignal);
+}
+
 function isAirportRelevantSource(source: BlogResearchSource) {
-  const haystack = `${source.title} ${source.excerpt} ${source.domain} ${source.url}`
-    .toLowerCase()
-    .replace(/[-_]+/g, " ");
+  const haystack = createAirportSourceHaystack(source);
   const hasAirportSignal = AIRPORT_ALLOWED_KEYWORDS.some((keyword) =>
     haystack.includes(keyword),
   );
@@ -994,6 +1076,12 @@ function isAirportRelevantSource(source: BlogResearchSource) {
     source.url.includes("/signup");
 
   return hasAirportSignal && !hasForbiddenSignal && !isLinkedInNoise;
+}
+
+function createAirportSourceHaystack(source: BlogResearchSource) {
+  return `${source.title} ${source.excerpt} ${source.domain} ${source.url}`
+    .toLowerCase()
+    .replace(/[-_]+/g, " ");
 }
 
 function getAirportSourceScore(source: BlogResearchSource, recentText: string) {
@@ -1010,6 +1098,18 @@ function getAirportSourceScore(source: BlogResearchSource, recentText: string) {
 
   if (/press release|project|deploy|implementation|automation|biometric|baggage|rfid/i.test(haystack)) {
     score += 4;
+  }
+
+  if (hasSpecificAirportProjectSignal(source)) {
+    score += 28;
+  }
+
+  for (const signal of AIRPORT_PROJECT_SIGNALS) {
+    if (haystack.includes(signal)) score += 3;
+  }
+
+  for (const signal of AIRPORT_PLAYER_SIGNALS) {
+    if (haystack.includes(signal)) score += 2;
   }
 
   if (source.publishedAt && !Number.isNaN(Date.parse(source.publishedAt))) {
@@ -1154,10 +1254,14 @@ function createAirportResearchSummary(
   sources: BlogResearchSource[],
   articleAngle: string,
 ) {
+  const primaryProjectSource = sources.find(hasSpecificAirportProjectSignal) ?? sources[0];
+
   return [
     `Airport-only research angle: ${articleAngle}`,
+    "Anchor the briefing on the primary project source below. The post must describe what is new, where it is happening, and which companies, airport operators, agencies, airlines, handlers, or technology suppliers are involved when supported by the source snippets.",
+    `Primary project source: ${primaryProjectSource.title} (${primaryProjectSource.domain}) - ${primaryProjectSource.excerpt}`,
     "Use sources as context only. Do not invent contracts, pilots, airport deployments, supplier claims, statistics, or commercial relationships not supported by the source snippets.",
-    "If sources are broad or weak, write a trend-based briefing and clearly frame it as broader airport industry signals.",
+    "If exact companies or airports are not supported, describe the player types rather than inventing names.",
     "Source context:",
     ...sources.map(
       (source, index) =>
@@ -1291,6 +1395,8 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Write for professionals in airports, airlines, BHS, RFID, passenger processing, biometrics, airport security, AI, LiDAR, robotics, and digital airport operations.",
           "The content must cover one primary topic only.",
           "Prioritize a single new airport deployment, airport project, airport technology launch, airport modernization initiative, airport automation case study, or airport operator announcement.",
+          "The briefing must read like a real airport automation news update: what is new, where it happened, which airport/operator/agency/airline/supplier is involved, and what technology is being used.",
+          "Do not publish broad trend commentary when the source context supports a named project, airport, supplier, or deployment.",
           "Examples of good topics: RFID Expansion at Major Airports, Humanoid Robots Enter Airport Operations, Autonomous GSE Trials, Passenger Flow AI, Digital Twin Airports, Baggage Automation, Airport Cybersecurity, Self-Service Technologies.",
           "Write one flowing professional intelligence post only, 150-250 words target and 180-220 words ideal. The hard allowed range is 120-350 words.",
           "Use exactly three concise paragraphs: paragraph 1 explains what happened and names the particular project, airport, operator, supplier, pilot, launch, or modernization initiative when supported by the source context; paragraph 2 explains why it is important for airports and mentions the main players shaping this direction; paragraph 3 integrates the INConnect View naturally.",
@@ -1332,6 +1438,9 @@ async function generateAirportBriefing(research: BlogResearchResult, attempt = 1
           "Return structured JSON only.",
           `Set title in this exact format: ${requiredTitleFormat}`,
           "Choose one specific airport automation development. Do not create a generic trend title.",
+          "Base the post on the strongest recent airport project or deployment in the source context.",
+          "Include where the development happened, such as the airport, operator, agency, or region, when supported.",
+          "Include companies or main players involved, such as airport operators, airlines, technology vendors, integrators, handlers, suppliers, agencies, or infrastructure partners, when supported.",
           "Set category to the selected novelty category unless the source context clearly supports a stronger category.",
           "Set airportName to the airport/operator if clearly supported, otherwise use an empty string.",
           "Set keywords to 4-8 topic keywords for anti-repetition.",
@@ -1554,6 +1663,14 @@ function getAirportBriefingQuality(content: string): AirportBriefingQuality {
     issues.push("Post includes article, newsletter, or report-style sections.");
   }
 
+  if (!hasAirportProjectLanguage(content)) {
+    issues.push("Post must include concrete project, deployment, launch, pilot, rollout, or modernization context.");
+  }
+
+  if (!hasAirportPlayerContext(content)) {
+    issues.push("Post must mention the airport, operator, agency, airline, supplier, integrator, handler, or main player type involved.");
+  }
+
   if (/^\s*\d+\./m.test(content)) {
     issues.push("Digest includes a numbered list.");
   }
@@ -1563,6 +1680,23 @@ function getAirportBriefingQuality(content: string): AirportBriefingQuality {
   }
 
   return { issues, paragraphCount, wordCount };
+}
+
+function hasAirportProjectLanguage(content: string) {
+  const haystack = content.toLowerCase();
+  return AIRPORT_PROJECT_SIGNALS.some((signal) => haystack.includes(signal));
+}
+
+function hasAirportPlayerContext(content: string) {
+  const haystack = content.toLowerCase();
+  const playerTypePattern =
+    /\b(airport operator|airport authority|airline|agency|handler|ground handler|technology vendor|supplier|integrator|bhs provider|rfid provider|biometric provider|robotics supplier|gse manufacturer|infrastructure partner)\b/i;
+  return (
+    playerTypePattern.test(content) ||
+    AIRPORT_PLAYER_SIGNALS
+      .filter((signal) => !["airport", "airports"].includes(signal))
+      .some((signal) => haystack.includes(signal))
+  );
 }
 
 async function generateAndUploadAirportHeroImage({
