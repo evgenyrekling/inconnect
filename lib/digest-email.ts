@@ -1,22 +1,31 @@
 type DigestEmailInput = {
   briefingText: string;
+  digestTitle: string;
   heroImageUrl: string;
   readUrl: string;
   title: string;
+  unsubscribeUrl?: string;
 };
 
 export function renderDigestEmail({
   briefingText,
+  digestTitle,
   heroImageUrl,
   readUrl,
   title,
+  unsubscribeUrl,
 }: DigestEmailInput) {
   const plainText = [
+    "INConnect",
+    digestTitle,
+    "",
     title,
     "",
     stripMarkdown(briefingText),
     "",
     `Read Full Briefing: ${readUrl}`,
+    "",
+    unsubscribeUrl ? `Unsubscribe: ${unsubscribeUrl}` : "",
   ].join("\n");
 
   const html = [
@@ -26,13 +35,20 @@ export function renderDigestEmail({
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f2ef;padding:24px 12px;">',
     '<tr><td align="center">',
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #d9dde3;border-radius:12px;overflow:hidden;">',
+    '<tr><td style="padding:22px 28px;background:#071A33;color:#ffffff;">',
+    '<div style="font-size:22px;font-weight:800;letter-spacing:0.02em;">INConnect</div>',
+    '<div style="font-size:12px;color:#b8d3ff;margin-top:3px;">Professional Intelligence Platform</div>',
+    "</td></tr>",
     `<tr><td><img src="${escapeHtml(heroImageUrl)}" alt="" width="680" style="display:block;width:100%;height:auto;border:0;" /></td></tr>`,
     '<tr><td style="padding:28px;">',
-    '<p style="margin:0 0 10px;color:#0a66c2;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">INConnect Intelligence</p>',
+    `<p style="margin:0 0 10px;color:#0a66c2;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">${escapeHtml(digestTitle)}</p>`,
     `<h1 style="margin:0 0 18px;font-size:28px;line-height:1.2;color:#191919;">${escapeHtml(title)}</h1>`,
     `<div style="font-size:16px;line-height:1.75;color:#444444;">${formatEmailParagraphs(briefingText)}</div>`,
     `<p style="margin:28px 0 0;"><a href="${escapeHtml(readUrl)}" style="display:inline-block;background:#4a6fd0;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 18px;">Read Full Briefing</a></p>`,
     "</td></tr>",
+    unsubscribeUrl
+      ? `<tr><td style="padding:18px 28px;border-top:1px solid #eef0f3;font-size:12px;line-height:1.6;color:#666666;">You are receiving this email because you subscribed to INConnect Intelligence. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#0a66c2;">Unsubscribe</a></td></tr>`
+      : "",
     "</table>",
     "</td></tr>",
     "</table>",

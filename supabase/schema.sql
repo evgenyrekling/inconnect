@@ -180,6 +180,8 @@ create table if not exists public.subscriptions (
   email text not null,
   digest_type text not null,
   is_active boolean default true,
+  unsubscribe_token text,
+  unsubscribed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   constraint subscriptions_digest_type_check
@@ -191,6 +193,23 @@ create table if not exists public.subscriptions (
         'industrial_automation_daily'
       )
     )
+);
+
+create table if not exists public.email_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  subscription_id uuid references public.subscriptions(id) on delete set null,
+  digest_type text not null,
+  email text not null,
+  briefing_id uuid,
+  status text not null default 'sent',
+  resend_email_id text,
+  error_message text,
+  sent_at timestamptz default now(),
+  delivered_at timestamptz,
+  opened_at timestamptz,
+  clicked_at timestamptz,
+  bounced_at timestamptz,
+  created_at timestamptz default now()
 );
 
 create table if not exists public.professional_connections (
@@ -283,6 +302,21 @@ create index if not exists subscriptions_is_active_idx
   on public.subscriptions (is_active);
 create unique index if not exists subscriptions_email_digest_type_unique_idx
   on public.subscriptions (lower(email), digest_type);
+create unique index if not exists subscriptions_unsubscribe_token_unique_idx
+  on public.subscriptions (unsubscribe_token)
+  where unsubscribe_token is not null;
+create index if not exists email_deliveries_subscription_id_idx
+  on public.email_deliveries (subscription_id);
+create index if not exists email_deliveries_digest_type_idx
+  on public.email_deliveries (digest_type);
+create index if not exists email_deliveries_email_idx
+  on public.email_deliveries (email);
+create index if not exists email_deliveries_status_idx
+  on public.email_deliveries (status);
+create index if not exists email_deliveries_sent_at_idx
+  on public.email_deliveries (sent_at desc);
+create index if not exists email_deliveries_resend_email_id_idx
+  on public.email_deliveries (resend_email_id);
 create index if not exists professional_connections_source_user_id_idx
   on public.professional_connections (source_user_id);
 create index if not exists professional_connections_target_user_id_idx

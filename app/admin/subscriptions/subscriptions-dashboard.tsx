@@ -4,9 +4,12 @@ import { type FormEvent, useEffect, useState } from "react";
 
 type DigestCount = {
   activeCount: number;
+  clickRate: number;
   digestType: string;
+  emailsSent: number;
   inactiveCount: number;
   label: string;
+  openRate: number;
   totalCount: number;
   unsubscribeRate: number;
 };
@@ -145,6 +148,20 @@ export function AdminSubscriptionsDashboard() {
                     Total: {digest.totalCount} / Unsubscribe rate:{" "}
                     {digest.unsubscribeRate}%
                   </p>
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-[#EEF0F3] pt-4 text-xs text-[#666666]">
+                    <div>
+                      <p className="font-semibold text-[#191919]">{digest.emailsSent}</p>
+                      <p>sent</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#191919]">{digest.openRate}%</p>
+                      <p>open</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#191919]">{digest.clickRate}%</p>
+                      <p>click</p>
+                    </div>
+                  </div>
                 </article>
               ))}
             </div>

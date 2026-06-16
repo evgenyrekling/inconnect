@@ -5,8 +5,8 @@
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/cron/generate-airport-briefing",
-      "schedule": "30 7 * * *"
+      "path": "/api/cron/send-airport-daily",
+      "schedule": "0 5 * * *"
     }
   ]
 }

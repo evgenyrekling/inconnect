@@ -15,6 +15,11 @@ type SubscriptionRow = {
   updated_at: string | null;
 };
 
+type EmailDeliveryRow = {
+  digest_type: string;
+  status: string;
+};
+
 const DIGEST_LABELS: Record<string, string> = {
   airport_automation_daily: "Airport Automation Daily",
   linkedin_daily: "LinkedIn Daily",
@@ -45,18 +50,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const { data: deliveries, error: deliveriesError } = await supabase
+      .from("email_deliveries")
+      .select("digest_type, status")
+      .returns<EmailDeliveryRow[]>();
+
+    if (deliveriesError) {
+      console.error("ADMIN SUBSCRIPTIONS DELIVERY METRICS ERROR", deliveriesError);
+      return NextResponse.json(
+        { error: "Email delivery metrics could not be loaded.", details: deliveriesError.message },
+        { status: 500 },
+      );
+    }
+
     const subscriptions = data ?? [];
+    const emailDeliveries = deliveries ?? [];
     const digestCounts = Object.entries(DIGEST_LABELS).map(([digestType, label]) => {
       const digestRows = subscriptions.filter((row) => row.digest_type === digestType);
       const activeCount = digestRows.filter((row) => row.is_active).length;
       const inactiveCount = digestRows.length - activeCount;
       const totalCount = digestRows.length;
+      const digestDeliveries = emailDeliveries.filter((row) => row.digest_type === digestType);
+      const emailsSent = digestDeliveries.filter((row) =>
+        ["sent", "delivered", "opened", "clicked"].includes(row.status),
+      ).length;
+      const opened = digestDeliveries.filter((row) =>
+        ["opened", "clicked"].includes(row.status),
+      ).length;
+      const clicked = digestDeliveries.filter((row) => row.status === "clicked").length;
 
       return {
         activeCount,
         digestType,
+        emailsSent,
         inactiveCount,
         label,
+        openRate: emailsSent === 0 ? 0 : Math.round((opened / emailsSent) * 1000) / 10,
+        clickRate: emailsSent === 0 ? 0 : Math.round((clicked / emailsSent) * 1000) / 10,
         totalCount,
         unsubscribeRate:
           totalCount === 0 ? 0 : Math.round((inactiveCount / totalCount) * 1000) / 10,

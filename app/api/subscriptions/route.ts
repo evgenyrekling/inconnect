@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { normalizeEmail } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
@@ -21,6 +22,7 @@ type SubscriptionRow = {
   email: string;
   digest_type: DigestType;
   is_active: boolean | null;
+  unsubscribe_token: string | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
     const normalizedEmail = normalizeEmail(email);
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("id, user_id, email, digest_type, is_active, created_at, updated_at")
+      .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
       .eq("email", normalizedEmail)
       .eq("digest_type", digestType)
       .maybeSingle<SubscriptionRow>();
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
     const { data: existingSubscription, error: lookupError } = await supabase
       .from("subscriptions")
-      .select("id, user_id, email, digest_type, is_active, created_at, updated_at")
+      .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
       .eq("email", normalizedEmail)
       .eq("digest_type", digestType)
       .maybeSingle<SubscriptionRow>();
@@ -142,6 +144,8 @@ export async function POST(request: NextRequest) {
       email: normalizedEmail,
       digest_type: digestType,
       is_active: action === "subscribe",
+      unsubscribe_token: existingSubscription?.unsubscribe_token ?? createUnsubscribeToken(),
+      unsubscribed_at: action === "unsubscribe" ? timestamp : null,
       updated_at: timestamp,
     };
 
@@ -150,7 +154,7 @@ export async function POST(request: NextRequest) {
           .from("subscriptions")
           .update(subscriptionPayload)
           .eq("id", existingSubscription.id)
-          .select("id, user_id, email, digest_type, is_active, created_at, updated_at")
+          .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
           .single<SubscriptionRow>()
       : await supabase
           .from("subscriptions")
@@ -158,7 +162,7 @@ export async function POST(request: NextRequest) {
             ...subscriptionPayload,
             created_at: timestamp,
           })
-          .select("id, user_id, email, digest_type, is_active, created_at, updated_at")
+          .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
           .single<SubscriptionRow>();
 
     if (result.error) {
@@ -218,4 +222,8 @@ function getAdminEmails() {
     .split(",")
     .map((email) => normalizeEmail(email))
     .filter(Boolean);
+}
+
+function createUnsubscribeToken() {
+  return crypto.randomBytes(32).toString("hex");
 }
