@@ -202,6 +202,26 @@ const AIRPORT_FORBIDDEN_KEYWORDS = [
   "career growth",
   "resume",
   "job search",
+  "airport ranking",
+  "airport rankings",
+  "top airport",
+  "top airports",
+  "best airport",
+  "best airports",
+  "top 50 airports",
+  "top 100 airports",
+  "awards",
+  "award winners",
+  "travel ranking",
+  "travel rankings",
+  "tourism",
+  "passenger popularity",
+  "airport statistics",
+  "passenger statistics",
+  "parking",
+  "press release distribution",
+  "einpresswire",
+  "tracking image",
   "app store",
   "play store",
   "generic ai",
@@ -225,6 +245,8 @@ const AIRPORT_GENERIC_SOURCE_PATTERNS = [
   "privacy policy",
   "terms of use",
   "site map",
+  "press release distribution",
+  "tracking image",
 ];
 
 const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
@@ -245,6 +267,29 @@ const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
   "/terms",
 ];
 
+const AIRPORT_WEAK_STORY_PATTERNS = [
+  "airport ranking",
+  "airport rankings",
+  "top airport",
+  "top airports",
+  "top 50 airports",
+  "top 100 airports",
+  "best airport",
+  "best airports",
+  "airport award",
+  "airport awards",
+  "travel ranking",
+  "travel rankings",
+  "tourism",
+  "passenger popularity",
+  "generic airport statistics",
+  "passenger statistics",
+  "airport parking",
+  "parking rates",
+  "travel guide",
+  "destination guide",
+];
+
 const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
   "msn.com",
   "bing.com",
@@ -255,6 +300,10 @@ const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
   "expedia.com",
   "kayak.com",
   "skyscanner.com",
+  "einpresswire.com",
+  "einnews.com",
+  "rrstar.com",
+  "travelandtourworld.com",
 ];
 
 const AIRPORT_RELEVANCE_SIGNALS = [
@@ -308,8 +357,6 @@ const AIRPORT_TECHNOLOGY_SIGNALS = [
 
 const AIRPORT_INITIATIVE_SIGNALS = [
   "announced",
-  "award",
-  "awarded",
   "began",
   "commissioned",
   "contract",
@@ -1639,6 +1686,7 @@ function isAirportRelevantSource(source: BlogResearchSource) {
   return (
     quality.hasAirportSignal &&
     quality.hasTechnologySignal &&
+    quality.hasInitiativeSignal &&
     quality.score >= 5 &&
     !hasForbiddenSignal &&
     !isLinkedInNoise &&
@@ -1796,9 +1844,15 @@ function getAirportSourceRejectionReason(
   if (AIRPORT_AVOIDED_SOURCE_DOMAINS.some((domain) => source.domain.endsWith(domain))) {
     return "avoided generic aggregator or travel domain";
   }
+  if (isWeakAirportStory(source)) {
+    return "ranking, award, tourism, statistics, parking, or weak travel story";
+  }
   if (isGenericAirportSource(source)) return "generic support, homepage, or passenger service page";
   if (!quality.hasAirportSignal) return "missing airport relevance signal";
   if (!quality.hasTechnologySignal) return "missing automation or technology signal";
+  if (!quality.hasInitiativeSignal) {
+    return "missing specific project, deployment, pilot, system, upgrade, or supplier solution";
+  }
   if (quality.score < 5) return `source score below threshold: ${quality.score}`;
   if (!isAirportRelevantSource(source)) return "not airport relevant";
   if (containsForbiddenAirportTopic(`${source.title} ${source.excerpt}`)) {
@@ -1808,6 +1862,11 @@ function getAirportSourceRejectionReason(
   const ageDays = getSourceAgeDays(source);
   if (ageDays !== null && ageDays > 120) return "source older than 120 days";
   return "";
+}
+
+function isWeakAirportStory(source: BlogResearchSource) {
+  const haystack = createAirportSourceHaystack(source);
+  return AIRPORT_WEAK_STORY_PATTERNS.some((pattern) => haystack.includes(pattern));
 }
 
 function isGenericAirportSource(source: BlogResearchSource) {
@@ -1938,6 +1997,12 @@ function getSourceBasedDigestQualityIssues(
   }
   if (!isAirportRelevantSource(story)) issues.push("source is not airport relevant.");
   const sourceQuality = getAirportSourceQuality(story);
+  if (isWeakAirportStory(story)) {
+    issues.push("source is a ranking, award, tourism, statistics, parking, or weak travel story.");
+  }
+  if (!sourceQuality.hasInitiativeSignal) {
+    issues.push("source lacks a specific project, deployment, pilot, system, upgrade, or supplier solution.");
+  }
   if (sourceQuality.score < 5) {
     issues.push(`source score below threshold: ${sourceQuality.score}.`);
   }
