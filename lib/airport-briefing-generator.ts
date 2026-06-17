@@ -270,6 +270,8 @@ const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
 const AIRPORT_WEAK_STORY_PATTERNS = [
   "airport ranking",
   "airport rankings",
+  "ranking",
+  "rankings",
   "top airport",
   "top airports",
   "top 50 airports",
@@ -278,6 +280,9 @@ const AIRPORT_WEAK_STORY_PATTERNS = [
   "best airports",
   "airport award",
   "airport awards",
+  "award",
+  "awards",
+  "passenger satisfaction",
   "travel ranking",
   "travel rankings",
   "tourism",
@@ -288,6 +293,9 @@ const AIRPORT_WEAK_STORY_PATTERNS = [
   "parking rates",
   "travel guide",
   "destination guide",
+  "press-release/story",
+  "press release story",
+  "einpresswire",
 ];
 
 const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
@@ -304,6 +312,28 @@ const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
   "einnews.com",
   "rrstar.com",
   "travelandtourworld.com",
+];
+
+const AIRPORT_HARD_REJECT_URL_PATTERNS = [
+  "top-50-airports",
+  "top-airports",
+  "ranking",
+  "rankings",
+  "award",
+  "awards",
+  "best-airports",
+  "passenger-satisfaction",
+  "tourism",
+  "travel-guide",
+  "press-release/story",
+  "einpresswire",
+  "rrstar.com/press-release",
+];
+
+const AIRPORT_REJECTED_SOURCE_IMAGE_PATTERNS = [
+  "tracking",
+  "article.gif",
+  "einpresswire",
 ];
 
 const AIRPORT_RELEVANCE_SIGNALS = [
@@ -357,26 +387,41 @@ const AIRPORT_TECHNOLOGY_SIGNALS = [
 
 const AIRPORT_INITIATIVE_SIGNALS = [
   "announced",
+  "launches",
+  "launching",
   "began",
   "commissioned",
   "contract",
   "deploy",
+  "deploys",
   "deployed",
   "deployment",
+  "tests",
   "expanded",
+  "expands",
   "implementation",
+  "implements",
   "introduced",
+  "unveils",
   "installed",
+  "installs",
   "launch",
   "launched",
   "pilot",
+  "pilots",
   "project",
   "rollout",
   "selected",
+  "selects",
   "testing",
   "trial",
   "upgrade",
+  "upgrades",
   "upgraded",
+  "partners with",
+  "opens operations center",
+  "opens new operations center",
+  "new operations center",
   "operations center",
   "control center",
   "technology upgrade",
@@ -446,8 +491,6 @@ const AIRPORT_PREFERRED_DOMAINS = [
 
 const AIRPORT_PROJECT_SIGNALS = [
   "announced",
-  "award",
-  "awarded",
   "began",
   "commissioned",
   "contract",
@@ -1393,9 +1436,36 @@ async function findAirportSourceStory(
       );
     });
 
-  const selected = candidates[0];
+  let selected: (typeof candidates)[number] | undefined;
+  let selectedImage: { domain: string; url: string } | null = null;
+  for (const candidate of candidates) {
+    const image = await getSourceImage(candidate.url).catch((error) => {
+      console.warn("INConnect source image lookup failed", {
+        error: error instanceof Error ? error.message : String(error),
+        sourceUrl: candidate.url,
+      });
+      return null;
+    });
+
+    if (image?.url && isRejectedSourceImageUrl(image.url)) {
+      rejectedCandidates.push({
+        missingAirportSignal: false,
+        missingAutomationSignal: false,
+        reason: `rejected source image URL: ${image.url}`,
+        score: candidate.sourceScore,
+        title: candidate.title,
+        url: candidate.url,
+      });
+      continue;
+    }
+
+    selected = candidate;
+    selectedImage = image;
+    break;
+  }
+
   const fallbackUsed = Boolean(selected && selected.category !== plannedCategory);
-  if (fallbackUsed) {
+  if (selected && fallbackUsed) {
     console.info("planned category fallback used", {
       plannedCategory,
       selectedCategory: selected.category,
@@ -1421,24 +1491,16 @@ async function findAirportSourceStory(
   if (!selected) {
     throw new AirportBriefingGenerationError(
       "source_selection",
-      "No strong airport automation source found today",
+      "No strong airport automation story found today",
     );
   }
-
-  const image = await getSourceImage(selected.url).catch((error) => {
-    console.warn("INConnect source image lookup failed", {
-      error: error instanceof Error ? error.message : String(error),
-      sourceUrl: selected.url,
-    });
-    return null;
-  });
 
   const { sourceScore: _sourceScore, ...selectedStory } = selected;
 
   return {
     ...selectedStory,
-    sourceImageDomain: image?.domain,
-    sourceImageUrl: image?.url,
+    sourceImageDomain: selectedImage?.domain,
+    sourceImageUrl: selectedImage?.url,
   };
 }
 
@@ -1841,6 +1903,8 @@ function getAirportSourceRejectionReason(
 ) {
   if (!source.url) return "missing source_url";
   if (!source.title) return "missing source_title";
+  const hardRejectReason = getHardAirportSourceRejectReason(source);
+  if (hardRejectReason) return hardRejectReason;
   if (AIRPORT_AVOIDED_SOURCE_DOMAINS.some((domain) => source.domain.endsWith(domain))) {
     return "avoided generic aggregator or travel domain";
   }
@@ -1862,6 +1926,33 @@ function getAirportSourceRejectionReason(
   const ageDays = getSourceAgeDays(source);
   if (ageDays !== null && ageDays > 120) return "source older than 120 days";
   return "";
+}
+
+function getHardAirportSourceRejectReason(source: BlogResearchSource) {
+  const titleAndExcerpt = `${source.title} ${source.excerpt}`.toLowerCase();
+  const url = source.url.toLowerCase();
+  const matchedTitlePhrase = AIRPORT_WEAK_STORY_PATTERNS.find((pattern) =>
+    titleAndExcerpt.includes(pattern),
+  );
+  if (matchedTitlePhrase) {
+    return `hard rejected weak story phrase: ${matchedTitlePhrase}`;
+  }
+
+  const matchedUrlPhrase = AIRPORT_HARD_REJECT_URL_PATTERNS.find((pattern) =>
+    url.includes(pattern),
+  );
+  if (matchedUrlPhrase) {
+    return `hard rejected URL phrase: ${matchedUrlPhrase}`;
+  }
+
+  return "";
+}
+
+function isRejectedSourceImageUrl(value: string) {
+  const normalizedValue = value.toLowerCase();
+  return AIRPORT_REJECTED_SOURCE_IMAGE_PATTERNS.some((pattern) =>
+    normalizedValue.includes(pattern),
+  );
 }
 
 function isWeakAirportStory(source: BlogResearchSource) {
@@ -1997,6 +2088,13 @@ function getSourceBasedDigestQualityIssues(
   }
   if (!isAirportRelevantSource(story)) issues.push("source is not airport relevant.");
   const sourceQuality = getAirportSourceQuality(story);
+  const hardRejectReason = getHardAirportSourceRejectReason(story);
+  if (hardRejectReason) {
+    issues.push(hardRejectReason);
+  }
+  if (story.sourceImageUrl && isRejectedSourceImageUrl(story.sourceImageUrl)) {
+    issues.push(`source image URL is rejected: ${story.sourceImageUrl}`);
+  }
   if (isWeakAirportStory(story)) {
     issues.push("source is a ranking, award, tourism, statistics, parking, or weak travel story.");
   }
