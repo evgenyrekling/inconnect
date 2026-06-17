@@ -189,6 +189,8 @@ create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id) on delete set null,
   email text not null,
+  normalized_email text,
+  name text,
   digest_type text not null,
   is_active boolean default true,
   unsubscribe_token text,
@@ -210,6 +212,8 @@ create table if not exists public.email_deliveries (
   id uuid primary key default gen_random_uuid(),
   subscription_id uuid references public.subscriptions(id) on delete set null,
   digest_type text not null,
+  content_type text,
+  content_id uuid,
   email text not null,
   briefing_id uuid,
   status text not null default 'sent',
@@ -313,6 +317,8 @@ create index if not exists subscriptions_user_id_idx
   on public.subscriptions (user_id);
 create index if not exists subscriptions_email_idx
   on public.subscriptions (email);
+create index if not exists subscriptions_normalized_email_idx
+  on public.subscriptions (normalized_email);
 create index if not exists subscriptions_digest_type_idx
   on public.subscriptions (digest_type);
 create index if not exists subscriptions_is_active_idx
@@ -326,6 +332,10 @@ create index if not exists email_deliveries_subscription_id_idx
   on public.email_deliveries (subscription_id);
 create index if not exists email_deliveries_digest_type_idx
   on public.email_deliveries (digest_type);
+create index if not exists email_deliveries_content_idx
+  on public.email_deliveries (content_type, content_id);
+create index if not exists email_deliveries_digest_content_email_idx
+  on public.email_deliveries (digest_type, content_type, content_id, email);
 create index if not exists email_deliveries_email_idx
   on public.email_deliveries (email);
 create index if not exists email_deliveries_status_idx

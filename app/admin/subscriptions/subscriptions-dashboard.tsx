@@ -36,7 +36,9 @@ export function AdminSubscriptionsDashboard() {
   const [digestCounts, setDigestCounts] = useState<DigestCount[]>([]);
   const [error, setError] = useState("");
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const [recentSubscriptions, setRecentSubscriptions] = useState<SubscriptionRow[]>([]);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export function AdminSubscriptionsDashboard() {
     }
 
     setError("");
+    setMessage("");
     setIsLoading(true);
     window.localStorage.setItem(ADMIN_EMAIL_STORAGE_KEY, nextEmail.trim());
 
@@ -88,6 +91,50 @@ export function AdminSubscriptionsDashboard() {
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await loadSubscriptions();
+  }
+
+  async function runDigestAction(
+    endpoint: "/api/admin/airport-daily" | "/api/admin/linkedin-daily",
+    action: "send_subscribers" | "send_test",
+    label: string,
+  ) {
+    if (!adminEmail.trim()) {
+      setError("Admin email is required.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setIsActionLoading(true);
+
+    try {
+      const response = await fetch(endpoint, {
+        body: JSON.stringify({
+          action,
+          email: adminEmail.trim(),
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { details?: string; error?: string; failed?: number; sent?: number; title?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.details || payload?.error || `${label} failed.`);
+      }
+
+      setMessage(
+        action === "send_test"
+          ? `${label} test email sent.`
+          : `${label} sent ${payload?.sent ?? 0} emails. Failed: ${payload?.failed ?? 0}.`,
+      );
+      await loadSubscriptions(adminEmail);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : `${label} failed.`);
+    } finally {
+      setIsActionLoading(false);
+    }
   }
 
   return (
@@ -128,6 +175,11 @@ export function AdminSubscriptionsDashboard() {
             {error}
           </p>
         )}
+        {message && (
+          <p className="mt-5 rounded-lg border border-[#057642]/20 bg-[#F1F8F4] px-4 py-3 text-sm font-semibold text-[#057642]">
+            {message}
+          </p>
+        )}
 
         {hasAdminAccess && (
           <>
@@ -165,6 +217,52 @@ export function AdminSubscriptionsDashboard() {
                 </article>
               ))}
             </div>
+
+            <section className="mt-10 rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+              <h2 className="text-2xl font-semibold text-[#191919]">
+                Digest Operations
+              </h2>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <DigestOperationCard
+                  activeCount={getActiveCount(digestCounts, "airport_automation_daily")}
+                  disabled={isActionLoading}
+                  label="Airport Automation Daily"
+                  onSendSubscribers={() =>
+                    runDigestAction(
+                      "/api/admin/airport-daily",
+                      "send_subscribers",
+                      "Airport Automation Daily",
+                    )
+                  }
+                  onSendTest={() =>
+                    runDigestAction(
+                      "/api/admin/airport-daily",
+                      "send_test",
+                      "Airport Automation Daily",
+                    )
+                  }
+                />
+                <DigestOperationCard
+                  activeCount={getActiveCount(digestCounts, "linkedin_daily")}
+                  disabled={isActionLoading}
+                  label="LinkedIn Daily"
+                  onSendSubscribers={() =>
+                    runDigestAction(
+                      "/api/admin/linkedin-daily",
+                      "send_subscribers",
+                      "LinkedIn Daily",
+                    )
+                  }
+                  onSendTest={() =>
+                    runDigestAction(
+                      "/api/admin/linkedin-daily",
+                      "send_test",
+                      "LinkedIn Daily",
+                    )
+                  }
+                />
+              </div>
+            </section>
 
             <section className="mt-10 rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
               <h2 className="text-2xl font-semibold text-[#191919]">
@@ -214,6 +312,51 @@ export function AdminSubscriptionsDashboard() {
       </div>
     </section>
   );
+}
+
+function DigestOperationCard({
+  activeCount,
+  disabled,
+  label,
+  onSendSubscribers,
+  onSendTest,
+}: {
+  activeCount: number;
+  disabled: boolean;
+  label: string;
+  onSendSubscribers: () => void;
+  onSendTest: () => void;
+}) {
+  return (
+    <article className="rounded-lg border border-[#EEF0F3] bg-[#F8FAFC] p-4">
+      <p className="text-sm font-semibold text-[#191919]">{label}</p>
+      <p className="mt-2 text-sm text-[#666666]">
+        {activeCount} active subscribers
+      </p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          className="inline-flex h-10 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2] disabled:cursor-not-allowed disabled:bg-[#D9DDE3]"
+          disabled={disabled}
+          onClick={onSendTest}
+          type="button"
+        >
+          Send Test Email
+        </button>
+        <button
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-[#4A6FD0] px-4 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3]"
+          disabled={disabled}
+          onClick={onSendSubscribers}
+          type="button"
+        >
+          Send Latest to Subscribers
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function getActiveCount(digestCounts: DigestCount[], digestType: string) {
+  return digestCounts.find((digest) => digest.digestType === digestType)?.activeCount ?? 0;
 }
 
 function formatDigest(value: string) {

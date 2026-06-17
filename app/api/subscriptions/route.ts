@@ -20,6 +20,8 @@ type SubscriptionRow = {
   id: string;
   user_id: string | null;
   email: string;
+  normalized_email: string | null;
+  name: string | null;
   digest_type: DigestType;
   is_active: boolean | null;
   unsubscribe_token: string | null;
@@ -56,8 +58,8 @@ export async function GET(request: NextRequest) {
     const normalizedEmail = normalizeEmail(email);
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
-      .eq("email", normalizedEmail)
+      .select("id, user_id, email, normalized_email, name, digest_type, is_active, unsubscribe_token, created_at, updated_at")
+      .eq("normalized_email", normalizedEmail)
       .eq("digest_type", digestType)
       .maybeSingle<SubscriptionRow>();
 
@@ -125,8 +127,8 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
     const { data: existingSubscription, error: lookupError } = await supabase
       .from("subscriptions")
-      .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
-      .eq("email", normalizedEmail)
+      .select("id, user_id, email, normalized_email, name, digest_type, is_active, unsubscribe_token, created_at, updated_at")
+      .eq("normalized_email", normalizedEmail)
       .eq("digest_type", digestType)
       .maybeSingle<SubscriptionRow>();
 
@@ -142,6 +144,8 @@ export async function POST(request: NextRequest) {
     const subscriptionPayload = {
       user_id: user.id,
       email: normalizedEmail,
+      normalized_email: normalizedEmail,
+      name: user.name ?? name,
       digest_type: digestType,
       is_active: action === "subscribe",
       unsubscribe_token: existingSubscription?.unsubscribe_token ?? createUnsubscribeToken(),
@@ -154,7 +158,7 @@ export async function POST(request: NextRequest) {
           .from("subscriptions")
           .update(subscriptionPayload)
           .eq("id", existingSubscription.id)
-          .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
+          .select("id, user_id, email, normalized_email, name, digest_type, is_active, unsubscribe_token, created_at, updated_at")
           .single<SubscriptionRow>()
       : await supabase
           .from("subscriptions")
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
             ...subscriptionPayload,
             created_at: timestamp,
           })
-          .select("id, user_id, email, digest_type, is_active, unsubscribe_token, created_at, updated_at")
+          .select("id, user_id, email, normalized_email, name, digest_type, is_active, unsubscribe_token, created_at, updated_at")
           .single<SubscriptionRow>();
 
     if (result.error) {

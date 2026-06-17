@@ -13,20 +13,27 @@ export async function GET(request: NextRequest) {
   if (process.env.AUTO_SEND_AIRPORT_DAILY !== "true") {
     return NextResponse.json({
       skipped: true,
+      stage: "auto_send_disabled",
       reason: "AUTO_SEND_AIRPORT_DAILY is not true.",
+      success: true,
     });
   }
 
   try {
     const result = await sendLatestAirportDailyEmail({ requireUnsent: true });
     console.info("INConnect airport daily email cron finished", result);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      stage: "complete",
+    });
   } catch (error) {
     console.error("AIRPORT DAILY EMAIL CRON FAILED", error);
     return NextResponse.json(
       {
         error: "Airport daily email cron failed.",
         details: error instanceof Error ? error.message : String(error),
+        stage: "send_airport_daily",
+        success: false,
       },
       { status: 500 },
     );

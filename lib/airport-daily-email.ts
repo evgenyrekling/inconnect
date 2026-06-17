@@ -24,6 +24,7 @@ type SubscriptionRow = {
   email: string;
   digest_type: string;
   is_active: boolean | null;
+  normalized_email?: string | null;
   unsubscribe_token: string | null;
 };
 
@@ -37,6 +38,8 @@ export type AirportDailySendResult = {
   failed: number;
   results: Array<{ email: string; error?: string; status: "failed" | "sent" }>;
   sent: number;
+  skippedDuplicates: number;
+  slug: string;
   subscribers: number;
   success: boolean;
   title: string;
@@ -46,6 +49,12 @@ export async function sendLatestAirportDailyEmail({
   briefingId,
   requireUnsent = true,
 }: SendAirportDailyOptions = {}): Promise<AirportDailySendResult> {
+  console.info("AIRPORT DAILY START", {
+    digest_type: "airport_automation_daily",
+    requireUnsent,
+  });
+  validateAirportDailyEmailEnvironment();
+
   const supabase = getSupabaseAdminClient();
   let briefingQuery = supabase
     .from("airport_briefings")
@@ -77,9 +86,15 @@ export async function sendLatestAirportDailyEmail({
     throw new Error("No published airport briefing found for email delivery.");
   }
 
+  console.info("AIRPORT BRIEFING FOUND", {
+    briefing_id: briefing.id,
+    slug: briefing.slug,
+    title: briefing.title,
+  });
+
   const { data: subscriptions, error: subscriptionsError } = await supabase
     .from("subscriptions")
-    .select("id, email, digest_type, is_active, unsubscribe_token")
+    .select("id, email, normalized_email, digest_type, is_active, unsubscribe_token")
     .eq("digest_type", "airport_automation_daily")
     .eq("is_active", true)
     .returns<SubscriptionRow[]>();
@@ -90,41 +105,86 @@ export async function sendLatestAirportDailyEmail({
   }
 
   const subscribers = subscriptions ?? [];
+  console.info("AIRPORT SUBSCRIBERS FOUND", {
+    digest_type: "airport_automation_daily",
+    subscriber_count: subscribers.length,
+  });
+
   const readUrl = `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`;
   const heroImageUrl = toAbsoluteUrl(briefing.hero_image_url || "/hero-professionals-collage.png");
   const results: AirportDailySendResult["results"] = [];
+  let skippedDuplicates = 0;
 
   for (const subscription of subscribers) {
+    const recipientEmail = normalizeEmail(subscription.normalized_email || subscription.email);
+    if (!recipientEmail) {
+      results.push({
+        email: subscription.email,
+        error: "Subscriber email is empty.",
+        status: "failed",
+      });
+      continue;
+    }
+
+    const alreadySent = await hasSuccessfulAirportDelivery(supabase, {
+      briefingId: briefing.id,
+      email: recipientEmail,
+    });
+    if (alreadySent) {
+      skippedDuplicates += 1;
+      console.info("AIRPORT EMAIL SEND SKIPPED DUPLICATE", {
+        briefing_id: briefing.id,
+        digest_type: "airport_automation_daily",
+        recipient: recipientEmail,
+      });
+      continue;
+    }
+
     const unsubscribeToken =
       subscription.unsubscribe_token ||
       (await ensureUnsubscribeToken(supabase, subscription.id));
     const unsubscribeUrl = `${SITE_URL}/unsubscribe?token=${unsubscribeToken}`;
 
     try {
+      console.info("AIRPORT EMAIL SEND START", {
+        briefing_id: briefing.id,
+        digest_type: "airport_automation_daily",
+        recipient: recipientEmail,
+        slug: briefing.slug,
+      });
+
       const resendResult = await sendAirportDailyEmail({
         briefingText: createEmailBriefingText(briefing),
         heroImageUrl,
         readUrl,
         sourceUrl: briefing.source_url ?? undefined,
         title: briefing.title,
-        to: subscription.email,
+        to: recipientEmail,
         unsubscribeUrl,
       });
 
       await logEmailDelivery(supabase, {
         briefingId: briefing.id,
         digestType: "airport_automation_daily",
-        email: subscription.email,
+        email: recipientEmail,
         resendEmailId: resendResult.id,
         status: "sent",
         subscriptionId: subscription.id,
       });
 
-      results.push({ email: subscription.email, status: "sent" });
+      console.info("AIRPORT EMAIL SEND SUCCESS", {
+        briefing_id: briefing.id,
+        recipient: recipientEmail,
+        resendMessageId: resendResult.id,
+      });
+
+      results.push({ email: recipientEmail, status: "sent" });
     } catch (sendError) {
       const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
-      console.error("AIRPORT DAILY EMAIL SEND ERROR", {
-        email: subscription.email,
+      console.error("AIRPORT EMAIL SEND FAILURE", {
+        briefing_id: briefing.id,
+        digest_type: "airport_automation_daily",
+        email: recipientEmail,
         error: errorMessage,
         subscriptionId: subscription.id,
       });
@@ -132,20 +192,20 @@ export async function sendLatestAirportDailyEmail({
       await logEmailDelivery(supabase, {
         briefingId: briefing.id,
         digestType: "airport_automation_daily",
-        email: subscription.email,
+        email: recipientEmail,
         errorMessage,
         status: "failed",
         subscriptionId: subscription.id,
       });
 
-      results.push({ email: subscription.email, error: errorMessage, status: "failed" });
+      results.push({ email: recipientEmail, error: errorMessage, status: "failed" });
     }
   }
 
   const sent = results.filter((result) => result.status === "sent").length;
   const failed = results.length - sent;
 
-  if (sent > 0 && failed === 0) {
+  if ((sent > 0 || skippedDuplicates === subscribers.length) && failed === 0) {
     const { error: sentAtError } = await supabase
       .from("airport_briefings")
       .update({ sent_at: new Date().toISOString() })
@@ -155,15 +215,26 @@ export async function sendLatestAirportDailyEmail({
     }
   }
 
-  return {
+  const result = {
     briefingId: briefing.id,
     failed,
     results,
     sent,
+    skippedDuplicates,
+    slug: briefing.slug,
     subscribers: subscribers.length,
     success: failed === 0,
     title: briefing.title,
   };
+  console.info("AIRPORT DAILY COMPLETE", {
+    briefing_id: result.briefingId,
+    failed: result.failed,
+    sent: result.sent,
+    skippedDuplicates: result.skippedDuplicates,
+    slug: result.slug,
+    subscriber_count: result.subscribers,
+  });
+  return result;
 }
 
 export async function sendAirportDailyTestEmail({
@@ -173,6 +244,7 @@ export async function sendAirportDailyTestEmail({
   briefingId?: string;
   to: string;
 }) {
+  validateAirportDailyEmailEnvironment();
   const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("airport_briefings")
@@ -195,15 +267,34 @@ export async function sendAirportDailyTestEmail({
   if (error) throw new Error(error.message);
   if (!briefing) throw new Error("No published airport briefing found for test email.");
 
-  return sendAirportDailyEmail({
+  console.info("AIRPORT EMAIL SEND START", {
+    briefing_id: briefing.id,
+    digest_type: "airport_automation_daily",
+    recipient: normalizeEmail(to),
+    slug: briefing.slug,
+    test: true,
+  });
+
+  const result = await sendAirportDailyEmail({
     briefingText: createEmailBriefingText(briefing),
     heroImageUrl: toAbsoluteUrl(briefing.hero_image_url || "/hero-professionals-collage.png"),
     readUrl: `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`,
     sourceUrl: briefing.source_url ?? undefined,
-    subject: `INConnect Airport Daily Test | ${briefing.title}`,
     title: briefing.title,
-    to,
+    to: normalizeEmail(to),
   });
+
+  console.info("AIRPORT EMAIL SEND SUCCESS", {
+    briefing_id: briefing.id,
+    recipient: normalizeEmail(to),
+    resendMessageId: result.id,
+    test: true,
+  });
+
+  return {
+    ...result,
+    briefing,
+  };
 }
 
 async function logEmailDelivery(
@@ -220,8 +311,10 @@ async function logEmailDelivery(
 ) {
   const { error } = await supabase.from("email_deliveries").insert({
     briefing_id: values.briefingId,
+    content_id: values.briefingId,
+    content_type: "airport_automation_daily",
     digest_type: values.digestType,
-    email: values.email,
+    email: normalizeEmail(values.email),
     error_message: values.errorMessage ?? null,
     resend_email_id: values.resendEmailId ?? null,
     sent_at: new Date().toISOString(),
@@ -237,6 +330,42 @@ async function logEmailDelivery(
       subscriptionId: values.subscriptionId,
     });
   }
+}
+
+async function hasSuccessfulAirportDelivery(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  values: {
+    briefingId: string;
+    email: string;
+  },
+) {
+  const { data, error } = await supabase
+    .from("email_deliveries")
+    .select("id")
+    .eq("digest_type", "airport_automation_daily")
+    .eq("content_type", "airport_automation_daily")
+    .eq("content_id", values.briefingId)
+    .eq("email", normalizeEmail(values.email))
+    .in("status", ["sent", "delivered", "opened", "clicked"])
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    if ((error as { code?: string }).code === "42703") {
+      console.warn("AIRPORT DAILY DUPLICATE CHECK SKIPPED", {
+        reason: "email_deliveries content columns are missing",
+      });
+      return false;
+    }
+    console.error("AIRPORT DAILY DUPLICATE CHECK ERROR", {
+      briefing_id: values.briefingId,
+      email: normalizeEmail(values.email),
+      error,
+    });
+    return false;
+  }
+
+  return Boolean(data);
 }
 
 function createEmailBriefingText(briefing: AirportBriefingRow) {
@@ -273,4 +402,24 @@ async function ensureUnsubscribeToken(
 function toAbsoluteUrl(value: string) {
   if (/^https?:\/\//i.test(value)) return value;
   return `${SITE_URL}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function validateAirportDailyEmailEnvironment() {
+  const hasResendKey = Boolean(process.env.RESEND_API_KEY);
+  const emailFrom = process.env.EMAIL_FROM || "daily@in-connect.app";
+  const emailReplyTo = process.env.EMAIL_REPLY_TO || "evgeny.rekling@gmail.com";
+
+  console.info("AIRPORT DAILY EMAIL ENVIRONMENT", {
+    emailFrom,
+    emailReplyTo,
+    hasResendKey,
+  });
+
+  if (!hasResendKey) {
+    throw new Error("RESEND_API_KEY is not configured.");
+  }
 }
