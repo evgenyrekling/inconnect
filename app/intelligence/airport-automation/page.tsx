@@ -110,9 +110,21 @@ function AirportBriefingCard({
       </div>
       <div className={classNames(featured ? "mt-5 lg:mt-0" : "mt-5")}>
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#057642]">
+          {briefing.category && (
+            <>
+              <span>{briefing.category}</span>
+              <span>&middot;</span>
+            </>
+          )}
           <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
           <span>&middot;</span>
           <span>1 Minute Read</span>
+          {briefing.sourceName && (
+            <>
+              <span>&middot;</span>
+              <span>{briefing.sourceName}</span>
+            </>
+          )}
         </div>
         <h2 className="mt-4 text-xl font-semibold leading-snug text-[#191919]">
           <Link

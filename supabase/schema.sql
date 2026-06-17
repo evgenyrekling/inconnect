@@ -152,12 +152,23 @@ create table if not exists public.airport_briefings (
   content text,
   hero_image_url text,
   hero_image_prompt text,
+  source_name text,
+  source_url text,
+  source_domain text,
+  source_image_url text,
+  source_image_domain text,
+  image_attribution text,
   research_sources jsonb default '[]'::jsonb,
   research_summary text,
+  summary text,
+  inconnect_view text,
+  reading_time text default '1 Minute Read',
+  is_source_based boolean default true,
   seo_title text,
   seo_description text,
   published boolean default true,
   published_at timestamptz,
+  sent_at timestamptz,
   generated_at timestamptz default now(),
   created_at timestamptz default now()
 );
@@ -286,6 +297,12 @@ create unique index if not exists airport_briefings_slug_idx
   on public.airport_briefings (slug);
 create index if not exists airport_briefings_published_generated_at_idx
   on public.airport_briefings (published, generated_at desc);
+create index if not exists airport_briefings_source_url_idx
+  on public.airport_briefings (source_url);
+create index if not exists airport_briefings_sent_at_idx
+  on public.airport_briefings (sent_at);
+create index if not exists airport_briefings_is_source_based_idx
+  on public.airport_briefings (is_source_based);
 create index if not exists intelligence_subscriptions_email_idx
   on public.intelligence_subscriptions (email);
 create index if not exists intelligence_subscriptions_user_key_idx

@@ -10,6 +10,9 @@ export type AirportBriefing = {
   heroImagePrompt?: string;
   heroImageUrl: string;
   id?: string;
+  imageAttribution?: string;
+  inconnectView?: string;
+  isSourceBased?: boolean;
   keywords?: string[];
   published?: boolean;
   publishedAt?: string;
@@ -19,6 +22,12 @@ export type AirportBriefing = {
   seoDescription: string;
   seoTitle: string;
   slug: string;
+  sourceDomain?: string;
+  sourceImageDomain?: string;
+  sourceImageUrl?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  summary?: string;
   title: string;
 };
 
@@ -32,10 +41,19 @@ type AirportBriefingRow = {
   content: string;
   hero_image_url: string | null;
   hero_image_prompt: string | null;
+  source_name: string | null;
+  source_url: string | null;
+  source_domain: string | null;
+  source_image_url: string | null;
+  source_image_domain: string | null;
+  image_attribution: string | null;
   keywords: string[] | null;
   reading_time: string | null;
   research_sources: unknown[] | null;
   research_summary: string | null;
+  summary: string | null;
+  inconnect_view: string | null;
+  is_source_based: boolean | null;
   seo_title: string | null;
   seo_description: string | null;
   published: boolean;
@@ -49,10 +67,19 @@ type AirportBriefingLegacyRow = Omit<
   | "airport_name"
   | "category"
   | "keywords"
+  | "image_attribution"
+  | "inconnect_view"
+  | "is_source_based"
   | "published_at"
   | "reading_time"
   | "research_sources"
   | "research_summary"
+  | "source_domain"
+  | "source_image_domain"
+  | "source_image_url"
+  | "source_name"
+  | "source_url"
+  | "summary"
 >;
 
 const DEFAULT_AIRPORT_HERO_IMAGE_URL = "/hero-professionals-collage.png";
@@ -87,7 +114,7 @@ export async function getPublishedAirportBriefings(limit?: number) {
     let query = supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, keywords, reading_time, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
+        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, source_name, source_url, source_domain, source_image_url, source_image_domain, image_attribution, keywords, reading_time, research_sources, research_summary, summary, inconnect_view, is_source_based, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("published", true)
       .order("published_at", { ascending: false, nullsFirst: false })
@@ -124,7 +151,7 @@ export async function getPublishedAirportBriefingBySlug(slug: string) {
     const { data, error } = await supabase
       .from("airport_briefings")
       .select(
-        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, keywords, reading_time, research_sources, research_summary, seo_title, seo_description, published, published_at, generated_at, created_at",
+        "id, slug, title, category, airport_name, excerpt, content, hero_image_url, hero_image_prompt, source_name, source_url, source_domain, source_image_url, source_image_domain, image_attribution, keywords, reading_time, research_sources, research_summary, summary, inconnect_view, is_source_based, seo_title, seo_description, published, published_at, generated_at, created_at",
       )
       .eq("slug", slug)
       .eq("published", true)
@@ -234,6 +261,9 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
     heroImagePrompt: row.hero_image_prompt ?? undefined,
     heroImageUrl: row.hero_image_url || DEFAULT_AIRPORT_HERO_IMAGE_URL,
     id: row.id,
+    imageAttribution: row.image_attribution ?? undefined,
+    inconnectView: row.inconnect_view ?? undefined,
+    isSourceBased: row.is_source_based ?? undefined,
     keywords: row.keywords ?? undefined,
     published: row.published,
     publishedAt: row.published_at ?? undefined,
@@ -243,6 +273,12 @@ function mapAirportBriefingRow(row: AirportBriefingRow): AirportBriefing {
     seoDescription: row.seo_description || row.excerpt,
     seoTitle: row.seo_title || `${row.title} | Airport Automation Daily`,
     slug: row.slug,
+    sourceDomain: row.source_domain ?? undefined,
+    sourceImageDomain: row.source_image_domain ?? undefined,
+    sourceImageUrl: row.source_image_url ?? undefined,
+    sourceName: row.source_name ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    summary: row.summary ?? undefined,
     title: row.title,
   };
 }
@@ -252,11 +288,20 @@ function mapAirportBriefingLegacyRow(row: AirportBriefingLegacyRow): AirportBrie
     ...row,
     airport_name: null,
     category: null,
+    image_attribution: null,
+    inconnect_view: null,
+    is_source_based: null,
     keywords: null,
     published_at: null,
     reading_time: null,
     research_sources: null,
     research_summary: null,
+    source_domain: null,
+    source_image_domain: null,
+    source_image_url: null,
+    source_name: null,
+    source_url: null,
+    summary: null,
   });
 }
 

@@ -80,7 +80,9 @@ export default async function AirportBriefingPage({
 
   if (!briefing) notFound();
 
-  const displayContent = formatAirportPostForDisplay(briefing.content);
+  const displayContent = briefing.isSourceBased
+    ? createSourceBasedDisplayContent(briefing)
+    : formatAirportPostForDisplay(briefing.content);
   const relatedBriefings = selectRelatedBriefings(
     briefing,
     await getPublishedAirportBriefings(),
@@ -131,6 +133,12 @@ export default async function AirportBriefingPage({
             <span>{formatAirportBriefingDate(briefing.generatedAt)}</span>
             <span>&middot;</span>
             <span>1 Minute Read</span>
+            {briefing.sourceName && (
+              <>
+                <span>&middot;</span>
+                <span>{briefing.sourceName}</span>
+              </>
+            )}
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img
@@ -139,9 +147,21 @@ export default async function AirportBriefingPage({
               src={briefing.heroImageUrl}
             />
           </div>
-          <p className="mt-8 text-lg leading-8 text-[#444444]">
-            {briefing.excerpt}
-          </p>
+          {!briefing.isSourceBased && (
+            <p className="mt-8 text-lg leading-8 text-[#444444]">
+              {briefing.excerpt}
+            </p>
+          )}
+          {briefing.isSourceBased && briefing.sourceName && (
+            <p className="mt-8 text-sm font-semibold text-[#666666]">
+              Source-based INConnect digest from {briefing.sourceName}
+            </p>
+          )}
+          {briefing.imageAttribution && (
+            <p className="mt-3 text-xs leading-5 text-[#666666]">
+              {briefing.imageAttribution}
+            </p>
+          )}
         </div>
       </article>
 
@@ -149,6 +169,24 @@ export default async function AirportBriefingPage({
         <div className="mx-auto max-w-3xl">
           <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_12px_30px_rgba(10,25,47,0.06)] sm:p-8">
             <AirportBriefingBody content={displayContent} />
+            {briefing.sourceUrl && (
+              <div className="mt-8 flex flex-col gap-3 border-t border-[#D9DDE3] pt-6 sm:flex-row">
+                <a
+                  className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8]"
+                  href={briefing.sourceUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Read Full Story
+                </a>
+                <Link
+                  className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2]"
+                  href={`/intelligence/airport-automation/${briefing.slug}`}
+                >
+                  Read on INConnect
+                </Link>
+              </div>
+            )}
           </div>
           <DigestSubscriptionCard
             description="Get each new Airport Automation Daily briefing in your inbox."
@@ -176,6 +214,18 @@ function formatAirportPostForDisplay(content: string) {
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function createSourceBasedDisplayContent(briefing: AirportBriefing) {
+  return [
+    "## Summary",
+    "",
+    briefing.summary || briefing.excerpt,
+    "",
+    "## INConnect View",
+    "",
+    briefing.inconnectView || "",
+  ].join("\n").trim();
 }
 
 function selectRelatedBriefings(currentBriefing: AirportBriefing, briefings: AirportBriefing[]) {
@@ -236,15 +286,21 @@ function AirportBriefingBody({ content }: { content: string }) {
   return (
     <div className="space-y-7">
       {blocks.map((block, index) => (
-        <p
-          className={classNames(
-            "text-[1.03rem] leading-8 text-[#3F3F3F]",
-            index === 0 && "text-lg leading-8 text-[#2B2B2B]",
-          )}
-          key={block}
-        >
-          <FormattedAirportText text={block} />
-        </p>
+        block.startsWith("## ") ? (
+          <h2 className="text-xl font-semibold text-[#191919]" key={block}>
+            {block.replace(/^##\s+/, "")}
+          </h2>
+        ) : (
+          <p
+            className={classNames(
+              "text-[1.03rem] leading-8 text-[#3F3F3F]",
+              index === 0 && "text-lg leading-8 text-[#2B2B2B]",
+            )}
+            key={block}
+          >
+            <FormattedAirportText text={block} />
+          </p>
+        )
       ))}
     </div>
   );

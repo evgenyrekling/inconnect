@@ -14,6 +14,15 @@ type GeneratedAirportBriefing = {
   title: string;
 };
 
+type SourceBasedAirportDigest = {
+  category: string;
+  inconnectView: string;
+  seoDescription: string;
+  slug: string;
+  summary: string;
+  title: string;
+};
+
 type ExistingAirportBriefing = {
   airport_name: string | null;
   category: string | null;
@@ -36,6 +45,13 @@ type StoredAirportBriefing = {
   created_at: string;
   hero_image_url: string | null;
   published_at: string | null;
+};
+
+type AirportSourceStory = BlogResearchSource & {
+  category: string;
+  sourceImageDomain?: string;
+  sourceImageUrl?: string;
+  sourceName: string;
 };
 
 type AirportHeroImageResult = {
@@ -138,6 +154,18 @@ const AIRPORT_ALLOWED_KEYWORDS = [
   "vision systems",
   "airport sensors",
   "airport logistics",
+  "airside operations",
+  "ground handling",
+  "ground support",
+  "gse",
+  "aircraft turnaround",
+  "cargo automation",
+  "uld",
+  "digital airport",
+  "digital twin",
+  "airport security",
+  "security screening",
+  "smart infrastructure",
   "sita",
   "vanderlande",
   "beumer",
@@ -147,6 +175,20 @@ const AIRPORT_ALLOWED_KEYWORDS = [
   "adb safegate",
   "amadeus",
   "collins aerospace",
+  "sick",
+  "leidos",
+  "smiths detection",
+  "idemia",
+  "thales",
+  "siemens logistics",
+  "changi",
+  "fraport",
+  "heathrow",
+  "schiphol",
+  "incheon",
+  "dubai airports",
+  "munich airport",
+  "hong kong international airport",
 ];
 
 const AIRPORT_FORBIDDEN_KEYWORDS = [
@@ -183,6 +225,28 @@ const AIRPORT_PREFERRED_DOMAINS = [
   "materna-ips.com",
   "assaia.com",
   "adbsafegate.com",
+  "airport-world.com",
+  "changiairport.com",
+  "fraport.com",
+  "heathrow.com",
+  "schiphol.nl",
+  "airport.kr",
+  "dubaiairports.ae",
+  "munich-airport.com",
+  "hongkongairport.com",
+  "jal.com",
+  "lufthansa.com",
+  "singaporeair.com",
+  "emirates.com",
+  "delta.com",
+  "united.com",
+  "qatarairways.com",
+  "siemens-logistics.com",
+  "sick.com",
+  "leidos.com",
+  "smithsdetection.com",
+  "thalesgroup.com",
+  "idemia.com",
 ];
 
 const AIRPORT_PROJECT_SIGNALS = [
@@ -233,6 +297,17 @@ const AIRPORT_PLAYER_SIGNALS = [
   "smiths detection",
   "idemia",
   "thales",
+  "siemens logistics",
+  "sick",
+  "leidos",
+  "changi",
+  "fraport",
+  "heathrow",
+  "schiphol",
+  "incheon",
+  "dubai airports",
+  "munich airport",
+  "hong kong international airport",
   "nec",
 ];
 
@@ -520,6 +595,27 @@ const airportBriefingSchema = {
   },
 } as const;
 
+const sourceBasedAirportDigestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "title",
+    "slug",
+    "category",
+    "summary",
+    "inconnectView",
+    "seoDescription",
+  ],
+  properties: {
+    title: { type: "string" },
+    slug: { type: "string" },
+    category: { type: "string" },
+    summary: { type: "string" },
+    inconnectView: { type: "string" },
+    seoDescription: { type: "string" },
+  },
+} as const;
+
 const airportBriefingExpansionSchema = {
   type: "object",
   additionalProperties: false,
@@ -552,141 +648,150 @@ export async function generateAndStoreAirportBriefing(options?: {
   const existingBriefings = await getExistingAirportBriefings(supabase);
   const topicHistory = await getAirportTopicHistory(supabase);
 
-  let research: BlogResearchResult;
+  return generateAndStoreSourceBasedAirportDigest({
+    existingBriefings,
+    source,
+    supabase,
+    topicHistory,
+  });
+}
+
+async function generateAndStoreSourceBasedAirportDigest({
+  existingBriefings,
+  source,
+  supabase,
+  topicHistory,
+}: {
+  existingBriefings: ExistingAirportBriefing[];
+  source: "admin-manual" | "cron";
+  supabase: ReturnType<typeof getSupabaseAdminClient>;
+  topicHistory: AirportTopicHistoryRow[];
+}) {
+  let story: AirportSourceStory;
   try {
-    research = await researchAirportAutomationTopic(existingBriefings, topicHistory);
-    const topicSelection = getAirportTopicSelection(research);
-    console.info("INConnect airport post topic selected", {
-      noveltyScore: topicSelection.noveltyScore,
-      rejectedCategories: topicSelection.rejectedCategories,
-      selectedCategory: topicSelection.category,
-      selectedTopic: topicSelection.topic,
-      sourceUrl: research.researchSources[0]?.url ?? null,
-      sourceCount: research.researchSources.length,
+    story = await findAirportSourceStory(existingBriefings, topicHistory);
+    console.info("INConnect source-based airport story selected", {
+      category: story.category,
+      sourceImageUrl: story.sourceImageUrl ?? null,
+      sourceName: story.sourceName,
+      sourceUrl: story.url,
+      title: story.title,
     });
   } catch (error) {
-    console.error("INConnect airport briefing web research failure", {
+    console.error("INConnect source-based airport story selection failed", {
       error: error instanceof Error ? error.message : String(error),
-      rawError: error,
     });
-    throw toAirportBriefingError("web_research", error);
+    throw toAirportBriefingError("source_selection", error);
   }
 
-  let generatedBriefing: GeneratedAirportBriefing;
+  let digest: SourceBasedAirportDigest;
   try {
-    generatedBriefing = await generateAirportBriefingWithTitleValidation(research);
-    console.info("INConnect OpenAI airport briefing generation success", {
-      sourceCount: research.researchSources.length,
-      title: generatedBriefing.title,
-    });
+    digest = await generateSourceBasedAirportDigest(story);
   } catch (error) {
-    console.error("INConnect OpenAI airport briefing generation failure", {
+    console.error("INConnect source-based airport digest generation failed", {
       error: error instanceof Error ? error.message : String(error),
-      rawError: error,
+      sourceUrl: story.url,
     });
     throw toAirportBriefingError("openai_generation", error);
   }
 
-  const title = ensureUniqueTitle(
-    normalizeAirportBriefingTitle(
-      cleanText(generatedBriefing.title || createDefaultAirportTitle(), 180),
-    ),
-    existingBriefings,
-  );
-  const slug = ensureUniqueSlug(generatedBriefing.slug || title, existingBriefings);
-  const { content, initialWordCount, quality } = await prepareQualityCheckedAirportContent({
-    generatedBriefing,
-    research,
-    title,
-  });
-    console.info("INConnect airport post final content ready", {
-    category: generatedBriefing.category,
-    finalWordCount: quality.wordCount,
-    initialWordCount,
-    keywords: generatedBriefing.keywords,
-    selectedTopic: title,
-    sourceUrl: research.researchSources[0]?.url ?? null,
-  });
-  const heroImage = await generateAndUploadAirportHeroImage({
-    recentBriefings: existingBriefings.slice(0, 10),
-    slug,
-    supabase,
-    title,
-  });
+  const qualityIssues = getSourceBasedDigestQualityIssues(digest, story, existingBriefings);
+  if (qualityIssues.length > 0) {
+    console.error("INConnect source-based airport digest quality failure", {
+      issues: qualityIssues,
+      sourceUrl: story.url,
+      title: digest.title,
+    });
+    throw new AirportBriefingGenerationError(
+      "quality_check",
+      `Airport source digest failed quality checks: ${qualityIssues.join(" ")}`,
+    );
+  }
+
+  const title = cleanText(digest.title, 180);
+  const slug = ensureUniqueSlug(digest.slug || title, existingBriefings);
+  const sourceImageUrl = story.sourceImageUrl || DEFAULT_AIRPORT_HERO_IMAGE_URL;
   const now = new Date().toISOString();
+  const content = [`## Summary`, "", digest.summary, "", "## INConnect View", "", digest.inconnectView].join("\n");
   const payload = {
     slug,
     title,
-    airport_name: cleanText(generatedBriefing.airportName || "", 160) || null,
-    category: normalizeAirportCategory(generatedBriefing.category),
-    excerpt: cleanText(generatedBriefing.excerpt, 360),
+    airport_name: null,
+    category: normalizeAirportCategory(digest.category || story.category),
+    excerpt: cleanText(digest.summary, 360),
     content,
-    hero_image_url: heroImage.url,
-    hero_image_prompt: heroImage.prompt,
-    keywords: normalizeAirportKeywords(generatedBriefing.keywords),
-    research_sources: research.researchSources,
-    research_summary: research.researchSummary,
+    hero_image_url: sourceImageUrl,
+    hero_image_prompt: null,
+    source_name: story.sourceName,
+    source_url: story.url,
+    source_domain: story.domain,
+    source_image_url: story.sourceImageUrl ?? null,
+    source_image_domain: story.sourceImageDomain ?? null,
+    image_attribution: story.sourceImageUrl
+      ? `Image preview from ${story.sourceName}`
+      : "INConnect default airport automation image",
+    summary: digest.summary,
+    inconnect_view: digest.inconnectView,
+    keywords: normalizeAirportKeywords([story.category, story.sourceName, ...story.title.split(/\s+/)]),
+    research_sources: [story],
+    research_summary: `Source-based digest from ${story.sourceName}: ${story.title}`,
     reading_time: "1 Minute Read",
+    is_source_based: true,
     seo_title: cleanText(`${title} | Airport Automation Daily`, 180),
-    seo_description: cleanText(
-      generatedBriefing.seoDescription || generatedBriefing.excerpt,
-      320,
-    ),
+    seo_description: cleanText(digest.seoDescription || digest.summary, 320),
     published: true,
     published_at: now,
     generated_at: now,
     created_at: now,
   };
 
-  console.info("INConnect airport_briefings insert payload", {
-    ...payload,
-    content: `${payload.content.slice(0, 220)}...`,
-    quality,
+  console.info("INConnect source-based airport_briefings insert payload", {
+    category: payload.category,
+    sourceName: story.sourceName,
+    sourceUrl: story.url,
+    title,
   });
 
-  const { data, error } = await insertAirportBriefingWithSchemaFallback(
-    supabase,
-    payload,
-  );
+  const { data, error } = await insertAirportBriefingWithSchemaFallback(supabase, payload);
 
   if (error) {
-    console.error("INConnect Supabase airport_briefings insert failure", {
+    console.error("Inconnect source-based airport briefing insert failure", {
       error,
       exactError: error.message,
-      slug,
+      sourceUrl: story.url,
       title,
     });
     throw new AirportBriefingGenerationError(
       "supabase_insert",
-      error.message || "Airport briefing insert failed.",
+      error.message || "Airport source digest insert failed.",
     );
   }
 
   if (!data) {
     throw new AirportBriefingGenerationError(
       "supabase_insert",
-      "Airport briefing insert did not return a stored briefing.",
+      "Airport source digest insert did not return a stored briefing.",
     );
   }
 
-  console.info("INConnect Supabase airport_briefings insert success", {
-    finalWordCount: quality.wordCount,
-    heroImageUrl: data.hero_image_url,
-    id: data.id,
-    publishedAt: data.published_at,
-    published: data.published,
-    publishStatus: "published",
-    slug: data.slug,
-    sourceUrl: research.researchSources[0]?.url ?? null,
+  await saveAirportTopicHistory(supabase, {
+    airportName: "",
+    category: payload.category,
+    keywords: payload.keywords,
+    publishedAt: data.published_at ?? data.generated_at ?? data.created_at,
+    research: {
+      articleAngle: story.title,
+      researchSources: [story],
+      researchSummary: payload.research_summary,
+    } as BlogResearchResult,
+    title,
   });
 
-  await saveAirportTopicHistory(supabase, {
-    airportName: generatedBriefing.airportName,
-    category: generatedBriefing.category,
-    keywords: generatedBriefing.keywords,
-    publishedAt: data.published_at ?? data.generated_at ?? data.created_at,
-    research,
-    title,
+  console.info("INConnect source-based airport digest stored", {
+    id: data.id,
+    source,
+    sourceUrl: story.url,
+    title: data.title,
   });
 
   return {
@@ -891,6 +996,16 @@ async function insertAirportBriefingWithSchemaFallback(
   const fallbackPayload = { ...payload };
   delete fallbackPayload.research_sources;
   delete fallbackPayload.research_summary;
+  delete fallbackPayload.source_name;
+  delete fallbackPayload.source_url;
+  delete fallbackPayload.source_domain;
+  delete fallbackPayload.source_image_url;
+  delete fallbackPayload.source_image_domain;
+  delete fallbackPayload.image_attribution;
+  delete fallbackPayload.summary;
+  delete fallbackPayload.inconnect_view;
+  delete fallbackPayload.is_source_based;
+  delete fallbackPayload.sent_at;
   delete fallbackPayload.published_at;
   delete fallbackPayload.airport_name;
   delete fallbackPayload.category;
@@ -990,6 +1105,164 @@ async function researchAirportAutomationTopic(
     researchSources: selectedSources,
     researchSummary,
   } as BlogResearchResult;
+}
+
+async function findAirportSourceStory(
+  existingBriefings: ExistingAirportBriefing[],
+  topicHistory: AirportTopicHistoryRow[],
+): Promise<AirportSourceStory> {
+  console.info("INConnect source-based airport research started", {
+    plannedCategory: getPlannedAirportDigestCategory(),
+  });
+
+  const currentYear = new Date().getUTCFullYear();
+  const plannedCategory = getPlannedAirportDigestCategory();
+  const queries = [
+    ...getSourceQueriesForCategory(plannedCategory),
+    ...AIRPORT_RESEARCH_QUERIES,
+  ];
+  const discoveredSources: BlogResearchSource[] = [];
+
+  for (const baseQuery of queries) {
+    const query = `${baseQuery} ${currentYear}`;
+    const sources = await searchAirportResearchSources(query).catch((error) => {
+      console.warn("INConnect airport source query failed", {
+        error: error instanceof Error ? error.message : String(error),
+        query,
+      });
+      return [];
+    });
+    addUniqueAirportSources(discoveredSources, sources);
+    if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 6) break;
+  }
+
+  const recentText = [
+    ...existingBriefings.slice(0, 30).map((briefing) => briefing.title ?? ""),
+    ...topicHistory.slice(0, 30).map((entry) => `${entry.title ?? ""} ${entry.topic ?? ""}`),
+  ].join(" ");
+  const rejectedCandidates: Array<{ reason: string; title: string; url: string }> = [];
+  const candidates = discoveredSources
+    .filter((source) => {
+      const reason = getAirportSourceRejectionReason(source, recentText);
+      if (reason) {
+        rejectedCandidates.push({ reason, title: source.title, url: source.url });
+        return false;
+      }
+      return true;
+    })
+    .map((source) => ({
+      ...source,
+      category: detectAirportTopicCategory(`${source.title} ${source.excerpt}`) || plannedCategory,
+      sourceName: getSourceName(source),
+    }))
+    .sort((left, right) => {
+      const leftPlannedBoost = left.category === plannedCategory ? 35 : 0;
+      const rightPlannedBoost = right.category === plannedCategory ? 35 : 0;
+      return (
+        getAirportSourceScore(right, recentText.toLowerCase()) +
+        rightPlannedBoost -
+        (getAirportSourceScore(left, recentText.toLowerCase()) + leftPlannedBoost)
+      );
+    });
+
+  const selected = candidates[0];
+  console.info("INConnect source-based airport research candidates", {
+    candidateCount: candidates.length,
+    plannedCategory,
+    rejectedCandidates: rejectedCandidates.slice(0, 10),
+    selectedSource: selected
+      ? { category: selected.category, title: selected.title, url: selected.url }
+      : null,
+  });
+
+  if (!selected) {
+    throw new Error("No fresh trusted airport automation source story was found.");
+  }
+
+  const image = await getSourceImage(selected.url).catch((error) => {
+    console.warn("INConnect source image lookup failed", {
+      error: error instanceof Error ? error.message : String(error),
+      sourceUrl: selected.url,
+    });
+    return null;
+  });
+
+  return {
+    ...selected,
+    sourceImageDomain: image?.domain,
+    sourceImageUrl: image?.url,
+  };
+}
+
+async function generateSourceBasedAirportDigest(
+  story: AirportSourceStory,
+): Promise<SourceBasedAirportDigest> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const slugDate = getUtcDateSuffix();
+  const response = await openai.responses.parse({
+    model: "gpt-4o-mini",
+    temperature: 0.35,
+    max_output_tokens: 1200,
+    input: [
+      {
+        role: "system",
+        content: [
+          "You create Airport Automation Daily, an INConnect 1-Minute Digest.",
+          "This is source-based commentary, not an AI article.",
+          "Use only the provided source title, source excerpt, source domain, and source URL.",
+          "Do not invent facts, companies, airports, dates, contracts, statistics, or project details.",
+          "Do not copy the article text. Summarize the factual development in your own words.",
+          "Return a short source-based digest with a topic title, 80-120 word summary, and INConnect view of 2-3 sentences.",
+          "The title should describe the actual source story, not a broad category.",
+          "The INConnect view should explain why the development matters for airport automation professionals.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: [
+          `Required slug date suffix: ${slugDate}`,
+          `Source name: ${story.sourceName}`,
+          `Source domain: ${story.domain}`,
+          `Source URL: ${story.url}`,
+          `Category: ${story.category}`,
+          `Source title: ${story.title}`,
+          `Source excerpt: ${story.excerpt}`,
+          "",
+          "Return structured JSON only.",
+          "summary must be 80-120 words.",
+          "inconnectView must be 2-3 sentences.",
+          "slug must be keyword-based and end with the date suffix.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "inconnect_source_based_airport_digest",
+        strict: true,
+        schema: sourceBasedAirportDigestSchema,
+      },
+    },
+  });
+
+  if (!response.output_parsed) {
+    throw new Error("Source-based airport digest response format error.");
+  }
+
+  const parsed = response.output_parsed as SourceBasedAirportDigest;
+  if (!parsed.title || !parsed.summary || !parsed.inconnectView) {
+    throw new Error("Source-based airport digest was empty or incomplete.");
+  }
+
+  return {
+    ...parsed,
+    category: normalizeAirportCategory(parsed.category || story.category),
+    inconnectView: cleanText(parsed.inconnectView, 700),
+    seoDescription: cleanText(parsed.seoDescription || parsed.summary, 320),
+    slug: parsed.slug || story.title,
+    summary: cleanText(parsed.summary, 900),
+    title: cleanText(parsed.title, 180),
+  };
 }
 
 async function searchAirportResearchSources(query: string): Promise<BlogResearchSource[]> {
@@ -1150,6 +1423,180 @@ function getAirportSourceScore(source: BlogResearchSource, recentText: string) {
   score -= repeatedSignals * 3;
 
   return score;
+}
+
+function getPlannedAirportDigestCategory() {
+  const rotation: Record<number, string> = {
+    0: "Smart Airport Infrastructure",
+    1: "Passenger Processing",
+    2: "Baggage Handling",
+    3: "Aircraft Handling / GSE",
+    4: "Airport Security",
+    5: "Cargo Automation",
+    6: "Airport AI & Robotics",
+  };
+  return rotation[new Date().getUTCDay()] ?? "Passenger Processing";
+}
+
+function getSourceQueriesForCategory(category: string) {
+  const baseSources =
+    "airport automation Changi Fraport Heathrow Schiphol Incheon Dubai Munich Frankfurt SITA Amadeus Vanderlande BEUMER Daifuku Siemens Logistics Materna ADB SAFEGATE Assaia SICK Leidos Smiths Detection Thales IDEMIA";
+  const queries: Record<string, string[]> = {
+    "Passenger Processing": [
+      `airport passenger processing biometrics e-gate self service deployment ${baseSources}`,
+      "airport biometric passenger processing official announcement",
+    ],
+    "Baggage Handling": [
+      `airport baggage handling RFID BHS automation project ${baseSources}`,
+      "airport baggage automation supplier announcement",
+    ],
+    "Aircraft Handling / GSE": [
+      `airport ground support equipment GSE aircraft handling automation ${baseSources}`,
+      "airport autonomous GSE airside automation project",
+    ],
+    "Airport Security": [
+      `airport security screening automation CT scanner biometric security ${baseSources}`,
+      "airport security automation official announcement",
+    ],
+    "Cargo Automation": [
+      `airport cargo automation ULD warehouse air freight automation ${baseSources}`,
+      "air cargo airport automation supplier announcement",
+    ],
+    "Airport AI & Robotics": [
+      `airport AI robotics automation pilot project ${baseSources}`,
+      "airport robot AI operations official announcement",
+    ],
+    "Smart Airport Infrastructure": [
+      `smart airport infrastructure digital twin operations automation ${baseSources}`,
+      "airport digital infrastructure automation project",
+    ],
+  };
+  return queries[category] ?? queries["Passenger Processing"];
+}
+
+function getAirportSourceRejectionReason(source: BlogResearchSource, recentText: string) {
+  if (!isAirportRelevantSource(source)) return "not airport relevant";
+  if (!hasSpecificAirportProjectSignal(source)) return "no specific project or deployment signal";
+  if (containsForbiddenAirportTopic(`${source.title} ${source.excerpt}`)) {
+    return "forbidden topic";
+  }
+  if (areAirportTitlesSimilar(source.title, recentText)) return "similar to recent topic";
+  const ageDays = getSourceAgeDays(source);
+  if (ageDays !== null && ageDays > 120) return "source older than 120 days";
+  return "";
+}
+
+function getSourceAgeDays(source: BlogResearchSource) {
+  if (!source.publishedAt || Number.isNaN(Date.parse(source.publishedAt))) return null;
+  return (Date.now() - new Date(source.publishedAt).getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function getSourceName(source: BlogResearchSource) {
+  const knownNames: Record<string, string> = {
+    "aci.aero": "ACI",
+    "adbsafegate.com": "ADB SAFEGATE",
+    "airport-technology.com": "Airport Technology",
+    "airport-world.com": "Airport World",
+    "amadeus.com": "Amadeus",
+    "assaia.com": "Assaia",
+    "beumergroup.com": "BEUMER Group",
+    "changiairport.com": "Changi Airport Group",
+    "collinsaerospace.com": "Collins Aerospace",
+    "daifuku.com": "Daifuku Airport Technologies",
+    "dubaiairports.ae": "Dubai Airports",
+    "fraport.com": "Fraport",
+    "futuretravelexperience.com": "Future Travel Experience",
+    "heathrow.com": "Heathrow",
+    "hongkongairport.com": "Hong Kong International Airport",
+    "iata.org": "IATA",
+    "idemia.com": "IDEMIA",
+    "internationalairportreview.com": "International Airport Review",
+    "jal.com": "Japan Airlines",
+    "leidos.com": "Leidos",
+    "lufthansa.com": "Lufthansa",
+    "materna-ips.com": "Materna IPS",
+    "munich-airport.com": "Munich Airport",
+    "passengerterminaltoday.com": "Passenger Terminal Today",
+    "schiphol.nl": "Schiphol",
+    "siemens-logistics.com": "Siemens Logistics",
+    "sita.aero": "SITA",
+    "sick.com": "SICK",
+    "smithsdetection.com": "Smiths Detection",
+    "thalesgroup.com": "Thales",
+    "vanderlande.com": "Vanderlande",
+  };
+  const matched = Object.entries(knownNames).find(([domain]) => source.domain.endsWith(domain));
+  return matched?.[1] ?? source.domain.replace(/^www\./, "");
+}
+
+async function getSourceImage(sourceUrl: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AIRPORT_RESEARCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        "user-agent": "INConnectBot/1.0 airport automation source image lookup",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const imageUrl =
+      extractMetaContent(html, "property", "og:image") ||
+      extractMetaContent(html, "name", "twitter:image");
+    if (!imageUrl) return null;
+    const absoluteUrl = new URL(imageUrl, sourceUrl).toString();
+    return {
+      domain: getDomain(absoluteUrl),
+      url: absoluteUrl,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractMetaContent(html: string, attribute: "name" | "property", value: string) {
+  const attrBeforeContentPattern = new RegExp(
+    `<meta[^>]+${attribute}=["']${escapeRegExp(value)}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+    "i",
+  );
+  const contentBeforeAttrPattern = new RegExp(
+    `<meta[^>]+content=["']([^"']+)["'][^>]+${attribute}=["']${escapeRegExp(value)}["'][^>]*>`,
+    "i",
+  );
+  return decodeHtmlEntities(
+    attrBeforeContentPattern.exec(html)?.[1] ??
+      contentBeforeAttrPattern.exec(html)?.[1] ??
+      "",
+  );
+}
+
+function getSourceBasedDigestQualityIssues(
+  digest: SourceBasedAirportDigest,
+  story: AirportSourceStory,
+  existingBriefings: ExistingAirportBriefing[],
+) {
+  const issues: string[] = [];
+  if (!digest.title) issues.push("title is required.");
+  if (!story.url) issues.push("source_url is required.");
+  if (!story.sourceName) issues.push("source_name is required.");
+  if (!digest.category) issues.push("category is required.");
+  if (!digest.summary) issues.push("summary is required.");
+  if (!digest.inconnectView) issues.push("inconnect_view is required.");
+  const summaryWords = countWords(stripMarkdown(digest.summary));
+  if (summaryWords < 80 || summaryWords > 120) {
+    issues.push(`summary must be 80-120 words; got ${summaryWords}.`);
+  }
+  const viewSentences = digest.inconnectView.split(/[.!?]+/).map((sentence) => sentence.trim()).filter(Boolean);
+  if (viewSentences.length < 2 || viewSentences.length > 3) {
+    issues.push(`inconnect_view must be 2-3 sentences; got ${viewSentences.length}.`);
+  }
+  if (!isAirportRelevantSource(story)) issues.push("source is not airport relevant.");
+  if (!hasSpecificAirportProjectSignal(story)) issues.push("source is not a specific automation story.");
+  if (existingBriefings.slice(0, 30).some((briefing) => areAirportTitlesSimilar(digest.title, briefing.title ?? ""))) {
+    issues.push("topic is similar to a recent airport briefing.");
+  }
+  return issues;
 }
 
 function chooseAirportBriefingTopic(
@@ -2217,6 +2664,10 @@ function decodeXml(value: string) {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
+}
+
+function decodeHtmlEntities(value: string) {
+  return decodeXml(value);
 }
 
 function stripHtml(value: string) {

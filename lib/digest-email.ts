@@ -3,6 +3,7 @@ type DigestEmailInput = {
   digestTitle: string;
   heroImageUrl: string;
   readUrl: string;
+  sourceUrl?: string;
   title: string;
   unsubscribeUrl?: string;
 };
@@ -12,6 +13,7 @@ export function renderDigestEmail({
   digestTitle,
   heroImageUrl,
   readUrl,
+  sourceUrl,
   title,
   unsubscribeUrl,
 }: DigestEmailInput) {
@@ -24,6 +26,7 @@ export function renderDigestEmail({
     stripMarkdown(briefingText),
     "",
     `Read Full Briefing: ${readUrl}`,
+    sourceUrl ? `Read Full Story: ${sourceUrl}` : "",
     "",
     unsubscribeUrl ? `Unsubscribe: ${unsubscribeUrl}` : "",
   ].join("\n");
@@ -44,7 +47,7 @@ export function renderDigestEmail({
     `<p style="margin:0 0 10px;color:#0a66c2;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">${escapeHtml(digestTitle)}</p>`,
     `<h1 style="margin:0 0 18px;font-size:28px;line-height:1.2;color:#191919;">${escapeHtml(title)}</h1>`,
     `<div style="font-size:16px;line-height:1.75;color:#444444;">${formatEmailParagraphs(briefingText)}</div>`,
-    `<p style="margin:28px 0 0;"><a href="${escapeHtml(readUrl)}" style="display:inline-block;background:#4a6fd0;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 18px;">Read Full Briefing</a></p>`,
+    `<p style="margin:28px 0 0;"><a href="${escapeHtml(readUrl)}" style="display:inline-block;background:#4a6fd0;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;padding:13px 18px;">Read on INConnect</a>${sourceUrl ? ` <a href="${escapeHtml(sourceUrl)}" style="display:inline-block;margin-left:10px;border:1px solid #d9dde3;color:#191919;text-decoration:none;font-weight:700;border-radius:8px;padding:12px 18px;">Read Full Story</a>` : ""}</p>`,
     "</td></tr>",
     unsubscribeUrl
       ? `<tr><td style="padding:18px 28px;border-top:1px solid #eef0f3;font-size:12px;line-height:1.6;color:#666666;">You are receiving this email because you subscribed to INConnect Intelligence. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#0a66c2;">Unsubscribe</a></td></tr>`

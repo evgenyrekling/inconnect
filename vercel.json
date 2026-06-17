@@ -5,8 +5,12 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/generate-airport-briefing",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/cron/send-airport-daily",
-      "schedule": "0 5 * * *"
+      "schedule": "10 6 * * *"
     }
   ]
 }

@@ -6,6 +6,7 @@ type SendDigestEmailInput = {
   heroImageUrl: string;
   readUrl: string;
   replyTo?: string;
+  sourceUrl?: string;
   subject?: string;
   title: string;
   to: string;
@@ -44,6 +45,7 @@ export async function sendDigestEmail({
   heroImageUrl,
   readUrl,
   replyTo,
+  sourceUrl,
   subject,
   title,
   to,
@@ -62,6 +64,7 @@ export async function sendDigestEmail({
     digestTitle,
     heroImageUrl,
     readUrl,
+    sourceUrl,
     title,
     unsubscribeUrl,
   });
