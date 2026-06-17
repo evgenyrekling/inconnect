@@ -208,6 +208,86 @@ const AIRPORT_FORBIDDEN_KEYWORDS = [
   "ai for professionals",
 ];
 
+const AIRPORT_GENERIC_SOURCE_PATTERNS = [
+  "help center",
+  "customer support",
+  "faq",
+  "contact us",
+  "flight status",
+  "booking",
+  "check-in",
+  "check in",
+  "baggage allowance",
+  "travel information",
+  "passenger help",
+  "airport homepage",
+  "airline homepage",
+  "privacy policy",
+  "terms of use",
+  "site map",
+];
+
+const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
+  "/help",
+  "/help-center",
+  "/support",
+  "/customer-support",
+  "/faq",
+  "/contact",
+  "/booking",
+  "/book",
+  "/flight-status",
+  "/check-in",
+  "/checkin",
+  "/baggage-allowance",
+  "/travel-information",
+  "/privacy",
+  "/terms",
+];
+
+const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
+  "msn.com",
+  "bing.com",
+  "yahoo.com",
+  "google.com",
+  "tripadvisor.com",
+  "booking.com",
+  "expedia.com",
+  "kayak.com",
+  "skyscanner.com",
+];
+
+const AIRPORT_AUTOMATION_SIGNALS = [
+  "automation",
+  "automated",
+  "ai",
+  "artificial intelligence",
+  "robotics",
+  "robot",
+  "biometric",
+  "biometrics",
+  "e-gate",
+  "egate",
+  "self-service",
+  "self service",
+  "rfid",
+  "baggage handling",
+  "baggage tracking",
+  "passenger processing",
+  "digital identity",
+  "turnaround",
+  "apron",
+  "gse",
+  "ground handling",
+  "cargo automation",
+  "security screening",
+  "computer vision",
+  "lidar",
+  "sensor",
+  "smart airport",
+  "digital twin",
+];
+
 const AIRPORT_PREFERRED_DOMAINS = [
   "airport-technology.com",
   "futuretravelexperience.com",
@@ -687,6 +767,18 @@ async function generateAndStoreSourceBasedAirportDigest({
   let digest: SourceBasedAirportDigest;
   try {
     digest = await generateSourceBasedAirportDigest(story);
+    const summaryWords = countWords(stripMarkdown(digest.summary));
+    if (summaryWords < 80) {
+      console.info("INConnect source-based airport digest summary expansion started", {
+        sourceUrl: story.url,
+        summaryWords,
+      });
+      digest = await expandSourceBasedAirportDigestSummary(digest, story);
+      console.info("INConnect source-based airport digest summary expansion complete", {
+        finalSummaryWords: countWords(stripMarkdown(digest.summary)),
+        sourceUrl: story.url,
+      });
+    }
   } catch (error) {
     console.error("INConnect source-based airport digest generation failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -1176,7 +1268,10 @@ async function findAirportSourceStory(
   });
 
   if (!selected) {
-    throw new Error("No fresh trusted airport automation source story was found.");
+    throw new AirportBriefingGenerationError(
+      "source_selection",
+      "No strong airport automation source found today",
+    );
   }
 
   const image = await getSourceImage(selected.url).catch((error) => {
@@ -1262,6 +1357,71 @@ async function generateSourceBasedAirportDigest(
     slug: parsed.slug || story.title,
     summary: cleanText(parsed.summary, 900),
     title: cleanText(parsed.title, 180),
+  };
+}
+
+async function expandSourceBasedAirportDigestSummary(
+  digest: SourceBasedAirportDigest,
+  story: AirportSourceStory,
+): Promise<SourceBasedAirportDigest> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const response = await openai.responses.parse({
+    model: "gpt-4o-mini",
+    temperature: 0.25,
+    max_output_tokens: 1000,
+    input: [
+      {
+        role: "system",
+        content: [
+          "Expand a short Airport Automation Daily source summary to 80-120 words.",
+          "Use only the provided source title, source excerpt, source domain, source URL, and existing summary.",
+          "Do not invent facts, companies, airports, projects, dates, statistics, or claims.",
+          "Keep the existing title, category, slug, SEO description, and INConnect view unless a minor cleanup is necessary.",
+          "Return structured JSON only.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: [
+          `Source name: ${story.sourceName}`,
+          `Source domain: ${story.domain}`,
+          `Source URL: ${story.url}`,
+          `Source title: ${story.title}`,
+          `Source excerpt: ${story.excerpt}`,
+          "",
+          `Current JSON: ${JSON.stringify(digest)}`,
+          "",
+          "Revise only the summary so it is 80-120 words and still source-faithful.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "inconnect_source_based_airport_digest_expansion",
+        strict: true,
+        schema: sourceBasedAirportDigestSchema,
+      },
+    },
+  });
+
+  if (!response.output_parsed) {
+    throw new Error("Expanded source-based airport digest response format error.");
+  }
+
+  const parsed = response.output_parsed as SourceBasedAirportDigest;
+  return {
+    ...digest,
+    ...parsed,
+    category: normalizeAirportCategory(parsed.category || digest.category || story.category),
+    inconnectView: cleanText(parsed.inconnectView || digest.inconnectView, 700),
+    seoDescription: cleanText(
+      parsed.seoDescription || digest.seoDescription || parsed.summary || digest.summary,
+      320,
+    ),
+    slug: parsed.slug || digest.slug || story.title,
+    summary: cleanText(parsed.summary || digest.summary, 900),
+    title: cleanText(parsed.title || digest.title, 180),
   };
 }
 
@@ -1362,6 +1522,7 @@ function isAirportRelevantSource(source: BlogResearchSource) {
   const hasAirportSignal = AIRPORT_ALLOWED_KEYWORDS.some((keyword) =>
     haystack.includes(keyword),
   );
+  const hasAutomationSignal = hasAirportAutomationSignal(source);
   const hasForbiddenSignal = AIRPORT_FORBIDDEN_KEYWORDS.some((keyword) =>
     haystack.includes(keyword),
   );
@@ -1369,8 +1530,18 @@ function isAirportRelevantSource(source: BlogResearchSource) {
     source.domain.includes("linkedin.com") ||
     source.url.includes("/login") ||
     source.url.includes("/signup");
+  const isAvoidedDomain = AIRPORT_AVOIDED_SOURCE_DOMAINS.some((domain) =>
+    source.domain.endsWith(domain),
+  );
 
-  return hasAirportSignal && !hasForbiddenSignal && !isLinkedInNoise;
+  return (
+    hasAirportSignal &&
+    hasAutomationSignal &&
+    !hasForbiddenSignal &&
+    !isLinkedInNoise &&
+    !isAvoidedDomain &&
+    !isGenericAirportSource(source)
+  );
 }
 
 function createAirportSourceHaystack(source: BlogResearchSource) {
@@ -1475,6 +1646,13 @@ function getSourceQueriesForCategory(category: string) {
 }
 
 function getAirportSourceRejectionReason(source: BlogResearchSource, recentText: string) {
+  if (!source.url) return "missing source_url";
+  if (!source.title) return "missing source_title";
+  if (AIRPORT_AVOIDED_SOURCE_DOMAINS.some((domain) => source.domain.endsWith(domain))) {
+    return "avoided generic aggregator or travel domain";
+  }
+  if (isGenericAirportSource(source)) return "generic support, homepage, or passenger service page";
+  if (!hasAirportAutomationSignal(source)) return "missing airport automation signal";
   if (!isAirportRelevantSource(source)) return "not airport relevant";
   if (!hasSpecificAirportProjectSignal(source)) return "no specific project or deployment signal";
   if (containsForbiddenAirportTopic(`${source.title} ${source.excerpt}`)) {
@@ -1484,6 +1662,32 @@ function getAirportSourceRejectionReason(source: BlogResearchSource, recentText:
   const ageDays = getSourceAgeDays(source);
   if (ageDays !== null && ageDays > 120) return "source older than 120 days";
   return "";
+}
+
+function isGenericAirportSource(source: BlogResearchSource) {
+  const haystack = createAirportSourceHaystack(source);
+  if (AIRPORT_GENERIC_SOURCE_PATTERNS.some((pattern) => haystack.includes(pattern))) {
+    return true;
+  }
+
+  try {
+    const url = new URL(source.url);
+    const path = url.pathname.toLowerCase().replace(/\/+$/, "");
+    if (!path || path === "") return true;
+    if (path === "/en" || path === "/en-us" || path === "/us" || path === "/home") {
+      return true;
+    }
+    return AIRPORT_GENERIC_SOURCE_PATH_PATTERNS.some((pattern) =>
+      path.includes(pattern),
+    );
+  } catch {
+    return true;
+  }
+}
+
+function hasAirportAutomationSignal(source: BlogResearchSource) {
+  const haystack = createAirportSourceHaystack(source);
+  return AIRPORT_AUTOMATION_SIGNALS.some((signal) => haystack.includes(signal));
 }
 
 function getSourceAgeDays(source: BlogResearchSource) {
@@ -2146,8 +2350,8 @@ function getAirportBriefingQuality(
     issues.push(`Briefing has ${wordCount} words; maximum is ${MAX_AIRPORT_WORD_COUNT}.`);
   }
 
-  if (paragraphCount !== 3) {
-    issues.push("Briefing must be one flowing post with exactly three short paragraphs.");
+  if (paragraphCount < 2 || paragraphCount > 4) {
+    issues.push(`Briefing must use 2-4 flowing paragraphs; got ${paragraphCount}.`);
   }
 
   if (hasRawUrlOutsideMarkdownLink(content)) {
@@ -2162,8 +2366,9 @@ function getAirportBriefingQuality(
     issues.push("Briefing must not use Markdown section headings.");
   }
 
-  if (/why it matters|source:|read original story|discussion question|\?|key takeaways|summary|further reading|suggested linkedin post|technology signals|business opportunities|companies to watch|executive summary|top developments|technology trends|development a|development b|development c/i.test(content)) {
-    issues.push("Post includes article, newsletter, or report-style sections.");
+  const bannedReportPhrase = detectReportStylePhrase(content);
+  if (bannedReportPhrase) {
+    issues.push(`Post includes banned report/newsletter phrase: "${bannedReportPhrase}".`);
   }
 
   if (!hasAirportProjectLanguage(content)) {
@@ -2184,11 +2389,31 @@ function getAirportBriefingQuality(
     issues.push("Digest includes a numbered list.");
   }
 
+  if (/[?]\s*$/.test(stripMarkdown(content))) {
+    issues.push("Digest must not end with a question.");
+  }
+
   if (containsForbiddenAirportTopic(content)) {
     issues.push("Briefing includes non-airport LinkedIn, branding, career, or B2B sales content.");
   }
 
   return { issues, paragraphCount, wordCount };
+}
+
+function detectReportStylePhrase(content: string) {
+  const bannedPatterns: Array<{ label: string; pattern: RegExp }> = [
+    { label: "Executive Summary", pattern: /^\s*Executive Summary\s*:?\s*$/im },
+    { label: "Why It Matters:", pattern: /^\s*Why It Matters\s*:?\s*$/im },
+    { label: "INConnect View:", pattern: /^\s*INConnect View\s*:?\s*$/im },
+    { label: "Key Takeaways", pattern: /^\s*Key Takeaways\s*:?\s*$/im },
+    { label: "Top Developments", pattern: /^\s*Top Developments\s*:?\s*$/im },
+    { label: "Source:", pattern: /^\s*Source\s*:?\s*$/im },
+    { label: "Read original article", pattern: /read original (?:article|story)/i },
+    { label: "Suggested LinkedIn Post", pattern: /^\s*Suggested LinkedIn Post\s*:?\s*$/im },
+    { label: "Newsletter", pattern: /^\s*Newsletter\s*:?\s*$/im },
+    { label: "Report", pattern: /^\s*Report\s*:?\s*$/im },
+  ];
+  return bannedPatterns.find(({ pattern }) => pattern.test(content))?.label ?? "";
 }
 
 function validateAirportBriefingConsistency(
@@ -2551,7 +2776,10 @@ function cleanPostContent(value: string) {
   return value
     .replace(/^#+\s+/gm, "")
     .replace(/^\s*(?:[-*]|\d+\.)\s+/gm, "")
-    .replace(/^\s*(?:INConnect Brief|Why It Matters|INConnect View|Summary|Key Takeaways|Source)\s*:?\s*/gim, "")
+    .replace(
+      /^\s*(?:Executive Summary|INConnect Brief|Why It Matters|INConnect View|Summary|Key Takeaways|Top Developments|Source|Read original article|Suggested LinkedIn Post|Newsletter|Report)\s*:?\s*/gim,
+      "",
+    )
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi, "[$1]($2)")
     .replace(/(?<!\]\()https?:\/\/\S+/gi, "")
     .replace(/[ \t]+/g, " ")
