@@ -257,35 +257,103 @@ const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
   "skyscanner.com",
 ];
 
-const AIRPORT_AUTOMATION_SIGNALS = [
-  "automation",
-  "automated",
+const AIRPORT_RELEVANCE_SIGNALS = [
+  "airport",
+  "airports",
+  "terminal",
+  "aviation",
+  "passenger",
+  "baggage",
+  "runway",
+  "apron",
+  "airside",
+  "cargo",
+  "operations center",
+  "control center",
+  "security",
+  "checkpoint",
+  "boarding",
+  "gate",
+];
+
+const AIRPORT_TECHNOLOGY_SIGNALS = [
   "ai",
   "artificial intelligence",
+  "automation",
+  "automated",
+  "digital",
   "robotics",
   "robot",
   "biometric",
   "biometrics",
+  "rfid",
+  "sensor",
+  "computer vision",
+  "operations center",
+  "security technology",
+  "data platform",
+  "tracking",
+  "optimization",
+  "smart",
+  "screening",
+  "analytics",
+  "digital identity",
   "e-gate",
   "egate",
   "self-service",
   "self service",
-  "rfid",
-  "baggage handling",
-  "baggage tracking",
-  "passenger processing",
-  "digital identity",
-  "turnaround",
-  "apron",
-  "gse",
-  "ground handling",
-  "cargo automation",
-  "security screening",
-  "computer vision",
   "lidar",
-  "sensor",
-  "smart airport",
   "digital twin",
+];
+
+const AIRPORT_INITIATIVE_SIGNALS = [
+  "announced",
+  "award",
+  "awarded",
+  "began",
+  "commissioned",
+  "contract",
+  "deploy",
+  "deployed",
+  "deployment",
+  "expanded",
+  "implementation",
+  "introduced",
+  "installed",
+  "launch",
+  "launched",
+  "pilot",
+  "project",
+  "rollout",
+  "selected",
+  "testing",
+  "trial",
+  "upgrade",
+  "upgraded",
+  "operations center",
+  "control center",
+  "technology upgrade",
+  "digital transformation",
+  "initiative",
+  "modernisation",
+  "modernization",
+  "system modernization",
+  "security technology upgrade",
+  "passenger processing upgrade",
+  "baggage technology deployment",
+  "rfid implementation",
+  "smart airport infrastructure",
+];
+
+const AIRPORT_REPUTABLE_INDUSTRY_DOMAINS = [
+  "airport-technology.com",
+  "futuretravelexperience.com",
+  "passengerterminaltoday.com",
+  "internationalairportreview.com",
+  "airport-world.com",
+  "aviationweek.com",
+  "aci.aero",
+  "iata.org",
 ];
 
 const AIRPORT_PREFERRED_DOMAINS = [
@@ -1232,38 +1300,74 @@ async function findAirportSourceStory(
     ...existingBriefings.slice(0, 30).map((briefing) => briefing.title ?? ""),
     ...topicHistory.slice(0, 30).map((entry) => `${entry.title ?? ""} ${entry.topic ?? ""}`),
   ].join(" ");
-  const rejectedCandidates: Array<{ reason: string; title: string; url: string }> = [];
+  const rejectedCandidates: Array<{
+    missingAirportSignal: boolean;
+    missingAutomationSignal: boolean;
+    reason: string;
+    score: number;
+    title: string;
+    url: string;
+  }> = [];
   const candidates = discoveredSources
     .filter((source) => {
-      const reason = getAirportSourceRejectionReason(source, recentText);
+      const quality = getAirportSourceQuality(source);
+      const reason = getAirportSourceRejectionReason(source, recentText, quality);
       if (reason) {
-        rejectedCandidates.push({ reason, title: source.title, url: source.url });
+        rejectedCandidates.push({
+          missingAirportSignal: !quality.hasAirportSignal,
+          missingAutomationSignal: !quality.hasTechnologySignal,
+          reason,
+          score: quality.score,
+          title: source.title,
+          url: source.url,
+        });
         return false;
       }
       return true;
     })
-    .map((source) => ({
-      ...source,
-      category: detectAirportTopicCategory(`${source.title} ${source.excerpt}`) || plannedCategory,
-      sourceName: getSourceName(source),
-    }))
+    .map((source) => {
+      const quality = getAirportSourceQuality(source);
+      return {
+        ...source,
+        category:
+          detectAirportTopicCategory(`${source.title} ${source.excerpt}`) ||
+          plannedCategory,
+        sourceName: getSourceName(source),
+        sourceScore: quality.score,
+      };
+    })
     .sort((left, right) => {
-      const leftPlannedBoost = left.category === plannedCategory ? 35 : 0;
-      const rightPlannedBoost = right.category === plannedCategory ? 35 : 0;
+      const leftPlannedBoost = left.category === plannedCategory ? 3 : 0;
+      const rightPlannedBoost = right.category === plannedCategory ? 3 : 0;
       return (
-        getAirportSourceScore(right, recentText.toLowerCase()) +
+        right.sourceScore +
         rightPlannedBoost -
-        (getAirportSourceScore(left, recentText.toLowerCase()) + leftPlannedBoost)
+        (left.sourceScore + leftPlannedBoost)
       );
     });
 
   const selected = candidates[0];
+  const fallbackUsed = Boolean(selected && selected.category !== plannedCategory);
+  if (fallbackUsed) {
+    console.info("planned category fallback used", {
+      plannedCategory,
+      selectedCategory: selected.category,
+      selectedTitle: selected.title,
+      selectedUrl: selected.url,
+    });
+  }
   console.info("INConnect source-based airport research candidates", {
     candidateCount: candidates.length,
     plannedCategory,
     rejectedCandidates: rejectedCandidates.slice(0, 10),
     selectedSource: selected
-      ? { category: selected.category, title: selected.title, url: selected.url }
+      ? {
+          category: selected.category,
+          fallbackUsed,
+          score: selected.sourceScore,
+          sourceTitle: selected.title,
+          sourceUrl: selected.url,
+        }
       : null,
   });
 
@@ -1282,8 +1386,10 @@ async function findAirportSourceStory(
     return null;
   });
 
+  const { sourceScore: _sourceScore, ...selectedStory } = selected;
+
   return {
-    ...selected,
+    ...selectedStory,
     sourceImageDomain: image?.domain,
     sourceImageUrl: image?.url,
   };
@@ -1454,7 +1560,7 @@ async function searchAirportResearchSources(query: string): Promise<BlogResearch
     }
   }
 
-  return results.filter(isAirportRelevantSource);
+  return results;
 }
 
 function parseAirportRssItems(rss: string): BlogResearchSource[] {
@@ -1518,13 +1624,9 @@ function hasSpecificAirportProjectSignal(source: BlogResearchSource) {
 }
 
 function isAirportRelevantSource(source: BlogResearchSource) {
-  const haystack = createAirportSourceHaystack(source);
-  const hasAirportSignal = AIRPORT_ALLOWED_KEYWORDS.some((keyword) =>
-    haystack.includes(keyword),
-  );
-  const hasAutomationSignal = hasAirportAutomationSignal(source);
+  const quality = getAirportSourceQuality(source);
   const hasForbiddenSignal = AIRPORT_FORBIDDEN_KEYWORDS.some((keyword) =>
-    haystack.includes(keyword),
+    createAirportSourceHaystack(source).includes(keyword),
   );
   const isLinkedInNoise =
     source.domain.includes("linkedin.com") ||
@@ -1535,13 +1637,52 @@ function isAirportRelevantSource(source: BlogResearchSource) {
   );
 
   return (
-    hasAirportSignal &&
-    hasAutomationSignal &&
+    quality.hasAirportSignal &&
+    quality.hasTechnologySignal &&
+    quality.score >= 5 &&
     !hasForbiddenSignal &&
     !isLinkedInNoise &&
     !isAvoidedDomain &&
     !isGenericAirportSource(source)
   );
+}
+
+function getAirportSourceQuality(source: BlogResearchSource) {
+  const haystack = createAirportSourceHaystack(source);
+  const hasAirportSignal = AIRPORT_RELEVANCE_SIGNALS.some((signal) =>
+    haystack.includes(signal),
+  );
+  const hasTechnologySignal = AIRPORT_TECHNOLOGY_SIGNALS.some((signal) =>
+    haystack.includes(signal),
+  );
+  const hasInitiativeSignal = AIRPORT_INITIATIVE_SIGNALS.some((signal) =>
+    haystack.includes(signal),
+  );
+  const isPreferredDomain = AIRPORT_PREFERRED_DOMAINS.some((domain) =>
+    source.domain.endsWith(domain),
+  );
+  const isIndustryDomain = AIRPORT_REPUTABLE_INDUSTRY_DOMAINS.some((domain) =>
+    source.domain.endsWith(domain),
+  );
+  const ageDays = getSourceAgeDays(source);
+  const isRecent = ageDays === null || ageDays <= 90;
+  const score =
+    (isPreferredDomain ? 3 : 0) +
+    (hasAirportSignal ? 3 : 0) +
+    (hasTechnologySignal ? 3 : 0) +
+    (hasInitiativeSignal ? 2 : 0) +
+    (isRecent ? 2 : 0) +
+    (isIndustryDomain ? 1 : 0);
+
+  return {
+    hasAirportSignal,
+    hasInitiativeSignal,
+    hasTechnologySignal,
+    isIndustryDomain,
+    isPreferredDomain,
+    isRecent,
+    score,
+  };
 }
 
 function createAirportSourceHaystack(source: BlogResearchSource) {
@@ -1645,16 +1786,21 @@ function getSourceQueriesForCategory(category: string) {
   return queries[category] ?? queries["Passenger Processing"];
 }
 
-function getAirportSourceRejectionReason(source: BlogResearchSource, recentText: string) {
+function getAirportSourceRejectionReason(
+  source: BlogResearchSource,
+  recentText: string,
+  quality = getAirportSourceQuality(source),
+) {
   if (!source.url) return "missing source_url";
   if (!source.title) return "missing source_title";
   if (AIRPORT_AVOIDED_SOURCE_DOMAINS.some((domain) => source.domain.endsWith(domain))) {
     return "avoided generic aggregator or travel domain";
   }
   if (isGenericAirportSource(source)) return "generic support, homepage, or passenger service page";
-  if (!hasAirportAutomationSignal(source)) return "missing airport automation signal";
+  if (!quality.hasAirportSignal) return "missing airport relevance signal";
+  if (!quality.hasTechnologySignal) return "missing automation or technology signal";
+  if (quality.score < 5) return `source score below threshold: ${quality.score}`;
   if (!isAirportRelevantSource(source)) return "not airport relevant";
-  if (!hasSpecificAirportProjectSignal(source)) return "no specific project or deployment signal";
   if (containsForbiddenAirportTopic(`${source.title} ${source.excerpt}`)) {
     return "forbidden topic";
   }
@@ -1683,11 +1829,6 @@ function isGenericAirportSource(source: BlogResearchSource) {
   } catch {
     return true;
   }
-}
-
-function hasAirportAutomationSignal(source: BlogResearchSource) {
-  const haystack = createAirportSourceHaystack(source);
-  return AIRPORT_AUTOMATION_SIGNALS.some((signal) => haystack.includes(signal));
 }
 
 function getSourceAgeDays(source: BlogResearchSource) {
@@ -1796,7 +1937,10 @@ function getSourceBasedDigestQualityIssues(
     issues.push(`inconnect_view must be 2-3 sentences; got ${viewSentences.length}.`);
   }
   if (!isAirportRelevantSource(story)) issues.push("source is not airport relevant.");
-  if (!hasSpecificAirportProjectSignal(story)) issues.push("source is not a specific automation story.");
+  const sourceQuality = getAirportSourceQuality(story);
+  if (sourceQuality.score < 5) {
+    issues.push(`source score below threshold: ${sourceQuality.score}.`);
+  }
   if (existingBriefings.slice(0, 30).some((briefing) => areAirportTitlesSimilar(digest.title, briefing.title ?? ""))) {
     issues.push("topic is similar to a recent airport briefing.");
   }
