@@ -108,24 +108,27 @@ const MIN_AIRPORT_RESEARCH_SOURCES = 3;
 const AIRPORT_RESEARCH_TIMEOUT_MS = 8000;
 
 const AIRPORT_RESEARCH_QUERIES = [
-  "latest airport automation project airport deployment",
-  "airport technology deployment airport operator supplier",
-  "airport modernization project automation airport operator",
-  "airport baggage handling automation project airport supplier",
-  "airport biometrics passenger processing deployment airport",
-  "airport RFID baggage tracking project airport airline",
-  "airport robotics pilot airport operations",
-  "airport AI operations deployment airport",
-  "airport security automation project airport",
-  "smart airport project technology supplier airport",
-  "baggage handling system project airport supplier",
-  "airport self service kiosk biometric e-gate deployment",
+  "airport automation press release",
+  "airport baggage handling automation news",
+  "airport ground handling automation news",
+  "airport GSE automation pilot",
+  "airport robotics baggage handling",
+  "airport AI operations center",
+  "airport biometric passenger processing launch",
+  "airport RFID baggage tracking deployment",
+  "smart airport automation project",
+  "airport technology supplier press release airport automation",
   "SITA airport technology news",
-  "Vanderlande airport automation news",
-  "BEUMER airport baggage handling news",
-  "Amadeus airport passenger processing news",
-  "Collins aerospace airport systems",
-  "Daifuku airport baggage handling",
+  "Amadeus airport biometric passenger processing",
+  "Vanderlande baggage handling airport project",
+  "BEUMER airport baggage handling project",
+  "Daifuku airport baggage handling system",
+  "Siemens Logistics airport baggage handling news",
+  "Materna IPS airport self service news",
+  "ADB SAFEGATE airport operations news",
+  "Assaia airport turnaround optimization news",
+  "Smiths Detection airport security screening news",
+  "IDEMIA airport biometric passenger processing",
 ];
 
 const AIRPORT_ALLOWED_KEYWORDS = [
@@ -265,6 +268,17 @@ const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
   "/travel-information",
   "/privacy",
   "/terms",
+];
+
+const AIRPORT_PREFERRED_SOURCE_PATH_PATTERNS = [
+  "/news/",
+  "/press/",
+  "/press-release/",
+  "/media/",
+  "/insights/",
+  "/case-studies/",
+  "/case-studies",
+  "/blog/",
 ];
 
 const AIRPORT_WEAK_STORY_PATTERNS = [
@@ -1367,10 +1381,7 @@ async function findAirportSourceStory(
 
   const currentYear = new Date().getUTCFullYear();
   const plannedCategory = getPlannedAirportDigestCategory();
-  const queries = [
-    ...getSourceQueriesForCategory(plannedCategory),
-    ...AIRPORT_RESEARCH_QUERIES,
-  ];
+  const queries = buildAirportSourceQueries(plannedCategory);
   const discoveredSources: BlogResearchSource[] = [];
 
   for (const baseQuery of queries) {
@@ -1383,7 +1394,7 @@ async function findAirportSourceStory(
       return [];
     });
     addUniqueAirportSources(discoveredSources, sources);
-    if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 6) break;
+    if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 12) break;
   }
 
   const recentText = [
@@ -1774,6 +1785,7 @@ function getAirportSourceQuality(source: BlogResearchSource) {
   const isIndustryDomain = AIRPORT_REPUTABLE_INDUSTRY_DOMAINS.some((domain) =>
     source.domain.endsWith(domain),
   );
+  const hasPreferredPath = hasPreferredAirportSourcePath(source.url);
   const ageDays = getSourceAgeDays(source);
   const isRecent = ageDays === null || ageDays <= 90;
   const score =
@@ -1782,9 +1794,11 @@ function getAirportSourceQuality(source: BlogResearchSource) {
     (hasTechnologySignal ? 3 : 0) +
     (hasInitiativeSignal ? 2 : 0) +
     (isRecent ? 2 : 0) +
-    (isIndustryDomain ? 1 : 0);
+    (isIndustryDomain ? 1 : 0) +
+    (hasPreferredPath ? 2 : 0);
 
   return {
+    hasPreferredPath,
     hasAirportSignal,
     hasInitiativeSignal,
     hasTechnologySignal,
@@ -1861,39 +1875,64 @@ function getPlannedAirportDigestCategory() {
 }
 
 function getSourceQueriesForCategory(category: string) {
-  const baseSources =
-    "airport automation Changi Fraport Heathrow Schiphol Incheon Dubai Munich Frankfurt SITA Amadeus Vanderlande BEUMER Daifuku Siemens Logistics Materna ADB SAFEGATE Assaia SICK Leidos Smiths Detection Thales IDEMIA";
   const queries: Record<string, string[]> = {
     "Passenger Processing": [
-      `airport passenger processing biometrics e-gate self service deployment ${baseSources}`,
-      "airport biometric passenger processing official announcement",
+      "airport biometric passenger processing launch",
+      "airport e-gate biometric passenger processing press release",
+      "airport self service passenger processing technology news",
     ],
     "Baggage Handling": [
-      `airport baggage handling RFID BHS automation project ${baseSources}`,
-      "airport baggage automation supplier announcement",
+      "airport baggage handling automation news",
+      "airport RFID baggage tracking deployment",
+      "airport baggage handling system project supplier announcement",
     ],
     "Aircraft Handling / GSE": [
-      `airport ground support equipment GSE aircraft handling automation ${baseSources}`,
+      "airport ground handling automation news",
+      "airport GSE automation pilot",
       "airport autonomous GSE airside automation project",
     ],
     "Airport Security": [
-      `airport security screening automation CT scanner biometric security ${baseSources}`,
-      "airport security automation official announcement",
+      "airport security screening technology news",
+      "airport security automation press release",
+      "airport CT scanner security screening technology airport news",
     ],
     "Cargo Automation": [
-      `airport cargo automation ULD warehouse air freight automation ${baseSources}`,
+      "airport cargo automation ULD news",
       "air cargo airport automation supplier announcement",
+      "airport cargo handling automation project",
     ],
     "Airport AI & Robotics": [
-      `airport AI robotics automation pilot project ${baseSources}`,
+      "airport robotics baggage handling 2026",
+      "airport AI operations center",
       "airport robot AI operations official announcement",
     ],
     "Smart Airport Infrastructure": [
-      `smart airport infrastructure digital twin operations automation ${baseSources}`,
+      "smart airport automation project",
+      "airport digital twin operations automation news",
       "airport digital infrastructure automation project",
     ],
   };
   return queries[category] ?? queries["Passenger Processing"];
+}
+
+function buildAirportSourceQueries(plannedCategory: string) {
+  const allCategoryQueries = Object.keys({
+    "Passenger Processing": true,
+    "Baggage Handling": true,
+    "Aircraft Handling / GSE": true,
+    "Airport Security": true,
+    "Cargo Automation": true,
+    "Airport AI & Robotics": true,
+    "Smart Airport Infrastructure": true,
+  }).flatMap((category) =>
+    category === plannedCategory ? [] : getSourceQueriesForCategory(category),
+  );
+
+  return [
+    ...getSourceQueriesForCategory(plannedCategory),
+    ...allCategoryQueries,
+    ...AIRPORT_RESEARCH_QUERIES,
+  ];
 }
 
 function getAirportSourceRejectionReason(
@@ -1978,6 +2017,17 @@ function isGenericAirportSource(source: BlogResearchSource) {
     );
   } catch {
     return true;
+  }
+}
+
+function hasPreferredAirportSourcePath(value: string) {
+  try {
+    const path = new URL(value).pathname.toLowerCase();
+    return AIRPORT_PREFERRED_SOURCE_PATH_PATTERNS.some((pattern) =>
+      path.includes(pattern),
+    );
+  } catch {
+    return false;
   }
 }
 
