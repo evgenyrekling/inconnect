@@ -306,12 +306,25 @@ const AIRPORT_GENERIC_SOURCE_PATTERNS = [
 ];
 
 const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
+  "/projects-a-z",
+  "/projects/",
+  "/companies/",
+  "/buyers-guide/",
+  "/features/",
+  "/analysis/",
+  "/whitepapers/",
+  "/events/",
+  "/directory/",
+  "/archive/",
+  "/archives/",
+  "/about/",
   "/help",
   "/help-center",
   "/support",
   "/customer-support",
   "/faq",
   "/contact",
+  "/contact/",
   "/booking",
   "/book",
   "/flight-status",
@@ -382,6 +395,17 @@ const AIRPORT_AVOIDED_SOURCE_DOMAINS = [
 ];
 
 const AIRPORT_HARD_REJECT_URL_PATTERNS = [
+  "/projects-a-z/",
+  "/projects/",
+  "/companies/",
+  "/buyers-guide/",
+  "/features/",
+  "/analysis/",
+  "/whitepapers/",
+  "/events/",
+  "/directory/",
+  "/about/",
+  "/contact/",
   "top-50-airports",
   "top-airports",
   "ranking",
@@ -395,6 +419,25 @@ const AIRPORT_HARD_REJECT_URL_PATTERNS = [
   "press-release/story",
   "einpresswire",
   "rrstar.com/press-release",
+];
+
+const AIRPORT_GENERIC_SOURCE_TITLES = [
+  "home",
+  "projects",
+  "project",
+  "index",
+  "archive",
+  "archives",
+  "companies",
+  "buyers guide",
+  "buyer guide",
+  "features",
+  "analysis",
+  "whitepapers",
+  "events",
+  "directory",
+  "about",
+  "contact",
 ];
 
 const AIRPORT_REJECTED_SOURCE_IMAGE_PATTERNS = [
@@ -1796,8 +1839,10 @@ async function fetchManagedAirportSourceCandidates(
 
     const html = await response.text();
     const candidates: AirportSourceCandidate[] = [];
-    const pageCandidate = createManagedPageCandidate(source, html);
-    if (pageCandidate) candidates.push(pageCandidate);
+    if (!isListingAirportSourceUrl(source.source_url)) {
+      const pageCandidate = createManagedPageCandidate(source, html);
+      if (pageCandidate) candidates.push(pageCandidate);
+    }
     candidates.push(...extractManagedAnchorCandidates(source, html));
 
     const uniqueCandidates: AirportSourceCandidate[] = [];
@@ -1862,9 +1907,13 @@ function extractManagedAnchorCandidates(
     if (normalizeUrlWithoutHash(url) === normalizeUrlWithoutHash(source.source_url)) {
       continue;
     }
+    if (isListingAirportSourceUrl(url)) {
+      continue;
+    }
 
     const title = label || createTitleFromUrl(url);
     if (title.length < 6) continue;
+    if (isGenericAirportSourceTitle(title)) continue;
 
     const candidateText = `${title} ${url}`.toLowerCase();
     const looksRelevant =
@@ -2422,6 +2471,12 @@ function getAirportSourceRejectionReason(
 function getHardAirportSourceRejectReason(source: BlogResearchSource) {
   const titleAndExcerpt = `${source.title} ${source.excerpt}`.toLowerCase();
   const url = source.url.toLowerCase();
+  if (isGenericAirportSourceTitle(source.title)) {
+    return `hard rejected generic title: ${source.title}`;
+  }
+  if (isListingAirportSourceUrl(source.url)) {
+    return `hard rejected listing/archive URL: ${source.url}`;
+  }
   const matchedTitlePhrase = AIRPORT_WEAK_STORY_PATTERNS.find((pattern) =>
     titleAndExcerpt.includes(pattern),
   );
@@ -2437,6 +2492,30 @@ function getHardAirportSourceRejectReason(source: BlogResearchSource) {
   }
 
   return "";
+}
+
+function isGenericAirportSourceTitle(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[|–—-]\s*airport technology.*$/i, "")
+    .trim();
+  return AIRPORT_GENERIC_SOURCE_TITLES.includes(normalized);
+}
+
+function isListingAirportSourceUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.toLowerCase();
+    return (
+      AIRPORT_HARD_REJECT_URL_PATTERNS.some((pattern) => path.includes(pattern)) ||
+      path === "/" ||
+      path === ""
+    );
+  } catch {
+    return true;
+  }
 }
 
 function isRejectedSourceImageUrl(value: string) {
