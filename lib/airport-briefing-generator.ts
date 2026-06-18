@@ -49,9 +49,62 @@ type StoredAirportBriefing = {
 
 type AirportSourceStory = BlogResearchSource & {
   category: string;
+  managedSourceId?: string;
   sourceImageDomain?: string;
   sourceImageUrl?: string;
   sourceName: string;
+};
+
+type AirportDailySourceRow = {
+  id: string;
+  source_name: string;
+  source_url: string;
+  source_type: string | null;
+  category: string | null;
+  priority: string | null;
+  is_active: boolean | null;
+  last_checked_at: string | null;
+  last_success_at: string | null;
+  last_successful_story_title?: string | null;
+  last_successful_story_url?: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type AirportSourceCheckResult = {
+  candidatesFound: number;
+  rejectedStories: Array<{
+    reason: string;
+    score: number;
+    sourceName: string;
+    title: string;
+    url: string;
+  }>;
+  selectedStory: {
+    category: string;
+    score: number;
+    sourceName: string;
+    title: string;
+    url: string;
+  } | null;
+  sourcesChecked: number;
+};
+
+type AirportSourceRejectedCandidate = {
+  missingAirportSignal: boolean;
+  missingAutomationSignal: boolean;
+  reason: string;
+  score: number;
+  title: string;
+  url: string;
+};
+
+type AirportSourceCandidate = BlogResearchSource & {
+  category?: string;
+  managedSourceId?: string;
+  priority?: string | null;
+  sourceName?: string;
 };
 
 type AirportHeroImageResult = {
@@ -921,7 +974,7 @@ async function generateAndStoreSourceBasedAirportDigest({
 }) {
   let story: AirportSourceStory;
   try {
-    story = await findAirportSourceStory(existingBriefings, topicHistory);
+    story = await findAirportSourceStory(existingBriefings, topicHistory, supabase);
     console.info("INConnect source-based airport story selected", {
       category: story.category,
       sourceImageUrl: story.sourceImageUrl ?? null,
@@ -1374,13 +1427,37 @@ async function researchAirportAutomationTopic(
 async function findAirportSourceStory(
   existingBriefings: ExistingAirportBriefing[],
   topicHistory: AirportTopicHistoryRow[],
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
 ): Promise<AirportSourceStory> {
   console.info("INConnect source-based airport research started", {
     plannedCategory: getPlannedAirportDigestCategory(),
   });
 
-  const currentYear = new Date().getUTCFullYear();
   const plannedCategory = getPlannedAirportDigestCategory();
+  const recentText = [
+    ...existingBriefings.slice(0, 30).map((briefing) => briefing.title ?? ""),
+    ...topicHistory.slice(0, 30).map((entry) => `${entry.title ?? ""} ${entry.topic ?? ""}`),
+  ].join(" ");
+  const managedCheck = await checkAirportDailySourcesInternal({
+    plannedCategory,
+    recentText,
+    supabase,
+  });
+
+  if (managedCheck.selectedStoryInternal) {
+    console.info("INConnect managed airport source selected", {
+      selectedStory: managedCheck.selectedStory,
+      sourcesChecked: managedCheck.sourcesChecked,
+    });
+    return managedCheck.selectedStoryInternal;
+  }
+
+  console.info("INConnect managed airport sources produced no valid story; falling back to general web search", {
+    rejectedStories: managedCheck.rejectedStories.slice(0, 10),
+    sourcesChecked: managedCheck.sourcesChecked,
+  });
+
+  const currentYear = new Date().getUTCFullYear();
   const queries = buildAirportSourceQueries(plannedCategory);
   const discoveredSources: BlogResearchSource[] = [];
 
@@ -1397,19 +1474,167 @@ async function findAirportSourceStory(
     if (discoveredSources.length >= MAX_AIRPORT_RESEARCH_SOURCES * 12) break;
   }
 
+  const rejectedCandidates: AirportSourceRejectedCandidate[] = [];
+  const selection = await selectAirportSourceCandidate({
+    plannedCategory,
+    recentText,
+    rejectedCandidates,
+    sources: discoveredSources,
+  });
+  const selected = selection.selected;
+  const fallbackUsed = selection.fallbackUsed;
+  console.info("INConnect source-based airport research candidates", {
+    candidateCount: selection.candidateCount,
+    plannedCategory,
+    rejectedCandidates: rejectedCandidates.slice(0, 10),
+    selectedSource: selected
+      ? {
+          category: selected.category,
+          fallbackUsed,
+          score: selection.score,
+          sourceTitle: selected.title,
+          sourceUrl: selected.url,
+        }
+      : null,
+  });
+
+  if (!selected) {
+    throw new AirportBriefingGenerationError(
+      "source_selection",
+      "No strong airport automation story found today",
+    );
+  }
+  return selected;
+}
+
+export async function checkAirportDailySources(options?: {
+  sourceId?: string;
+}): Promise<AirportSourceCheckResult> {
+  const supabase = getSupabaseAdminClient();
+  const existingBriefings = await getExistingAirportBriefings(supabase);
+  const topicHistory = await getAirportTopicHistory(supabase);
   const recentText = [
     ...existingBriefings.slice(0, 30).map((briefing) => briefing.title ?? ""),
     ...topicHistory.slice(0, 30).map((entry) => `${entry.title ?? ""} ${entry.topic ?? ""}`),
   ].join(" ");
-  const rejectedCandidates: Array<{
-    missingAirportSignal: boolean;
-    missingAutomationSignal: boolean;
-    reason: string;
-    score: number;
-    title: string;
-    url: string;
-  }> = [];
-  const candidates = discoveredSources
+  const result = await checkAirportDailySourcesInternal({
+    plannedCategory: getPlannedAirportDigestCategory(),
+    recentText,
+    sourceId: options?.sourceId,
+    supabase,
+  });
+
+  return {
+    candidatesFound: result.candidatesFound,
+    rejectedStories: result.rejectedStories,
+    selectedStory: result.selectedStory,
+    sourcesChecked: result.sourcesChecked,
+  };
+}
+
+async function checkAirportDailySourcesInternal({
+  plannedCategory,
+  recentText,
+  sourceId,
+  supabase,
+}: {
+  plannedCategory: string;
+  recentText: string;
+  sourceId?: string;
+  supabase: ReturnType<typeof getSupabaseAdminClient>;
+}): Promise<
+  AirportSourceCheckResult & {
+    selectedStoryInternal: AirportSourceStory | null;
+  }
+> {
+  const sources = await loadAirportDailySources(supabase, sourceId);
+  const rejectedCandidates: AirportSourceRejectedCandidate[] = [];
+  const candidates: AirportSourceCandidate[] = [];
+  let sourcesChecked = 0;
+
+  for (const source of sources) {
+    sourcesChecked += 1;
+    const checkedAt = new Date().toISOString();
+    const sourceCandidates = await fetchManagedAirportSourceCandidates(source).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      rejectedCandidates.push({
+        missingAirportSignal: false,
+        missingAutomationSignal: false,
+        reason: `source check failed: ${message}`,
+        score: 0,
+        title: source.source_name,
+        url: source.source_url,
+      });
+      return [];
+    });
+
+    addUniqueAirportSources(candidates, sourceCandidates);
+    await supabase
+      .from("airport_daily_sources")
+      .update({ last_checked_at: checkedAt, updated_at: checkedAt })
+      .eq("id", source.id);
+  }
+
+  const selection = await selectAirportSourceCandidate({
+    plannedCategory,
+    recentText,
+    rejectedCandidates,
+    sources: candidates,
+  });
+
+  if (selection.selected?.managedSourceId) {
+    const successAt = new Date().toISOString();
+    await supabase
+      .from("airport_daily_sources")
+      .update({
+        last_success_at: successAt,
+        last_successful_story_title: selection.selected.title,
+        last_successful_story_url: selection.selected.url,
+        updated_at: successAt,
+      })
+      .eq("id", selection.selected.managedSourceId);
+  }
+
+  return {
+    candidatesFound: selection.candidateCount,
+    rejectedStories: rejectedCandidates.map((candidate) => ({
+      reason: candidate.reason,
+      score: candidate.score,
+      sourceName: getSourceName({
+        domain: getDomain(candidate.url),
+        excerpt: "",
+        title: candidate.title,
+        url: candidate.url,
+      }),
+      title: candidate.title,
+      url: candidate.url,
+    })),
+    selectedStory: selection.selected
+      ? {
+          category: selection.selected.category,
+          score: selection.score,
+          sourceName: selection.selected.sourceName,
+          title: selection.selected.title,
+          url: selection.selected.url,
+        }
+      : null,
+    selectedStoryInternal: selection.selected,
+    sourcesChecked,
+  };
+}
+
+async function selectAirportSourceCandidate({
+  plannedCategory,
+  recentText,
+  rejectedCandidates,
+  sources,
+}: {
+  plannedCategory: string;
+  recentText: string;
+  rejectedCandidates: AirportSourceRejectedCandidate[];
+  sources: AirportSourceCandidate[];
+}) {
+  const candidates = sources
     .filter((source) => {
       const quality = getAirportSourceQuality(source);
       const reason = getAirportSourceRejectionReason(source, recentText, quality);
@@ -1428,13 +1653,17 @@ async function findAirportSourceStory(
     })
     .map((source) => {
       const quality = getAirportSourceQuality(source);
+      const category =
+        normalizeManagedSourceCategory(source.category ?? "") ||
+        detectAirportTopicCategory(`${source.title} ${source.excerpt}`) ||
+        plannedCategory;
+      const priorityBoost = getAirportSourcePriorityScore(source.priority);
+
       return {
         ...source,
-        category:
-          detectAirportTopicCategory(`${source.title} ${source.excerpt}`) ||
-          plannedCategory,
-        sourceName: getSourceName(source),
-        sourceScore: quality.score,
+        category,
+        sourceName: source.sourceName || getSourceName(source),
+        sourceScore: quality.score + priorityBoost,
       };
     })
     .sort((left, right) => {
@@ -1475,8 +1704,17 @@ async function findAirportSourceStory(
     break;
   }
 
-  const fallbackUsed = Boolean(selected && selected.category !== plannedCategory);
-  if (selected && fallbackUsed) {
+  if (!selected) {
+    return {
+      candidateCount: candidates.length,
+      fallbackUsed: false,
+      score: 0,
+      selected: null,
+    };
+  }
+
+  const fallbackUsed = selected.category !== plannedCategory;
+  if (fallbackUsed) {
     console.info("planned category fallback used", {
       plannedCategory,
       selectedCategory: selected.category,
@@ -1484,35 +1722,249 @@ async function findAirportSourceStory(
       selectedUrl: selected.url,
     });
   }
-  console.info("INConnect source-based airport research candidates", {
-    candidateCount: candidates.length,
-    plannedCategory,
-    rejectedCandidates: rejectedCandidates.slice(0, 10),
-    selectedSource: selected
-      ? {
-          category: selected.category,
-          fallbackUsed,
-          score: selected.sourceScore,
-          sourceTitle: selected.title,
-          sourceUrl: selected.url,
-        }
-      : null,
-  });
 
-  if (!selected) {
-    throw new AirportBriefingGenerationError(
-      "source_selection",
-      "No strong airport automation story found today",
+  const { sourceScore: score, priority: _priority, ...selectedStory } = selected;
+  return {
+    candidateCount: candidates.length,
+    fallbackUsed,
+    score,
+    selected: {
+      ...selectedStory,
+      category: selected.category,
+      managedSourceId: selected.managedSourceId,
+      sourceImageDomain: selectedImage?.domain,
+      sourceImageUrl: selectedImage?.url,
+      sourceName: selected.sourceName,
+    } satisfies AirportSourceStory,
+  };
+}
+
+async function loadAirportDailySources(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  sourceId?: string,
+) {
+  let query = supabase
+    .from("airport_daily_sources")
+    .select(
+      "id, source_name, source_url, source_type, category, priority, is_active, last_checked_at, last_success_at, last_successful_story_title, last_successful_story_url, notes, created_at, updated_at",
+    );
+
+  if (sourceId) {
+    query = query.eq("id", sourceId);
+  } else {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query.returns<AirportDailySourceRow[]>();
+
+  if (error) {
+    if ((error as { code?: string }).code === "42P01") {
+      console.warn("airport_daily_sources table is missing; using general web search fallback");
+      return [];
+    }
+    console.error("AIRPORT DAILY SOURCES LOOKUP ERROR", error);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((source) => Boolean(source.source_url && source.source_name))
+    .sort(
+      (left, right) =>
+        getAirportSourcePriorityScore(right.priority) -
+          getAirportSourcePriorityScore(left.priority) ||
+        String(left.source_name).localeCompare(String(right.source_name)),
+    );
+}
+
+async function fetchManagedAirportSourceCandidates(
+  source: AirportDailySourceRow,
+): Promise<AirportSourceCandidate[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AIRPORT_RESEARCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(source.source_url, {
+      headers: {
+        "user-agent": "INConnectBot/1.0 airport source management",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Source returned HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+    const candidates: AirportSourceCandidate[] = [];
+    const pageCandidate = createManagedPageCandidate(source, html);
+    if (pageCandidate) candidates.push(pageCandidate);
+    candidates.push(...extractManagedAnchorCandidates(source, html));
+
+    const uniqueCandidates: AirportSourceCandidate[] = [];
+    addUniqueAirportSources(uniqueCandidates, candidates);
+    return uniqueCandidates.slice(0, 30);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function createManagedPageCandidate(
+  source: AirportDailySourceRow,
+  html: string,
+): AirportSourceCandidate | null {
+  const title =
+    extractMetaContent(html, "property", "og:title") ||
+    extractMetaContent(html, "name", "twitter:title") ||
+    extractHtmlTitle(html) ||
+    source.source_name;
+  const excerpt =
+    extractMetaContent(html, "property", "og:description") ||
+    extractMetaContent(html, "name", "description") ||
+    source.notes ||
+    source.source_name;
+  const url =
+    extractMetaContent(html, "property", "og:url") ||
+    source.source_url;
+
+  if (!url || !title) return null;
+  return createManagedCandidate({
+    category: source.category,
+    excerpt,
+    managedSourceId: source.id,
+    priority: source.priority,
+    sourceName: source.source_name,
+    title,
+    url: new URL(url, source.source_url).toString(),
+  });
+}
+
+function extractManagedAnchorCandidates(
+  source: AirportDailySourceRow,
+  html: string,
+): AirportSourceCandidate[] {
+  const candidates: AirportSourceCandidate[] = [];
+  const anchorPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  for (const match of html.matchAll(anchorPattern)) {
+    const href = decodeHtmlEntities(match[1] ?? "").trim();
+    const label = cleanText(stripHtml(decodeHtmlEntities(match[2] ?? "")), 220);
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+      continue;
+    }
+
+    let url = "";
+    try {
+      url = new URL(href, source.source_url).toString();
+    } catch {
+      continue;
+    }
+
+    if (normalizeUrlWithoutHash(url) === normalizeUrlWithoutHash(source.source_url)) {
+      continue;
+    }
+
+    const title = label || createTitleFromUrl(url);
+    if (title.length < 6) continue;
+
+    const candidateText = `${title} ${url}`.toLowerCase();
+    const looksRelevant =
+      hasPreferredAirportSourcePath(url) ||
+      AIRPORT_RELEVANCE_SIGNALS.some((signal) => candidateText.includes(signal)) ||
+      AIRPORT_TECHNOLOGY_SIGNALS.some((signal) => candidateText.includes(signal)) ||
+      AIRPORT_INITIATIVE_SIGNALS.some((signal) => candidateText.includes(signal));
+
+    if (!looksRelevant) continue;
+
+    candidates.push(
+      createManagedCandidate({
+        category: source.category,
+        excerpt: `${title} from ${source.source_name}`,
+        managedSourceId: source.id,
+        priority: source.priority,
+        sourceName: source.source_name,
+        title,
+        url,
+      }),
     );
   }
 
-  const { sourceScore: _sourceScore, ...selectedStory } = selected;
+  return candidates;
+}
 
+function createManagedCandidate({
+  category,
+  excerpt,
+  managedSourceId,
+  priority,
+  sourceName,
+  title,
+  url,
+}: {
+  category: string | null;
+  excerpt: string;
+  managedSourceId: string;
+  priority: string | null;
+  sourceName: string;
+  title: string;
+  url: string;
+}): AirportSourceCandidate {
   return {
-    ...selectedStory,
-    sourceImageDomain: selectedImage?.domain,
-    sourceImageUrl: selectedImage?.url,
+    category: normalizeManagedSourceCategory(category ?? ""),
+    domain: getDomain(url),
+    excerpt: cleanText(excerpt, 420),
+    managedSourceId,
+    priority,
+    publishedAt: undefined,
+    sourceName,
+    title: cleanText(title, 220),
+    url,
   };
+}
+
+function normalizeUrlWithoutHash(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return value.replace(/#.*$/, "").replace(/\/+$/, "");
+  }
+}
+
+function extractHtmlTitle(html: string) {
+  return cleanText(stripHtml(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? ""), 220);
+}
+
+function createTitleFromUrl(value: string) {
+  try {
+    const path = new URL(value).pathname;
+    const segment = path.split("/").filter(Boolean).pop() ?? "";
+    return cleanText(segment.replace(/[-_]+/g, " "), 160);
+  } catch {
+    return "";
+  }
+}
+
+function normalizeManagedSourceCategory(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const categories: Record<string, string> = {
+    ai: "Airport AI & Robotics",
+    baggage: "Baggage Handling",
+    cargo: "Cargo Automation",
+    gse: "Aircraft Handling / GSE",
+    passenger_processing: "Passenger Processing",
+    robotics: "Airport AI & Robotics",
+    security: "Airport Security",
+    smart_airport: "Smart Airport Infrastructure",
+  };
+  return categories[normalized] ?? normalizeAirportCategory(value);
+}
+
+function getAirportSourcePriorityScore(value: string | null | undefined) {
+  const normalized = (value ?? "medium").trim().toLowerCase();
+  if (normalized === "high") return 6;
+  if (normalized === "low") return 0;
+  return 3;
 }
 
 async function generateSourceBasedAirportDigest(
