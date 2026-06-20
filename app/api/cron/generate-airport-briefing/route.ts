@@ -37,9 +37,24 @@ async function generateAirportBriefingResponse(source: "admin-manual" | "cron") 
       title: result.briefing.title,
       slug: result.briefing.slug,
       published: result.briefing.published,
+      autoSendAllowed: result.briefing.auto_send_allowed ?? false,
+      qualityRejectionReason: result.briefing.quality_rejection_reason ?? null,
+      qualityScore: result.briefing.quality_score ?? null,
+      sourceUrlType: result.briefing.source_url_type ?? null,
+      status: result.briefing.status ?? null,
     });
   } catch (error) {
     console.error("Daily airport briefing generation failed", error);
+    if (
+      error instanceof AirportBriefingGenerationError &&
+      error.stage === "source_selection"
+    ) {
+      return NextResponse.json({
+        success: false,
+        stage: error.stage,
+        error: error.message,
+      });
+    }
     return NextResponse.json(
       {
         success: false,

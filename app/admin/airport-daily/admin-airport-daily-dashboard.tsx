@@ -17,6 +17,13 @@ type AirportBriefingAdminRow = {
   image_attribution: string | null;
   summary: string | null;
   inconnect_view: string | null;
+  quality_score: number | null;
+  status: string | null;
+  is_draft_candidate: boolean | null;
+  auto_send_allowed: boolean | null;
+  quality_rejection_reason: string | null;
+  source_url_type: string | null;
+  published: boolean | null;
   sent_at: string | null;
   published_at: string | null;
   generated_at: string | null;
@@ -97,12 +104,25 @@ export function AdminAirportDailyDashboard() {
     }
 
     const briefingId = data?.latestBriefing?.id;
-    if (["send_test", "send_subscribers", "mark_sent", "delete"].includes(action) && !briefingId) {
+    if (
+      [
+        "approve_send",
+        "delete",
+        "mark_sent",
+        "reject",
+        "send_subscribers",
+        "send_test",
+      ].includes(action) &&
+      !briefingId
+    ) {
       setError("No briefing is available for this action.");
       return;
     }
 
     if (action === "delete" && !window.confirm("Delete this Airport Daily digest?")) {
+      return;
+    }
+    if (action === "reject" && !window.confirm("Reject this Airport Daily candidate?")) {
       return;
     }
 
@@ -132,12 +152,16 @@ export function AdminAirportDailyDashboard() {
 
       if (action === "generate") {
         setMessage(`Generated digest: ${payload?.title ?? "Airport Daily"}`);
+      } else if (action === "approve_send") {
+        setMessage(`Approved and sent ${payload?.sent ?? 0} emails. Failed: ${payload?.failed ?? 0}.`);
       } else if (action === "send_subscribers") {
         setMessage(`Sent ${payload?.sent ?? 0} emails. Failed: ${payload?.failed ?? 0}.`);
       } else if (action === "send_test") {
         setMessage(`Test email sent to ${adminEmail.trim()}.`);
       } else if (action === "mark_sent") {
         setMessage("Digest marked as sent.");
+      } else if (action === "reject") {
+        setMessage("Digest candidate rejected.");
       } else if (action === "delete") {
         setMessage("Digest deleted.");
       }
@@ -203,7 +227,7 @@ export function AdminAirportDailyDashboard() {
             <article className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
               {!briefing ? (
                 <p className="text-sm text-[#666666]">
-                  No published Airport Daily digest found yet.
+                  No Airport Daily digest or review candidate found yet.
                 </p>
               ) : (
                 <>
@@ -220,6 +244,8 @@ export function AdminAirportDailyDashboard() {
                     <span>{formatDate(briefing.published_at || briefing.generated_at || briefing.created_at)}</span>
                     <span>&middot;</span>
                     <span>{briefing.sent_at ? "Sent" : "Not sent"}</span>
+                    <span>&middot;</span>
+                    <span>{briefing.status || (briefing.published ? "published" : "draft")}</span>
                   </div>
                   <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
                     {briefing.title}
@@ -237,7 +263,32 @@ export function AdminAirportDailyDashboard() {
                         {briefing.source_domain || "Not available"}
                       </dd>
                     </div>
+                    <div className="rounded-lg bg-[#F8FAFC] p-3">
+                      <dt className="font-semibold text-[#191919]">Quality score</dt>
+                      <dd className="mt-1 text-[#666666]">
+                        {typeof briefing.quality_score === "number"
+                          ? `${briefing.quality_score}/100`
+                          : "Not scored"}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-[#F8FAFC] p-3">
+                      <dt className="font-semibold text-[#191919]">Source URL type</dt>
+                      <dd className="mt-1 text-[#666666]">
+                        {briefing.source_url_type || "Not classified"}
+                      </dd>
+                    </div>
                   </dl>
+                  <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-4 text-sm">
+                    <p className="font-semibold text-[#191919]">Review state</p>
+                    <p className="mt-1 text-[#666666]">
+                      Auto-send allowed: {briefing.auto_send_allowed ? "Yes" : "No"}
+                    </p>
+                    {briefing.quality_rejection_reason && (
+                      <p className="mt-2 text-[#B24020]">
+                        {briefing.quality_rejection_reason}
+                      </p>
+                    )}
+                  </div>
                   {briefing.source_url && (
                     <a
                       className="mt-4 inline-flex text-sm font-semibold text-[#0A66C2] hover:text-[#004182]"
@@ -290,6 +341,17 @@ export function AdminAirportDailyDashboard() {
                   disabled={isWorking}
                   label="Generate New Digest"
                   onClick={() => runAction("generate")}
+                />
+                <AdminActionButton
+                  disabled={isWorking || !briefing}
+                  label="Approve & Send"
+                  onClick={() => runAction("approve_send")}
+                />
+                <AdminActionButton
+                  disabled={isWorking || !briefing}
+                  label="Reject Candidate"
+                  onClick={() => runAction("reject")}
+                  secondary
                 />
                 <AdminActionButton
                   disabled={isWorking || !briefing}

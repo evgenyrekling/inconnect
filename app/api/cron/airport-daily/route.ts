@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
   try {
     const generated = await generateAndStoreAirportBriefing({ source: "cron" });
     const shouldSend = process.env.AUTO_SEND_AIRPORT_DAILY === "true";
-    const sendResult = shouldSend
+    const canSendGeneratedBriefing =
+      generated.briefing.published && generated.briefing.auto_send_allowed === true;
+    const sendResult = shouldSend && canSendGeneratedBriefing
       ? await sendLatestAirportDailyEmail({
           briefingId: generated.briefing.id,
           requireUnsent: false,
@@ -27,18 +29,38 @@ export async function GET(request: NextRequest) {
       : null;
 
     return NextResponse.json({
+      autoSendAllowed: generated.briefing.auto_send_allowed ?? false,
       briefingId: generated.briefing.id,
       failed: sendResult?.failed ?? 0,
+      published: generated.briefing.published,
+      reason:
+        shouldSend && !canSendGeneratedBriefing
+          ? generated.briefing.quality_rejection_reason ||
+            "Generated briefing is awaiting review."
+          : undefined,
       sent: sendResult?.sent ?? 0,
-      skippedEmail: !shouldSend,
+      skippedEmail: !shouldSend || !canSendGeneratedBriefing,
       slug: generated.briefing.slug,
       stage: "complete",
+      status: generated.briefing.status ?? null,
       subscriberCount: sendResult?.subscribers ?? 0,
       success: true,
       title: generated.briefing.title,
     });
   } catch (error) {
     console.error("AIRPORT DAILY COMBINED CRON FAILED", error);
+    if (
+      error instanceof AirportBriefingGenerationError &&
+      error.stage === "source_selection"
+    ) {
+      return NextResponse.json({
+        error: error.message,
+        sent: 0,
+        skippedEmail: true,
+        stage: error.stage,
+        success: false,
+      });
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : String(error),

@@ -164,6 +164,12 @@ create table if not exists public.airport_briefings (
   inconnect_view text,
   reading_time text default '1 Minute Read',
   is_source_based boolean default true,
+  quality_score integer,
+  status text default 'published',
+  is_draft_candidate boolean default false,
+  auto_send_allowed boolean default false,
+  quality_rejection_reason text,
+  source_url_type text,
   seo_title text,
   seo_description text,
   published boolean default true,
@@ -324,6 +330,10 @@ create index if not exists airport_briefings_sent_at_idx
   on public.airport_briefings (sent_at);
 create index if not exists airport_briefings_is_source_based_idx
   on public.airport_briefings (is_source_based);
+create index if not exists airport_briefings_status_generated_at_idx
+  on public.airport_briefings (status, generated_at desc);
+create index if not exists airport_briefings_auto_send_allowed_idx
+  on public.airport_briefings (auto_send_allowed);
 create index if not exists airport_daily_sources_active_idx
   on public.airport_daily_sources (is_active);
 create index if not exists airport_daily_sources_priority_idx

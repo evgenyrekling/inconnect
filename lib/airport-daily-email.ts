@@ -10,6 +10,7 @@ type AirportBriefingRow = {
   content: string;
   hero_image_url: string | null;
   inconnect_view: string | null;
+  auto_send_allowed?: boolean | null;
   published: boolean | null;
   published_at: string | null;
   sent_at: string | null;
@@ -59,9 +60,10 @@ export async function sendLatestAirportDailyEmail({
   let briefingQuery = supabase
     .from("airport_briefings")
     .select(
-      "id, slug, title, content, hero_image_url, summary, inconnect_view, source_url, published, published_at, sent_at, generated_at, created_at",
+      "id, slug, title, content, hero_image_url, summary, inconnect_view, source_url, auto_send_allowed, published, published_at, sent_at, generated_at, created_at",
     )
-    .eq("published", true);
+    .eq("published", true)
+    .eq("auto_send_allowed", true);
 
   if (briefingId) {
     briefingQuery = briefingQuery.eq("id", briefingId);
@@ -83,13 +85,14 @@ export async function sendLatestAirportDailyEmail({
   }
 
   if (!briefing) {
-    throw new Error("No published airport briefing found for email delivery.");
+    throw new Error("No approved published airport briefing found for email delivery.");
   }
 
   console.info("AIRPORT BRIEFING FOUND", {
     briefing_id: briefing.id,
     slug: briefing.slug,
     title: briefing.title,
+    auto_send_allowed: briefing.auto_send_allowed ?? null,
   });
 
   const { data: subscriptions, error: subscriptionsError } = await supabase

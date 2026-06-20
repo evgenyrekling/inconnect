@@ -27,6 +27,13 @@ type AirportBriefingAdminRow = {
   image_attribution: string | null;
   summary: string | null;
   inconnect_view: string | null;
+  quality_score: number | null;
+  status: string | null;
+  is_draft_candidate: boolean | null;
+  auto_send_allowed: boolean | null;
+  quality_rejection_reason: string | null;
+  source_url_type: string | null;
+  published: boolean | null;
   sent_at: string | null;
   published_at: string | null;
   generated_at: string | null;
@@ -43,9 +50,9 @@ export async function GET(request: NextRequest) {
       supabase
         .from("airport_briefings")
         .select(
-          "id, slug, title, category, excerpt, hero_image_url, source_name, source_url, source_domain, source_image_url, image_attribution, summary, inconnect_view, sent_at, published_at, generated_at, created_at",
+          "id, slug, title, category, excerpt, hero_image_url, source_name, source_url, source_domain, source_image_url, image_attribution, summary, inconnect_view, quality_score, status, is_draft_candidate, auto_send_allowed, quality_rejection_reason, source_url_type, published, sent_at, published_at, generated_at, created_at",
         )
-        .eq("published", true)
+        .or("status.is.null,status.neq.rejected")
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("generated_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
@@ -121,6 +128,52 @@ export async function POST(request: NextRequest) {
         requireUnsent: false,
       });
       return NextResponse.json(result);
+    }
+
+    if (payload?.action === "approve_send") {
+      if (!payload.briefingId) {
+        return NextResponse.json({ error: "briefingId is required." }, { status: 400 });
+      }
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("airport_briefings")
+        .update({
+          auto_send_allowed: true,
+          is_draft_candidate: false,
+          published: true,
+          published_at: now,
+          quality_rejection_reason: null,
+          status: "published",
+        })
+        .eq("id", payload.briefingId);
+      if (error) throw new Error(error.message);
+
+      const result = await sendLatestAirportDailyEmail({
+        briefingId: payload.briefingId,
+        requireUnsent: false,
+      });
+      return NextResponse.json({
+        ...result,
+        approved: true,
+      });
+    }
+
+    if (payload?.action === "reject") {
+      if (!payload.briefingId) {
+        return NextResponse.json({ error: "briefingId is required." }, { status: 400 });
+      }
+      const { error } = await supabase
+        .from("airport_briefings")
+        .update({
+          auto_send_allowed: false,
+          is_draft_candidate: false,
+          published: false,
+          quality_rejection_reason: "Rejected by admin review.",
+          status: "rejected",
+        })
+        .eq("id", payload.briefingId);
+      if (error) throw new Error(error.message);
+      return NextResponse.json({ success: true });
     }
 
     if (payload?.action === "mark_sent") {

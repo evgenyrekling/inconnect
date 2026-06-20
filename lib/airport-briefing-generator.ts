@@ -45,6 +45,12 @@ type StoredAirportBriefing = {
   created_at: string;
   hero_image_url: string | null;
   published_at: string | null;
+  auto_send_allowed?: boolean | null;
+  is_draft_candidate?: boolean | null;
+  quality_rejection_reason?: string | null;
+  quality_score?: number | null;
+  source_url_type?: string | null;
+  status?: string | null;
 };
 
 type AirportSourceStory = BlogResearchSource & {
@@ -80,6 +86,7 @@ export type AirportSourceCheckResult = {
     sourceName: string;
     title: string;
     url: string;
+    urlType?: string;
   }>;
   selectedStory: {
     category: string;
@@ -87,6 +94,7 @@ export type AirportSourceCheckResult = {
     sourceName: string;
     title: string;
     url: string;
+    urlType?: string;
   } | null;
   sourcesChecked: number;
 };
@@ -98,6 +106,7 @@ type AirportSourceRejectedCandidate = {
   score: number;
   title: string;
   url: string;
+  urlType?: string;
 };
 
 type AirportSourceCandidate = BlogResearchSource & {
@@ -310,6 +319,13 @@ const AIRPORT_GENERIC_SOURCE_PATH_PATTERNS = [
   "/projects/",
   "/companies/",
   "/buyers-guide/",
+  "/rankings/",
+  "/awards/",
+  "/category/",
+  "/topics/",
+  "/tag/",
+  "/page/",
+  "/search/",
   "/features/",
   "/analysis/",
   "/whitepapers/",
@@ -399,6 +415,14 @@ const AIRPORT_HARD_REJECT_URL_PATTERNS = [
   "/projects/",
   "/companies/",
   "/buyers-guide/",
+  "/rankings/",
+  "/awards/",
+  "/category/",
+  "/topics/",
+  "/tag/",
+  "/page/",
+  "/search/",
+  "/help/",
   "/features/",
   "/analysis/",
   "/whitepapers/",
@@ -423,14 +447,19 @@ const AIRPORT_HARD_REJECT_URL_PATTERNS = [
 
 const AIRPORT_GENERIC_SOURCE_TITLES = [
   "home",
+  "overview",
   "projects",
   "project",
   "index",
   "archive",
   "archives",
   "companies",
+  "company categories",
   "buyers guide",
   "buyer guide",
+  "top airports",
+  "best airports",
+  "help center",
   "features",
   "analysis",
   "whitepapers",
@@ -1018,11 +1047,14 @@ async function generateAndStoreSourceBasedAirportDigest({
   let story: AirportSourceStory;
   try {
     story = await findAirportSourceStory(existingBriefings, topicHistory, supabase);
+    const sourceQuality = getAirportSourceQuality(story);
     console.info("INConnect source-based airport story selected", {
       category: story.category,
+      qualityScore: getAirportSourceQualityScore(story, sourceQuality),
       sourceImageUrl: story.sourceImageUrl ?? null,
       sourceName: story.sourceName,
       sourceUrl: story.url,
+      sourceUrlType: getAirportSourceUrlType(story.url),
       title: story.title,
     });
   } catch (error) {
@@ -1072,6 +1104,28 @@ async function generateAndStoreSourceBasedAirportDigest({
   const slug = ensureUniqueSlug(digest.slug || title, existingBriefings);
   const sourceImageUrl = story.sourceImageUrl || DEFAULT_AIRPORT_HERO_IMAGE_URL;
   const now = new Date().toISOString();
+  const sourceQuality = getAirportSourceQuality(story);
+  const qualityScore = getAirportSourceQualityScore(story, sourceQuality);
+  const sourceUrlType = getAirportSourceUrlType(story.url);
+  const sourceRejectionReason = getAirportSourceRejectionReason(
+    story,
+    existingBriefings
+      .slice(0, 30)
+      .map((briefing) => `${briefing.title ?? ""} ${briefing.content ?? ""}`)
+      .join(" "),
+    sourceQuality,
+  );
+  const autoSendAllowed =
+    qualityScore >= 85 &&
+    !sourceRejectionReason &&
+    sourceUrlType === "article" &&
+    qualityIssues.length === 0;
+  const published = autoSendAllowed;
+  const status = autoSendAllowed ? "published" : "draft_candidate";
+  const qualityRejectionReason = autoSendAllowed
+    ? null
+    : sourceRejectionReason ||
+      `Quality score ${qualityScore} is below the auto-publish threshold of 85.`;
   const content = [`## Summary`, "", digest.summary, "", "## INConnect View", "", digest.inconnectView].join("\n");
   const payload = {
     slug,
@@ -1097,18 +1151,30 @@ async function generateAndStoreSourceBasedAirportDigest({
     research_summary: `Source-based digest from ${story.sourceName}: ${story.title}`,
     reading_time: "1 Minute Read",
     is_source_based: true,
+    quality_score: qualityScore,
+    status,
+    is_draft_candidate: !autoSendAllowed,
+    auto_send_allowed: autoSendAllowed,
+    quality_rejection_reason: qualityRejectionReason,
+    source_url_type: sourceUrlType,
     seo_title: cleanText(`${title} | Airport Automation Daily`, 180),
     seo_description: cleanText(digest.seoDescription || digest.summary, 320),
-    published: true,
-    published_at: now,
+    published,
+    published_at: published ? now : null,
     generated_at: now,
     created_at: now,
   };
 
   console.info("INConnect source-based airport_briefings insert payload", {
+    autoSendAllowed,
     category: payload.category,
+    published,
+    qualityRejectionReason,
+    qualityScore,
     sourceName: story.sourceName,
     sourceUrl: story.url,
+    sourceUrlType,
+    status,
     title,
   });
 
@@ -1148,15 +1214,20 @@ async function generateAndStoreSourceBasedAirportDigest({
   });
 
   console.info("INConnect source-based airport digest stored", {
+    autoSendAllowed,
     id: data.id,
+    published: data.published,
+    qualityScore,
     source,
     sourceUrl: story.url,
+    sourceUrlType,
+    status,
     title: data.title,
   });
 
   return {
     briefing: data,
-    published: true,
+    published: data.published,
   };
 }
 
@@ -1344,7 +1415,9 @@ async function insertAirportBriefingWithSchemaFallback(
   const insertResult = await supabase
     .from("airport_briefings")
     .insert(payload)
-    .select("id, slug, title, published, generated_at, created_at, hero_image_url, published_at")
+    .select(
+      "id, slug, title, published, generated_at, created_at, hero_image_url, published_at, quality_score, status, is_draft_candidate, auto_send_allowed, quality_rejection_reason, source_url_type",
+    )
     .single<StoredAirportBriefing>();
 
   if (!isMissingColumnError(insertResult.error)) return insertResult;
@@ -1365,6 +1438,12 @@ async function insertAirportBriefingWithSchemaFallback(
   delete fallbackPayload.summary;
   delete fallbackPayload.inconnect_view;
   delete fallbackPayload.is_source_based;
+  delete fallbackPayload.quality_score;
+  delete fallbackPayload.status;
+  delete fallbackPayload.is_draft_candidate;
+  delete fallbackPayload.auto_send_allowed;
+  delete fallbackPayload.quality_rejection_reason;
+  delete fallbackPayload.source_url_type;
   delete fallbackPayload.sent_at;
   delete fallbackPayload.published_at;
   delete fallbackPayload.airport_name;
@@ -1537,6 +1616,7 @@ async function findAirportSourceStory(
           score: selection.score,
           sourceTitle: selected.title,
           sourceUrl: selected.url,
+          sourceUrlType: getAirportSourceUrlType(selected.url),
         }
       : null,
   });
@@ -1607,6 +1687,7 @@ async function checkAirportDailySourcesInternal({
         score: 0,
         title: source.source_name,
         url: source.source_url,
+        urlType: getAirportSourceUrlType(source.source_url),
       });
       return [];
     });
@@ -1651,6 +1732,7 @@ async function checkAirportDailySourcesInternal({
       }),
       title: candidate.title,
       url: candidate.url,
+      urlType: candidate.urlType,
     })),
     selectedStory: selection.selected
       ? {
@@ -1659,6 +1741,7 @@ async function checkAirportDailySourcesInternal({
           sourceName: selection.selected.sourceName,
           title: selection.selected.title,
           url: selection.selected.url,
+          urlType: getAirportSourceUrlType(selection.selected.url),
         }
       : null,
     selectedStoryInternal: selection.selected,
@@ -1689,6 +1772,16 @@ async function selectAirportSourceCandidate({
           score: quality.score,
           title: source.title,
           url: source.url,
+          urlType: getAirportSourceUrlType(source.url),
+        });
+        console.info("INConnect airport source candidate rejected", {
+          missingAirportSignal: !quality.hasAirportSignal,
+          missingAutomationSignal: !quality.hasTechnologySignal,
+          reason,
+          score: quality.score,
+          sourceTitle: source.title,
+          sourceUrl: source.url,
+          sourceUrlType: getAirportSourceUrlType(source.url),
         });
         return false;
       }
@@ -1738,6 +1831,7 @@ async function selectAirportSourceCandidate({
         score: candidate.sourceScore,
         title: candidate.title,
         url: candidate.url,
+        urlType: getAirportSourceUrlType(candidate.url),
       });
       continue;
     }
@@ -1847,7 +1941,7 @@ async function fetchManagedAirportSourceCandidates(
 
     const uniqueCandidates: AirportSourceCandidate[] = [];
     addUniqueAirportSources(uniqueCandidates, candidates);
-    return uniqueCandidates.slice(0, 30);
+    return enrichManagedAirportSourceCandidates(uniqueCandidates.slice(0, 30));
   } finally {
     clearTimeout(timeout);
   }
@@ -1870,12 +1964,14 @@ function createManagedPageCandidate(
   const url =
     extractMetaContent(html, "property", "og:url") ||
     source.source_url;
+  const publishedAt = extractPublishedDateFromHtml(html);
 
   if (!url || !title) return null;
   return createManagedCandidate({
     category: source.category,
     excerpt,
     managedSourceId: source.id,
+    publishedAt,
     priority: source.priority,
     sourceName: source.source_name,
     title,
@@ -1929,6 +2025,7 @@ function extractManagedAnchorCandidates(
         category: source.category,
         excerpt: `${title} from ${source.source_name}`,
         managedSourceId: source.id,
+        publishedAt: undefined,
         priority: source.priority,
         sourceName: source.source_name,
         title,
@@ -1944,6 +2041,7 @@ function createManagedCandidate({
   category,
   excerpt,
   managedSourceId,
+  publishedAt,
   priority,
   sourceName,
   title,
@@ -1952,6 +2050,7 @@ function createManagedCandidate({
   category: string | null;
   excerpt: string;
   managedSourceId: string;
+  publishedAt?: string;
   priority: string | null;
   sourceName: string;
   title: string;
@@ -1963,11 +2062,79 @@ function createManagedCandidate({
     excerpt: cleanText(excerpt, 420),
     managedSourceId,
     priority,
-    publishedAt: undefined,
+    publishedAt,
     sourceName,
     title: cleanText(title, 220),
     url,
   };
+}
+
+async function enrichManagedAirportSourceCandidates(
+  candidates: AirportSourceCandidate[],
+) {
+  const enrichedCandidates: AirportSourceCandidate[] = [];
+
+  for (const candidate of candidates) {
+    if (enrichedCandidates.length >= 18) break;
+    if (isListingAirportSourceUrl(candidate.url)) continue;
+
+    const enriched = await enrichManagedAirportSourceCandidate(candidate).catch((error) => {
+      console.warn("INConnect managed source candidate enrichment failed", {
+        error: error instanceof Error ? error.message : String(error),
+        sourceUrl: candidate.url,
+      });
+      return candidate;
+    });
+
+    enrichedCandidates.push(enriched);
+  }
+
+  return enrichedCandidates;
+}
+
+async function enrichManagedAirportSourceCandidate(
+  candidate: AirportSourceCandidate,
+): Promise<AirportSourceCandidate> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AIRPORT_RESEARCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(candidate.url, {
+      headers: {
+        "user-agent": "INConnectBot/1.0 airport story validation",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return candidate;
+
+    const html = await response.text();
+    const canonicalUrl =
+      extractMetaContent(html, "property", "og:url") ||
+      extractCanonicalUrl(html) ||
+      candidate.url;
+    const absoluteUrl = new URL(canonicalUrl, candidate.url).toString();
+    const title =
+      extractMetaContent(html, "property", "og:title") ||
+      extractMetaContent(html, "name", "twitter:title") ||
+      extractHtmlTitle(html) ||
+      candidate.title;
+    const excerpt =
+      extractMetaContent(html, "property", "og:description") ||
+      extractMetaContent(html, "name", "description") ||
+      candidate.excerpt;
+    const publishedAt = extractPublishedDateFromHtml(html) || candidate.publishedAt;
+
+    return {
+      ...candidate,
+      domain: getDomain(absoluteUrl),
+      excerpt: cleanText(stripHtml(excerpt), 420),
+      publishedAt,
+      title: cleanText(stripHtml(title), 220),
+      url: absoluteUrl,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function normalizeUrlWithoutHash(value: string) {
@@ -1982,6 +2149,40 @@ function normalizeUrlWithoutHash(value: string) {
 
 function extractHtmlTitle(html: string) {
   return cleanText(stripHtml(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? ""), 220);
+}
+
+function extractCanonicalUrl(html: string) {
+  const match = html.match(/<link[^>]+rel=["'][^"']*canonical[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>/i);
+  return decodeHtmlEntities(match?.[1] ?? "");
+}
+
+function extractPublishedDateFromHtml(html: string) {
+  const candidates = [
+    extractMetaContent(html, "property", "article:published_time"),
+    extractMetaContent(html, "property", "og:published_time"),
+    extractMetaContent(html, "name", "article:published_time"),
+    extractMetaContent(html, "name", "date"),
+    extractMetaContent(html, "name", "pubdate"),
+    extractMetaContent(html, "name", "publishdate"),
+    extractMetaContent(html, "name", "publish-date"),
+    extractMetaContent(html, "name", "dc.date"),
+    extractMetaContent(html, "name", "dc.date.issued"),
+    decodeHtmlEntities(
+      /"datePublished"\s*:\s*"([^"]+)"/i.exec(html)?.[1] ??
+        /"dateCreated"\s*:\s*"([^"]+)"/i.exec(html)?.[1] ??
+        "",
+    ),
+    decodeHtmlEntities(/<time[^>]+datetime=["']([^"']+)["'][^>]*>/i.exec(html)?.[1] ?? ""),
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = Date.parse(candidate);
+    if (candidate && Number.isFinite(parsed)) {
+      return new Date(parsed).toISOString();
+    }
+  }
+
+  return undefined;
 }
 
 function createTitleFromUrl(value: string) {
@@ -2288,12 +2489,14 @@ function getAirportSourceQuality(source: BlogResearchSource) {
   );
   const hasPreferredPath = hasPreferredAirportSourcePath(source.url);
   const ageDays = getSourceAgeDays(source);
-  const isRecent = ageDays === null || ageDays <= 90;
+  const hasPublishedDate = ageDays !== null;
+  const isRecent = hasPublishedDate && ageDays <= 90;
   const score =
     (isPreferredDomain ? 3 : 0) +
     (hasAirportSignal ? 3 : 0) +
     (hasTechnologySignal ? 3 : 0) +
     (hasInitiativeSignal ? 2 : 0) +
+    (hasPublishedDate ? 2 : 0) +
     (isRecent ? 2 : 0) +
     (isIndustryDomain ? 1 : 0) +
     (hasPreferredPath ? 2 : 0);
@@ -2302,12 +2505,40 @@ function getAirportSourceQuality(source: BlogResearchSource) {
     hasPreferredPath,
     hasAirportSignal,
     hasInitiativeSignal,
+    hasPublishedDate,
     hasTechnologySignal,
     isIndustryDomain,
     isPreferredDomain,
     isRecent,
     score,
   };
+}
+
+function getAirportSourceQualityScore(
+  source: BlogResearchSource,
+  quality = getAirportSourceQuality(source),
+) {
+  let score = 0;
+  if (quality.hasAirportSignal) score += 22;
+  if (quality.hasTechnologySignal) score += 22;
+  if (quality.hasInitiativeSignal) score += 20;
+  if (quality.hasPublishedDate) score += 14;
+  if (getAirportSourceUrlType(source.url) === "article") score += 10;
+  if (quality.isPreferredDomain || quality.isIndustryDomain) score += 7;
+  if (quality.hasPreferredPath) score += 3;
+  if (quality.isRecent) score += 2;
+
+  if (getHardAirportSourceRejectReason(source)) score = Math.min(score, 30);
+  if (isWeakAirportStory(source) || isGenericAirportSource(source)) {
+    score = Math.min(score, 45);
+  }
+  if (!quality.hasAirportSignal || !quality.hasTechnologySignal || !quality.hasInitiativeSignal) {
+    score = Math.min(score, 60);
+  }
+  if (!quality.hasPublishedDate) score = Math.min(score, 70);
+  if (getAirportSourceUrlType(source.url) !== "article") score = Math.min(score, 70);
+
+  return Math.max(0, Math.min(100, score));
 }
 
 function createAirportSourceHaystack(source: BlogResearchSource) {
@@ -2452,6 +2683,10 @@ function getAirportSourceRejectionReason(
     return "ranking, award, tourism, statistics, parking, or weak travel story";
   }
   if (isGenericAirportSource(source)) return "generic support, homepage, or passenger service page";
+  if (getAirportSourceUrlType(source.url) !== "article") {
+    return `source URL is ${getAirportSourceUrlType(source.url)}, not a specific article/story`;
+  }
+  if (!quality.hasPublishedDate) return "missing publication date";
   if (!quality.hasAirportSignal) return "missing airport relevance signal";
   if (!quality.hasTechnologySignal) return "missing automation or technology signal";
   if (!quality.hasInitiativeSignal) {
@@ -2501,20 +2736,59 @@ function isGenericAirportSourceTitle(value: string) {
     .replace(/\s+/g, " ")
     .replace(/[|–—-]\s*airport technology.*$/i, "")
     .trim();
-  return AIRPORT_GENERIC_SOURCE_TITLES.includes(normalized);
+  return (
+    AIRPORT_GENERIC_SOURCE_TITLES.includes(normalized) ||
+    normalized.startsWith("welcome to ")
+  );
 }
 
 function isListingAirportSourceUrl(value: string) {
+  return getAirportSourceUrlType(value) !== "article";
+}
+
+function getAirportSourceUrlType(value: string) {
   try {
     const url = new URL(value);
     const path = url.pathname.toLowerCase();
-    return (
-      AIRPORT_HARD_REJECT_URL_PATTERNS.some((pattern) => path.includes(pattern)) ||
-      path === "/" ||
-      path === ""
-    );
+    const normalizedPath = path.replace(/\/+$/, "");
+    const segments = normalizedPath.split("/").filter(Boolean);
+    const listingSegments = new Set([
+      "archive",
+      "archives",
+      "awards",
+      "buyers-guide",
+      "category",
+      "companies",
+      "contact",
+      "directory",
+      "events",
+      "help",
+      "page",
+      "projects",
+      "projects-a-z",
+      "rankings",
+      "search",
+      "tag",
+      "topics",
+    ]);
+
+    if (path === "/" || path === "") return "homepage";
+    if (AIRPORT_HARD_REJECT_URL_PATTERNS.some((pattern) => path.includes(pattern))) {
+      return "directory";
+    }
+    if (segments.some((segment) => listingSegments.has(segment))) return "directory";
+    if (
+      segments.length === 1 &&
+      ["blog", "case-studies", "insights", "media", "news", "press", "press-release"].includes(
+        segments[0] ?? "",
+      )
+    ) {
+      return "category";
+    }
+    if (segments.length === 0) return "homepage";
+    return "article";
   } catch {
-    return true;
+    return "unknown";
   }
 }
 
@@ -2672,6 +2946,12 @@ function getSourceBasedDigestQualityIssues(
   const hardRejectReason = getHardAirportSourceRejectReason(story);
   if (hardRejectReason) {
     issues.push(hardRejectReason);
+  }
+  if (getAirportSourceUrlType(story.url) !== "article") {
+    issues.push(`source URL is ${getAirportSourceUrlType(story.url)}, not a specific article/story.`);
+  }
+  if (!sourceQuality.hasPublishedDate) {
+    issues.push("source is missing a publication date.");
   }
   if (story.sourceImageUrl && isRejectedSourceImageUrl(story.sourceImageUrl)) {
     issues.push(`source image URL is rejected: ${story.sourceImageUrl}`);

@@ -27,6 +27,7 @@ type SourceCheckResult = {
     sourceName: string;
     title: string;
     url: string;
+    urlType?: string;
   }>;
   selectedStory: {
     category: string;
@@ -34,6 +35,7 @@ type SourceCheckResult = {
     sourceName: string;
     title: string;
     url: string;
+    urlType?: string;
   } | null;
   sourcesChecked: number;
 };
@@ -557,6 +559,7 @@ function SourceCheckPanel({ result }: { result: SourceCheckResult }) {
           <p className="mt-2 text-sm text-[#666666]">
             {result.selectedStory.sourceName} / {result.selectedStory.category} / score{" "}
             {result.selectedStory.score}
+            {result.selectedStory.urlType ? ` / ${result.selectedStory.urlType}` : ""}
           </p>
         </div>
       ) : (
@@ -571,6 +574,7 @@ function SourceCheckPanel({ result }: { result: SourceCheckResult }) {
               <p className="font-semibold text-[#191919]">{story.title}</p>
               <p className="mt-1 text-[#666666]">
                 {story.reason} / score {story.score}
+                {story.urlType ? ` / ${story.urlType}` : ""}
               </p>
               <a
                 className="mt-1 block break-all text-xs text-[#0A66C2]"
