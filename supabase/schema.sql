@@ -196,6 +196,23 @@ create table if not exists public.airport_daily_sources (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.airport_daily_candidates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  source_url text not null,
+  source_name text,
+  source_image_url text,
+  category text,
+  notes text,
+  status text default 'pending',
+  priority text default 'medium',
+  selected_for_digest boolean default false,
+  used_at timestamptz,
+  created_by_email text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists public.intelligence_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id) on delete cascade,
@@ -338,6 +355,10 @@ create index if not exists airport_daily_sources_active_idx
   on public.airport_daily_sources (is_active);
 create index if not exists airport_daily_sources_priority_idx
   on public.airport_daily_sources (priority);
+create index if not exists airport_daily_candidates_status_idx
+  on public.airport_daily_candidates (status);
+create index if not exists airport_daily_candidates_priority_idx
+  on public.airport_daily_candidates (priority);
 create index if not exists intelligence_subscriptions_email_idx
   on public.intelligence_subscriptions (email);
 create index if not exists intelligence_subscriptions_user_key_idx
