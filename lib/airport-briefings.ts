@@ -1,4 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { isAirportDailyMissingSchemaError } from "@/lib/airport-daily-schema";
 
 export type AirportBriefing = {
   airportName?: string;
@@ -313,11 +314,7 @@ function isMissingSupabaseConfigError(error: unknown) {
 }
 
 function isMissingColumnError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "42703"
-  );
+  return isAirportDailyMissingSchemaError(error);
 }
 
 function isDisplayableAirportBriefing(briefing: AirportBriefing) {

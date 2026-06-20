@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import {
+  getAirportDailyMissingSchemaField,
+  isAirportDailyMissingSchemaError,
+  validateAirportDailySchema,
+} from "@/lib/airport-daily-schema";
 import type { BlogResearchResult, BlogResearchSource } from "@/lib/blog-research";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
@@ -1046,6 +1051,8 @@ export async function generateAndStoreAirportBriefing(options?: {
     throw toAirportBriefingError("supabase_configuration", error);
   }
 
+  await validateAirportDailySchema(supabase, `airport_briefing_generation:${source}`);
+
   const existingBriefings = await getExistingAirportBriefings(supabase);
   const topicHistory = await getAirportTopicHistory(supabase);
 
@@ -1224,6 +1231,7 @@ async function generateAndStoreSourceBasedAirportDigest({
     console.error("Inconnect source-based airport briefing insert failure", {
       error,
       exactError: error.message,
+      missingSchemaField: getAirportDailyMissingSchemaField(error),
       sourceUrl: story.url,
       title,
     });
@@ -4354,11 +4362,7 @@ function getUtcDateSuffix() {
 }
 
 function isMissingColumnError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "42703"
-  );
+  return isAirportDailyMissingSchemaError(error);
 }
 
 function toAirportBriefingError(stage: string, error: unknown) {

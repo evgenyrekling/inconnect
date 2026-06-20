@@ -1,5 +1,10 @@
 import crypto from "node:crypto";
 import { sendAirportDailyEmail } from "@/lib/email/resend";
+import {
+  getAirportDailyMissingSchemaField,
+  isAirportDailyMissingSchemaError,
+  validateAirportDailySchema,
+} from "@/lib/airport-daily-schema";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { SITE_URL } from "@/lib/seo";
 
@@ -40,6 +45,8 @@ export type AirportDailySendResult = {
   results: Array<{ email: string; error?: string; status: "failed" | "sent" }>;
   sent: number;
   skippedDuplicates: number;
+  skipped?: boolean;
+  skipReason?: string;
   slug: string;
   subscribers: number;
   success: boolean;
@@ -54,9 +61,9 @@ export async function sendLatestAirportDailyEmail({
     digest_type: "airport_automation_daily",
     requireUnsent,
   });
-  validateAirportDailyEmailEnvironment();
-
   const supabase = getSupabaseAdminClient();
+  await validateAirportDailySchema(supabase, "send_airport_daily_email");
+  validateAirportDailyEmailEnvironment();
   let briefingQuery = supabase
     .from("airport_briefings")
     .select(
@@ -80,12 +87,26 @@ export async function sendLatestAirportDailyEmail({
     await briefingQuery.maybeSingle<AirportBriefingRow>();
 
   if (briefingError) {
+    if (isAirportDailyMissingSchemaError(briefingError)) {
+      const missingField = getAirportDailyMissingSchemaField(briefingError);
+      const skipReason = missingField
+        ? `Airport Daily email skipped because schema field is missing: ${missingField}.`
+        : "Airport Daily email skipped because airport_briefings schema is incomplete.";
+      console.error("AIRPORT DAILY EMAIL SCHEMA MISMATCH", {
+        error: briefingError,
+        missingField,
+        skipReason,
+      });
+      return createSkippedAirportDailySendResult(skipReason);
+    }
     console.error("AIRPORT DAILY EMAIL BRIEFING LOOKUP ERROR", briefingError);
     throw new Error(briefingError.message || "Latest airport briefing could not be loaded.");
   }
 
   if (!briefing) {
-    throw new Error("No approved published airport briefing found for email delivery.");
+    return createSkippedAirportDailySendResult(
+      "No approved published airport briefing found for email delivery.",
+    );
   }
 
   console.info("AIRPORT BRIEFING FOUND", {
@@ -297,6 +318,23 @@ export async function sendAirportDailyTestEmail({
   return {
     ...result,
     briefing,
+  };
+}
+
+function createSkippedAirportDailySendResult(skipReason: string): AirportDailySendResult {
+  console.warn("AIRPORT DAILY EMAIL SKIPPED", { skipReason });
+  return {
+    briefingId: "",
+    failed: 0,
+    results: [],
+    sent: 0,
+    skipped: true,
+    skippedDuplicates: 0,
+    skipReason,
+    slug: "",
+    subscribers: 0,
+    success: true,
+    title: "Airport Daily email skipped",
   };
 }
 
