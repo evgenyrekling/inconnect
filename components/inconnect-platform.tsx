@@ -1106,6 +1106,8 @@ function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavI
   return [
     { href: "/network", label: "Network Overview" },
     { href: "/network/profiles", label: "Professional Profiles" },
+    { href: "/network/accounts", label: "Accounts" },
+    { href: "/network/accounts/airports", label: "Airports" },
     { href: "/network/create-profile", label: "Create My Profile" },
     ...(profile
       ? [

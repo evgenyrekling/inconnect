@@ -27,13 +27,20 @@ export default function NetworkPage() {
         </div>
       </section>
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-4">
           <NetworkCard
             actionHref="/network/profiles"
             actionLabel="Explore Profiles"
             description="AI-generated professional profiles created from INConnect assessments and user-approved data."
             status="Active"
             title="Professional Profiles"
+          />
+          <NetworkCard
+            actionHref="/network/accounts"
+            actionLabel="Explore Accounts"
+            description="CRM-style account foundations for airports today, with future airline, supplier, and integrator account layers."
+            status="Active"
+            title="Accounts"
           />
           <NetworkCard
             description="Discover potential partners, customers, suppliers, experts, and opportunities."

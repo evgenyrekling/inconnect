@@ -21,6 +21,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/intelligence/smart-mobility",
     "/intelligence/industrial-automation",
     "/network",
+    "/network/accounts",
+    "/network/accounts/airports",
     "/network/profiles",
     "/blog",
     "/pricing",

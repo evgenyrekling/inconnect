@@ -281,6 +281,39 @@ create table if not exists public.professional_connections (
   created_at timestamptz default now()
 );
 
+create table if not exists public.accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete set null,
+  account_type text not null,
+  name text not null,
+  display_name text,
+  iata_code text,
+  icao_code text,
+  ourairports_ident text,
+  country_code text,
+  country_name text,
+  region_code text,
+  city text,
+  municipality text,
+  latitude double precision,
+  longitude double precision,
+  airport_type text,
+  scheduled_service text,
+  annual_passengers bigint,
+  passenger_year integer,
+  passenger_tier text default 'unknown',
+  strategic_priority text default 'unrated',
+  status text default 'prospect',
+  source_identity text,
+  source_traffic text,
+  source_url text,
+  is_seeded boolean default false,
+  is_active boolean default true,
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists public.public_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id) on delete cascade,
@@ -409,6 +442,31 @@ create index if not exists professional_connections_status_idx
   on public.professional_connections (status);
 create unique index if not exists professional_connections_source_target_idx
   on public.professional_connections (source_user_id, target_user_id);
+create index if not exists accounts_account_type_idx
+  on public.accounts (account_type);
+create index if not exists accounts_status_idx
+  on public.accounts (status);
+create unique index if not exists accounts_airport_iata_unique_idx
+  on public.accounts (iata_code)
+  where account_type = 'airport' and iata_code is not null;
+create index if not exists accounts_airport_country_code_idx
+  on public.accounts (country_code)
+  where account_type = 'airport';
+create index if not exists accounts_airport_iata_idx
+  on public.accounts (iata_code)
+  where account_type = 'airport';
+create index if not exists accounts_airport_passenger_tier_idx
+  on public.accounts (passenger_tier)
+  where account_type = 'airport';
+create index if not exists accounts_airport_strategic_priority_idx
+  on public.accounts (strategic_priority)
+  where account_type = 'airport';
+create index if not exists accounts_airport_status_idx
+  on public.accounts (status)
+  where account_type = 'airport';
+create index if not exists accounts_airport_is_active_idx
+  on public.accounts (is_active)
+  where account_type = 'airport';
 create unique index if not exists public_profiles_slug_idx
   on public.public_profiles (slug);
 create index if not exists public_profiles_user_id_idx
@@ -422,6 +480,18 @@ create index if not exists public_profiles_is_public_idx
 
 comment on table public.professional_connections is
   'Private professional connection graph foundation for business matchmaking, mutual connections, partner discovery, opportunity matching, and company network intelligence.';
+
+comment on table public.accounts is
+  'Generic account layer for airport accounts and future company, supplier, customer, and opportunity account intelligence.';
+
+comment on column public.accounts.source_identity is
+  'Identity source for seeded airport data, typically OurAirports airports.csv.';
+
+comment on column public.accounts.source_traffic is
+  'Passenger traffic source supplied by a later enrichment CSV.';
+
+comment on column public.accounts.status is
+  'Generic CRM account status. Supported values: support, prospect, customer, partner, competitor, inactive.';
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
