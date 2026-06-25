@@ -1,0 +1,251 @@
+{
+  "generated_at": "2026-06-25T19:33:05.887Z",
+  "target_requested": "800-1000 strategic commercial airports worldwide",
+  "target_result_note": "Open-source passenger traffic rows meeting the strict >=5M rule are below the requested target. No passenger numbers were guessed; airports without traffic were written to missing_passenger_data.csv.",
+  "source_identity": {
+    "name": "OurAirports airports.csv",
+    "url": "https://davidmegginson.github.io/ourairports-data/airports.csv",
+    "countries_url": "https://davidmegginson.github.io/ourairports-data/countries.csv"
+  },
+  "source_traffic": {
+    "name": "Wikidata P3872 patronage statements",
+    "url": "https://www.wikidata.org/wiki/Property:P3872",
+    "extraction_rule": "Latest point-in-time patronage statement per IATA code; if no point-in-time exists, keep the highest referenced value only after year-qualified values."
+  },
+  "import_criteria": {
+    "annual_passengers_minimum": 5000000,
+    "airport_types": [
+      "large_airport",
+      "medium_airport"
+    ],
+    "iata_code_required": true,
+    "scheduled_service": "yes"
+  },
+  "counts": {
+    "imported": 312,
+    "missing_passenger_data": 618,
+    "passenger_rows_available_by_iata": 4373,
+    "rejected": 2962,
+    "strategic_identity_candidates": 3274
+  },
+  "imported_by_tier": {
+    "mega_hub": 49,
+    "large_airport": 92,
+    "medium_airport": 171
+  },
+  "imported_by_strategic_priority": {
+    "strategic": 49,
+    "high": 92,
+    "medium": 171
+  },
+  "imported_by_country_top_25": {
+    "United States": 61,
+    "China": 40,
+    "Spain": 14,
+    "Italy": 13,
+    "Brazil": 11,
+    "Japan": 9,
+    "United Kingdom": 9,
+    "France": 9,
+    "Russia": 9,
+    "Germany": 8,
+    "Turkey": 7,
+    "Indonesia": 7,
+    "Mexico": 7,
+    "Australia": 6,
+    "Canada": 5,
+    "Thailand": 4,
+    "Vietnam": 4,
+    "Colombia": 4,
+    "South Korea": 4,
+    "Greece": 4,
+    "Saudi Arabia": 4,
+    "United Arab Emirates": 3,
+    "India": 3,
+    "Egypt": 3,
+    "Poland": 3
+  },
+  "imported_by_passenger_year": {
+    "2017": 2,
+    "2018": 9,
+    "2019": 8,
+    "2021": 5,
+    "2022": 84,
+    "2023": 35,
+    "2024": 52,
+    "2025": 116,
+    "unknown": 1
+  },
+  "rejected_by_reason": {
+    "below_5m_passengers": 2344,
+    "missing_passenger_data": 618
+  },
+  "top_20_busiest_airports": [
+    {
+      "annual_passengers": 106302208,
+      "airport_name": "Hartsfield Jackson Atlanta International Airport",
+      "country_name": "United States",
+      "iata_code": "ATL",
+      "passenger_year": 2025,
+      "source_url": "https://www.atl.com/wp-content/uploads/2026/02/ATL-ATR-2512_revF.pdf"
+    },
+    {
+      "annual_passengers": 95200000,
+      "airport_name": "Dubai International Airport",
+      "country_name": "United Arab Emirates",
+      "iata_code": "DXB",
+      "passenger_year": 2025,
+      "source_url": "https://media.dubaiairports.ae/dxb-sets-global-benchmark-as-record-traffic-become-the-norm/"
+    },
+    {
+      "annual_passengers": 85900617,
+      "airport_name": "Tokyo Haneda International Airport",
+      "country_name": "Japan",
+      "iata_code": "HND",
+      "passenger_year": 2024,
+      "source_url": "https://aci.aero/2025/07/08/worlds-busiest-airports-revealed-in-final-global-rankings/"
+    },
+    {
+      "annual_passengers": 85660127,
+      "airport_name": "Dallas Fort Worth International Airport",
+      "country_name": "United States",
+      "iata_code": "DFW",
+      "passenger_year": 2025,
+      "source_url": "https://images.ctfassets.net/m2p70vmwc019/1PS2eBQHXupM6TomhuPAOT/2eab385ad698121df76760689736021d/December_2025_Pax_Report.pdf"
+    },
+    {
+      "annual_passengers": 84994548,
+      "airport_name": "Shanghai Pudong International Airport",
+      "country_name": "China",
+      "iata_code": "PVG",
+      "passenger_year": 2025,
+      "source_url": "http://www.wikidata.org/entity/Q36420"
+    },
+    {
+      "annual_passengers": 84851825,
+      "airport_name": "Chicago O'Hare International Airport",
+      "country_name": "United States",
+      "iata_code": "ORD",
+      "passenger_year": 2025,
+      "source_url": "https://www.flychicago.com/SiteCollectionDocuments/Business/FactAndFigures/AirTraffic/1225%20ORD%20SUMMARY.pdf"
+    },
+    {
+      "annual_passengers": 84457421,
+      "airport_name": "İstanbul Airport",
+      "country_name": "Turkey",
+      "iata_code": "IST",
+      "passenger_year": 2025,
+      "source_url": "https://www.dhmi.gov.tr/Sayfalar/EN/Statistics.aspx"
+    },
+    {
+      "annual_passengers": 83884572,
+      "airport_name": "London Heathrow Airport",
+      "country_name": "United Kingdom",
+      "iata_code": "LHR",
+      "passenger_year": 2024,
+      "source_url": "https://aci.aero/2025/07/08/worlds-busiest-airports-revealed-in-final-global-rankings/"
+    },
+    {
+      "annual_passengers": 82427962,
+      "airport_name": "Denver International Airport",
+      "country_name": "United States",
+      "iata_code": "DEN",
+      "passenger_year": 2025,
+      "source_url": "https://cdn.flydenver.com/app/uploads/2026/01/27162532/December-2025-AirlineDashboard-FlyDenver.pdf"
+    },
+    {
+      "annual_passengers": 77820834,
+      "airport_name": "Indira Gandhi International Airport",
+      "country_name": "India",
+      "iata_code": "DEL",
+      "passenger_year": 2024,
+      "source_url": "https://aci.aero/2025/07/08/worlds-busiest-airports-revealed-in-final-global-rankings/"
+    },
+    {
+      "annual_passengers": 76370000,
+      "airport_name": "Guangzhou Baiyun International Airport",
+      "country_name": "China",
+      "iata_code": "CAN",
+      "passenger_year": 2024,
+      "source_url": "https://russian.news.cn/20250104/816bc54c5fa74f9682208a91120f466e/c.html"
+    },
+    {
+      "annual_passengers": 73709594,
+      "airport_name": "Los Angeles International Airport",
+      "country_name": "United States",
+      "iata_code": "LAX",
+      "passenger_year": 2025,
+      "source_url": "https://www.lawa.org/sites/lawa/files/2026-01/Tcom%201225.pdf"
+    },
+    {
+      "annual_passengers": 67421316,
+      "airport_name": "Charles de Gaulle International Airport",
+      "country_name": "France",
+      "iata_code": "CDG",
+      "passenger_year": 2023,
+      "source_url": "https://www.parisaeroport.fr/docs/default-source/groupe-fichiers/finance/information-r%C3%A9glement%C3%A9e-amf/communiqu%C3%A9s-information-permanente/2023/a%C3%A9roports-de-paris-s-a---trafic-du-mois-de-d%C3%A9cembre-2023.pdf?sfvrsn=8508483d_0"
+    },
+    {
+      "annual_passengers": 66828453,
+      "airport_name": "Amsterdam Airport Schiphol",
+      "country_name": "Netherlands",
+      "iata_code": "AMS",
+      "passenger_year": 2024,
+      "source_url": "http://www.wikidata.org/entity/Q9694"
+    },
+    {
+      "annual_passengers": 66485213,
+      "airport_name": "Shenzhen Bao'an International Airport",
+      "country_name": "China",
+      "iata_code": "SZX",
+      "passenger_year": 2025,
+      "source_url": "https://www.chinaairports.org.cn/uploads/file/20260226/1772085929859899.xlsx"
+    },
+    {
+      "annual_passengers": 66197066,
+      "airport_name": "Adolfo Suárez Madrid–Barajas Airport",
+      "country_name": "Spain",
+      "iata_code": "MAD",
+      "passenger_year": 2024,
+      "source_url": "http://www.wikidata.org/entity/Q166276"
+    },
+    {
+      "annual_passengers": 62902183,
+      "airport_name": "Suvarnabhumi Airport",
+      "country_name": "Thailand",
+      "iata_code": "BKK",
+      "passenger_year": 2025,
+      "source_url": "https://app.powerbi.com/view?r=eyJrIjoiYmM2YjA2OWUtZmQxOS00YTkxLWJlNzMtMjE2NjJkMjMxYTg1IiwidCI6ImM2N2ZmODk5LWJlZjUtNGQ3MC04ZmE1LWUzNTgzZGM3Njg3MCIsImMiOjEwfQ%3D%3D"
+    },
+    {
+      "annual_passengers": 62440306,
+      "airport_name": "John F. Kennedy International Airport",
+      "country_name": "United States",
+      "iata_code": "JFK",
+      "passenger_year": 2023,
+      "source_url": "http://www.wikidata.org/entity/Q8685"
+    },
+    {
+      "annual_passengers": 61564957,
+      "airport_name": "Frankfurt Main Airport",
+      "country_name": "Germany",
+      "iata_code": "FRA",
+      "passenger_year": 2024,
+      "source_url": "https://www.fraport.com/de/newsroom/pressemitteilungen/2025/verkehrszahlen/fraport-verkehrszahlen-2024--frankfurt-bleibt-fuehrend-bei-der-h.html"
+    },
+    {
+      "annual_passengers": 58900000,
+      "airport_name": "Singapore Changi Airport",
+      "country_name": "Singapore",
+      "iata_code": "SIN",
+      "passenger_year": 2023,
+      "source_url": "https://www.changiairport.com/en/corporate/about-us/traffic-statistics.html"
+    }
+  ],
+  "output_files": {
+    "master": "data/inconnect_airports_master_v1.csv",
+    "rejected": "data/rejected_airports.csv",
+    "missing_passenger_data": "data/missing_passenger_data.csv",
+    "summary": "data/import_summary.json"
+  }
+}
