@@ -310,6 +310,8 @@ create table if not exists public.accounts (
   source_identity text,
   source_traffic text,
   source_url text,
+  website text,
+  linkedin_url text,
   is_seeded boolean default false,
   is_active boolean default true,
   notes text,
@@ -449,6 +451,12 @@ create index if not exists accounts_account_type_idx
   on public.accounts (account_type);
 create index if not exists accounts_status_idx
   on public.accounts (status);
+create index if not exists accounts_website_idx
+  on public.accounts (website)
+  where website is not null;
+create index if not exists accounts_linkedin_url_idx
+  on public.accounts (linkedin_url)
+  where linkedin_url is not null;
 create unique index if not exists accounts_airport_iata_unique_idx
   on public.accounts (iata_code)
   where account_type = 'airport' and iata_code is not null;
@@ -510,6 +518,12 @@ comment on column public.accounts.automation_potential_tier is
 
 comment on column public.accounts.automation_score_notes is
   'Notes explaining the initial heuristic scoring factors and future enrichment placeholders.';
+
+comment on column public.accounts.website is
+  'Account website URL imported from master account data.';
+
+comment on column public.accounts.linkedin_url is
+  'Account LinkedIn URL imported from master account data.';
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)

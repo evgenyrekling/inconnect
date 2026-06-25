@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Footer, Header } from "@/components/inconnect-platform";
 import { createSeoMetadata } from "@/lib/seo";
-import { ImportAirportTrafficDashboard } from "./import-airport-traffic-dashboard";
+import { ImportStrategicAirportsDashboard } from "./import-strategic-airports-dashboard";
 
 export const metadata: Metadata = {
   ...createSeoMetadata({
-    title: "Import Airport Traffic | INConnect Admin",
+    title: "Import Strategic Airports | INConnect Admin",
     description:
-      "Admin-only airport traffic enrichment import for INConnect airport account tiers.",
-    path: "/admin/import-airport-traffic",
+      "Admin-only master CSV import for the INConnect Strategic Airport Database.",
+    path: "/admin/import-strategic-airports",
   }),
   robots: {
     follow: false,
@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ImportAirportTrafficPage() {
+export default function ImportStrategicAirportsPage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
       <Header />
-      <ImportAirportTrafficDashboard />
+      <ImportStrategicAirportsDashboard />
       <Footer />
     </main>
   );

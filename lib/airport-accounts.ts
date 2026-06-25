@@ -54,6 +54,8 @@ export type AirportAccount = {
   status: AccountStatus;
   strategicPriority: StrategicPriority;
   updatedAt: string;
+  website: string;
+  linkedinUrl: string;
 };
 
 type AirportAccountRow = {
@@ -86,6 +88,8 @@ type AirportAccountRow = {
   status: string | null;
   strategic_priority: string | null;
   updated_at: string | null;
+  website: string | null;
+  linkedin_url: string | null;
 };
 
 export const PASSENGER_TIER_LABELS: Record<PassengerTier, string> = {
@@ -153,6 +157,8 @@ const AIRPORT_ACCOUNT_SELECT = [
   "status",
   "strategic_priority",
   "updated_at",
+  "website",
+  "linkedin_url",
 ].join(", ");
 
 export async function getAirportAccounts() {
@@ -399,6 +405,8 @@ function mapAirportAccountRow(row: AirportAccountRow): AirportAccount {
     status: normalizeAccountStatus(row.status),
     strategicPriority: normalizeStrategicPriority(row.strategic_priority),
     updatedAt: row.updated_at ?? "",
+    website: row.website ?? "",
+    linkedinUrl: row.linkedin_url ?? "",
   };
 }
 

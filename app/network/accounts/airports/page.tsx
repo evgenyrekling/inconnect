@@ -84,7 +84,7 @@ export default async function AirportAccountsPage({
             </div>
             <Link
               className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
-              href="/admin/strategic-airport-database"
+              href="/admin/import-strategic-airports"
             >
               Import Airports
             </Link>
