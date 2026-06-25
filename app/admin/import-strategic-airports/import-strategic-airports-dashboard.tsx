@@ -22,20 +22,27 @@ type MasterAirportPreviewRow = {
   countryCode: string;
   countryName: string;
   duplicateInFile: boolean;
+  existingInDatabase: boolean;
   iataCode: string;
   icaoCode: string;
+  importable: boolean;
   passengerTier: PassengerTier;
+  skipReason: SkipReason;
+  statusLabel: string;
   strategicPriority: StrategicPriority;
 };
 
 type ImportSummary = {
+  belowFiveMillionPassengers: number;
   countries: number;
   created: number;
-  duplicates: number;
+  duplicateIata: number;
   errors: string[];
+  invalidIata: number;
   largeAirports: number;
   mediumAirports: number;
   megaHubs: number;
+  missingTraffic: number;
   skipped: number;
   totalAirports: number;
   totalRows: number;
@@ -51,6 +58,13 @@ type ImportResponse =
       details?: string;
       error: string;
     };
+
+type SkipReason =
+  | "belowFiveMillionPassengers"
+  | "duplicateIata"
+  | "invalidIata"
+  | "missingTraffic"
+  | null;
 
 const ADMIN_EMAIL_STORAGE_KEY = "inconnect:import-strategic-airports-email";
 const REQUIRED_COLUMNS = [
@@ -105,7 +119,11 @@ export function ImportStrategicAirportsDashboard() {
   const [adminEmail, setAdminEmail] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvText, setCsvText] = useState("");
+  const [allowUnknownTraffic, setAllowUnknownTraffic] = useState(false);
+  const [clearMessage, setClearMessage] = useState("");
   const [error, setError] = useState("");
+  const [existingIataCodes, setExistingIataCodes] = useState<Set<string>>(new Set());
+  const [isClearing, setIsClearing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
 
@@ -114,12 +132,68 @@ export function ImportStrategicAirportsDashboard() {
     if (storedEmail) setAdminEmail(storedEmail);
   }, []);
 
-  const preview = useMemo(() => createMasterPreview(csvText), [csvText]);
+  const preview = useMemo(
+    () => createMasterPreview(csvText, allowUnknownTraffic, existingIataCodes),
+    [allowUnknownTraffic, csvText, existingIataCodes],
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function checkExistingAirports() {
+      const normalizedAdminEmail = adminEmail.trim();
+      if (!normalizedAdminEmail || !csvText.trim()) {
+        setExistingIataCodes(new Set());
+        return;
+      }
+
+      const basePreview = createMasterPreview(csvText, allowUnknownTraffic, new Set());
+      const iataCodes = Array.from(
+        new Set(basePreview.rows.map((row) => row.iataCode).filter(Boolean)),
+      );
+      if (iataCodes.length === 0) {
+        setExistingIataCodes(new Set());
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "/api/admin/import-strategic-airports/check-existing",
+          {
+            body: JSON.stringify({
+              adminEmail: normalizedAdminEmail,
+              iataCodes,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+          },
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | { existingIataCodes?: string[]; success?: boolean }
+          | null;
+
+        if (!isCancelled && response.ok && payload?.success) {
+          setExistingIataCodes(new Set(payload.existingIataCodes ?? []));
+        }
+      } catch {
+        if (!isCancelled) setExistingIataCodes(new Set());
+      }
+    }
+
+    checkExistingAirports();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [adminEmail, allowUnknownTraffic, csvText]);
 
   async function handleFileRead(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     setCsvFile(file);
     setSummary(null);
+    setClearMessage("");
     setError("");
 
     if (!file) {
@@ -160,6 +234,7 @@ export function ImportStrategicAirportsDashboard() {
     try {
       const formData = new FormData();
       formData.append("adminEmail", adminEmail.trim());
+      formData.append("allowUnknownTraffic", String(allowUnknownTraffic));
       formData.append("file", csvFile);
 
       const response = await fetch("/api/admin/import-strategic-airports", {
@@ -189,6 +264,54 @@ export function ImportStrategicAirportsDashboard() {
       );
     } finally {
       setIsImporting(false);
+    }
+  }
+
+  async function handleClearImportedTestAirports() {
+    if (!adminEmail.trim()) {
+      setError("Admin email is required before clearing test airports.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Clear imported test airports? This deletes seeded prospect airport accounts.",
+    );
+    if (!confirmed) return;
+
+    setError("");
+    setClearMessage("");
+    setIsClearing(true);
+
+    try {
+      const response = await fetch("/api/admin/import-strategic-airports", {
+        body: JSON.stringify({ adminEmail: adminEmail.trim() }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { deleted?: number; error?: string; details?: string; success?: boolean }
+        | null;
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          payload?.details
+            ? `${payload.error}: ${payload.details}`
+            : payload?.error ?? "Imported test airports could not be cleared.",
+        );
+      }
+
+      setExistingIataCodes(new Set());
+      setClearMessage(`Cleared ${payload.deleted ?? 0} imported test airports.`);
+    } catch (clearError) {
+      setError(
+        clearError instanceof Error
+          ? clearError.message
+          : "Imported test airports could not be cleared.",
+      );
+    } finally {
+      setIsClearing(false);
     }
   }
 
@@ -254,6 +377,25 @@ export function ImportStrategicAirportsDashboard() {
                 {error}
               </p>
             )}
+            {clearMessage && (
+              <p className="mt-4 rounded-lg border border-[#2E7D32]/20 bg-[#EAF6EC] px-4 py-3 text-sm font-semibold text-[#2E7D32]">
+                {clearMessage}
+              </p>
+            )}
+            <label className="mt-5 flex items-start gap-3 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm font-semibold text-[#191919]">
+              <input
+                checked={allowUnknownTraffic}
+                className="mt-1 h-4 w-4 accent-[#0A66C2]"
+                onChange={(event) => setAllowUnknownTraffic(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                Allow import of airports with unknown traffic
+                <span className="block pt-1 text-xs font-normal leading-5 text-[#666666]">
+                  Default import requires annual passengers of 5M or more.
+                </span>
+              </span>
+            </label>
             <div className="mt-5 flex gap-3">
               <button
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]"
@@ -261,7 +403,8 @@ export function ImportStrategicAirportsDashboard() {
                   isImporting ||
                   !csvFile ||
                   !adminEmail.trim() ||
-                  preview.missingColumns.length > 0
+                  preview.missingColumns.length > 0 ||
+                  preview.stats.importableCount === 0
                 }
                 type="submit"
               >
@@ -280,11 +423,26 @@ export function ImportStrategicAirportsDashboard() {
                 Cancel
               </button>
             </div>
+            <button
+              className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-[#B24020]/30 bg-white px-4 text-sm font-semibold text-[#B24020] transition hover:border-[#B24020] hover:bg-[#FFF4F1] disabled:cursor-not-allowed disabled:border-[#D9DDE3] disabled:text-[#777777]"
+              disabled={isClearing || !adminEmail.trim()}
+              onClick={handleClearImportedTestAirports}
+              type="button"
+            >
+              {isClearing ? "Clearing..." : "Clear imported test airports"}
+            </button>
             {summary && (
               <div className="mt-5 grid gap-2">
                 <SummaryRow label="Created" value={summary.created} compact />
                 <SummaryRow label="Updated" value={summary.updated} compact />
-                <SummaryRow label="Duplicates" value={summary.duplicates} compact />
+                <SummaryRow label="Missing traffic" value={summary.missingTraffic} compact />
+                <SummaryRow
+                  label="Below 5M passengers"
+                  value={summary.belowFiveMillionPassengers}
+                  compact
+                />
+                <SummaryRow label="Duplicate IATA" value={summary.duplicateIata} compact />
+                <SummaryRow label="Invalid IATA" value={summary.invalidIata} compact />
                 <SummaryRow label="Skipped" value={summary.skipped} compact />
                 {summary.errors.length > 0 && (
                   <p className="rounded-lg border border-[#B24020]/20 bg-[#FFF4F1] p-3 text-xs leading-5 text-[#B24020]">
@@ -301,7 +459,14 @@ export function ImportStrategicAirportsDashboard() {
           <StatCard label="Large Airports" value={preview.stats.largeAirportCount} />
           <StatCard label="Medium Airports" value={preview.stats.mediumAirportCount} />
           <StatCard label="Countries" value={preview.stats.countryCount} />
-          <StatCard label="Total Airports" value={preview.stats.totalAirports} />
+          <StatCard label="Total Airports" value={preview.stats.importableCount} />
+        </section>
+
+        <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Missing Traffic" value={preview.stats.missingTrafficCount} warning />
+          <StatCard label="Below 5M Passengers" value={preview.stats.belowFiveMillionCount} warning />
+          <StatCard label="Duplicate IATA" value={preview.stats.duplicateIataCount} warning />
+          <StatCard label="Invalid IATA" value={preview.stats.invalidIataCount} warning />
         </section>
 
         <section className="mt-5 rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)]">
@@ -309,12 +474,13 @@ export function ImportStrategicAirportsDashboard() {
             <div>
               <h2 className="text-2xl font-semibold">Preview</h2>
               <p className="mt-2 text-sm leading-6 text-[#666666]">
-                Duplicate IATA codes are highlighted and skipped after the first
-                occurrence during import.
+                Rows with duplicate IATA codes inside the CSV are skipped after
+                the first importable occurrence. Existing account labels only
+                appear when the IATA code is already present in the database.
               </p>
             </div>
             <p className="text-sm font-semibold text-[#0A66C2]">
-              {preview.duplicates} duplicate IATA codes
+              {preview.stats.importableCount} importable rows
             </p>
           </div>
 
@@ -333,13 +499,14 @@ export function ImportStrategicAirportsDashboard() {
                     <th className="px-4 py-3">Strategic Priority</th>
                     <th className="px-4 py-3">Automation Score</th>
                     <th className="px-4 py-3">Automation Tier</th>
+                    <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.rows.slice(0, 200).map((row, index) => (
                     <tr
                       className={
-                        row.duplicateInFile
+                        !row.importable
                           ? "border-t border-[#D9DDE3] bg-[#FFF4F1]"
                           : "border-t border-[#D9DDE3]"
                       }
@@ -365,6 +532,22 @@ export function ImportStrategicAirportsDashboard() {
                       <td className="px-4 py-3">
                         {AUTOMATION_TIER_LABELS[row.automationPotentialTier]}
                       </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={
+                            row.importable
+                              ? "rounded-full bg-[#EAF6EC] px-3 py-1 text-xs font-semibold text-[#2E7D32]"
+                              : "rounded-full bg-[#FFF4F1] px-3 py-1 text-xs font-semibold text-[#B24020]"
+                          }
+                        >
+                          {row.statusLabel}
+                        </span>
+                        {row.existingInDatabase && (
+                          <span className="ml-2 rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
+                            Existing account
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -382,11 +565,14 @@ export function ImportStrategicAirportsDashboard() {
   );
 }
 
-function createMasterPreview(csvText: string) {
+function createMasterPreview(
+  csvText: string,
+  allowUnknownTraffic: boolean,
+  existingIataCodes: Set<string>,
+) {
   const rows = parseCsvRows(csvText);
   if (rows.length === 0) {
     return {
-      duplicates: 0,
       missingColumns: [],
       rows: [] as MasterAirportPreviewRow[],
       stats: createStats([]),
@@ -397,7 +583,6 @@ function createMasterPreview(csvText: string) {
   const missingColumns = REQUIRED_COLUMNS.filter((column) => !header.includes(column));
   if (missingColumns.length > 0) {
     return {
-      duplicates: 0,
       missingColumns,
       rows: [] as MasterAirportPreviewRow[],
       stats: createStats([]),
@@ -405,31 +590,50 @@ function createMasterPreview(csvText: string) {
   }
 
   const seenIataCodes = new Set<string>();
-  let duplicates = 0;
   const previewRows = rows.slice(1).flatMap((row): MasterAirportPreviewRow[] => {
     if (row.every((cell) => !cell.trim())) return [];
-    const previewRow = parsePreviewRow(row, header);
-    previewRow.duplicateInFile = seenIataCodes.has(previewRow.iataCode);
-    if (previewRow.duplicateInFile) duplicates += 1;
-    seenIataCodes.add(previewRow.iataCode);
+    const previewRow = parsePreviewRow(row, header, {
+      allowUnknownTraffic,
+      existingIataCodes,
+      seenIataCodes,
+    });
+    if (previewRow.importable) seenIataCodes.add(previewRow.iataCode);
     return [previewRow];
   });
 
   return {
-    duplicates,
     missingColumns,
     rows: previewRows,
-    stats: createStats(previewRows.filter((row) => !row.duplicateInFile)),
+    stats: createStats(previewRows),
   };
 }
 
-function parsePreviewRow(row: string[], header: string[]): MasterAirportPreviewRow {
-  const annualPassengers = parsePassengers(getCsvValue(row, header, "annual_passengers"));
+function parsePreviewRow(
+  row: string[],
+  header: string[],
+  {
+    allowUnknownTraffic,
+    existingIataCodes,
+    seenIataCodes,
+  }: {
+    allowUnknownTraffic: boolean;
+    existingIataCodes: Set<string>;
+    seenIataCodes: Set<string>;
+  },
+): MasterAirportPreviewRow {
+  const iataCode = normalizeIata(getCsvValue(row, header, "iata_code"));
+  const annualPassengers = normalizeTrafficForPreview(
+    parsePassengers(getCsvValue(row, header, "annual_passengers")),
+  );
   const passengerTier =
-    normalizePassengerTier(getCsvValue(row, header, "passenger_tier")) ??
+    (annualPassengers === null
+      ? null
+      : normalizePassengerTier(getCsvValue(row, header, "passenger_tier"))) ??
     getPassengerTier(annualPassengers);
   const strategicPriority =
-    normalizeStrategicPriority(getCsvValue(row, header, "strategic_priority")) ??
+    (annualPassengers === null
+      ? null
+      : normalizeStrategicPriority(getCsvValue(row, header, "strategic_priority"))) ??
     getStrategicPriorityFromTier(passengerTier);
   const automationScore =
     parseAutomationScore(getCsvValue(row, header, "automation_potential_score")) ??
@@ -440,7 +644,7 @@ function parsePreviewRow(row: string[], header: string[]): MasterAirportPreviewR
       strategicPriority,
     });
 
-  return {
+  const previewRow: MasterAirportPreviewRow = {
     annualPassengers,
     airportName: cleanText(getCsvValue(row, header, "airport_name"), 240),
     automationPotentialScore: automationScore,
@@ -450,23 +654,80 @@ function parsePreviewRow(row: string[], header: string[]): MasterAirportPreviewR
     city: cleanText(getCsvValue(row, header, "city"), 180),
     countryCode: cleanText(getCsvValue(row, header, "country_code"), 8).toUpperCase(),
     countryName: cleanText(getCsvValue(row, header, "country_name"), 160),
-    duplicateInFile: false,
-    iataCode: normalizeIata(getCsvValue(row, header, "iata_code")),
+    duplicateInFile: isValidIata(iataCode) && seenIataCodes.has(iataCode),
+    existingInDatabase: existingIataCodes.has(iataCode),
+    iataCode,
     icaoCode: cleanText(getCsvValue(row, header, "icao_code"), 12).toUpperCase(),
+    importable: false,
     passengerTier,
+    skipReason: null,
+    statusLabel: "",
     strategicPriority,
   };
+
+  const validation = validatePreviewRow(previewRow, allowUnknownTraffic);
+  previewRow.importable = validation.importable;
+  previewRow.skipReason = validation.importable ? null : validation.reason;
+  previewRow.statusLabel = validation.importable
+    ? "Importable"
+    : getSkipReasonLabel(validation.reason);
+
+  return previewRow;
+}
+
+function validatePreviewRow(
+  row: MasterAirportPreviewRow,
+  allowUnknownTraffic: boolean,
+):
+  | { importable: true }
+  | {
+      importable: false;
+      reason: Exclude<SkipReason, null>;
+    } {
+  if (!isValidIata(row.iataCode)) {
+    return { importable: false, reason: "invalidIata" };
+  }
+
+  if (row.duplicateInFile) {
+    return { importable: false, reason: "duplicateIata" };
+  }
+
+  if (row.annualPassengers === null) {
+    return allowUnknownTraffic
+      ? { importable: true }
+      : { importable: false, reason: "missingTraffic" };
+  }
+
+  if (row.annualPassengers < 5_000_000) {
+    return { importable: false, reason: "belowFiveMillionPassengers" };
+  }
+
+  return { importable: true };
+}
+
+function getSkipReasonLabel(reason: Exclude<SkipReason, null>) {
+  if (reason === "missingTraffic") return "Skipped: missing traffic";
+  if (reason === "belowFiveMillionPassengers") return "Skipped: below 5M";
+  if (reason === "duplicateIata") return "Skipped: duplicate IATA";
+  return "Skipped: invalid IATA";
 }
 
 function createStats(rows: MasterAirportPreviewRow[]) {
-  const countries = new Set(rows.map((row) => row.countryCode).filter(Boolean));
+  const importableRows = rows.filter((row) => row.importable);
+  const countries = new Set(importableRows.map((row) => row.countryCode).filter(Boolean));
 
   return {
     countryCount: countries.size,
-    largeAirportCount: rows.filter((row) => row.passengerTier === "large_airport").length,
-    mediumAirportCount: rows.filter((row) => row.passengerTier === "medium_airport").length,
-    megaHubCount: rows.filter((row) => row.passengerTier === "mega_hub").length,
-    totalAirports: rows.length,
+    belowFiveMillionCount: rows.filter(
+      (row) => row.skipReason === "belowFiveMillionPassengers",
+    ).length,
+    duplicateIataCount: rows.filter((row) => row.skipReason === "duplicateIata").length,
+    importableCount: importableRows.length,
+    invalidIataCount: rows.filter((row) => row.skipReason === "invalidIata").length,
+    largeAirportCount: importableRows.filter((row) => row.passengerTier === "large_airport").length,
+    mediumAirportCount: importableRows.filter((row) => row.passengerTier === "medium_airport").length,
+    megaHubCount: importableRows.filter((row) => row.passengerTier === "mega_hub").length,
+    missingTrafficCount: rows.filter((row) => row.skipReason === "missingTraffic").length,
   };
 }
 
@@ -491,9 +752,23 @@ function SummaryRow({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({
+  label,
+  value,
+  warning,
+}: {
+  label: string;
+  value: number;
+  warning?: boolean;
+}) {
   return (
-    <div className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+    <div
+      className={`rounded-lg border p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] ${
+        warning
+          ? "border-[#F5C542]/50 bg-[#FFF9E8]"
+          : "border-[#D9DDE3] bg-white"
+      }`}
+    >
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
         {label}
       </p>
@@ -607,6 +882,14 @@ function parsePassengers(value: string) {
   return Number.isFinite(passengers) && passengers >= 0 ? passengers : null;
 }
 
+function normalizeTrafficForPreview(value: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value;
+}
+
 function parseAutomationScore(value: string) {
   const score = Number.parseInt(value.trim(), 10);
   if (!Number.isFinite(score)) return null;
@@ -620,6 +903,10 @@ function formatPassengers(value: number | null) {
 
 function normalizeIata(value: string) {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function isValidIata(value: string) {
+  return /^[A-Z0-9]{3}$/.test(value);
 }
 
 function cleanText(value: string, maxLength: number) {

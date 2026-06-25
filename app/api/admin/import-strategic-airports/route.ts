@@ -55,13 +55,16 @@ type ExistingAirportAccount = {
 };
 
 type ImportSummary = {
+  belowFiveMillionPassengers: number;
   countries: number;
   created: number;
-  duplicates: number;
+  duplicateIata: number;
   errors: string[];
+  invalidIata: number;
   largeAirports: number;
   mediumAirports: number;
   megaHubs: number;
+  missingTraffic: number;
   skipped: number;
   totalAirports: number;
   totalRows: number;
@@ -100,6 +103,7 @@ const MASTER_AIRPORT_BATCH_SIZE = 400;
 export async function POST(request: NextRequest) {
   const formData = await request.formData().catch(() => null);
   const adminEmail = normalizeEmail(String(formData?.get("adminEmail") ?? ""));
+  const allowUnknownTraffic = String(formData?.get("allowUnknownTraffic") ?? "") === "true";
 
   if (!isAdminEmail(adminEmail)) {
     return NextResponse.json({ error: "Admin access required." }, { status: 403 });
@@ -127,18 +131,26 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdminClient();
     const seenIataCodes = new Set<string>();
-    const duplicateIataCodes = new Set<string>();
     const rowsToImport: MasterAirportRow[] = [];
     const rowErrors: string[] = [];
+    const skipped = {
+      belowFiveMillionPassengers: 0,
+      duplicateIata: 0,
+      invalidIata: 0,
+      missingTraffic: 0,
+    };
 
     for (const row of parsed.rows) {
-      if (!row.iataCode) {
-        rowErrors.push(`Row ${row.rowNumber}: missing iata_code`);
-        continue;
-      }
+      const validation = validateMasterAirportRow(row, {
+        allowUnknownTraffic,
+        seenIataCodes,
+      });
 
-      if (seenIataCodes.has(row.iataCode)) {
-        duplicateIataCodes.add(row.iataCode);
+      if (!validation.importable) {
+        skipped[validation.reason] += 1;
+        if (validation.reason === "invalidIata") {
+          rowErrors.push(`Row ${row.rowNumber}: invalid or missing iata_code`);
+        }
         continue;
       }
 
@@ -151,14 +163,17 @@ export async function POST(request: NextRequest) {
       rowsToImport.map((row) => row.iataCode),
     );
     const summary: ImportSummary = {
+      belowFiveMillionPassengers: skipped.belowFiveMillionPassengers,
       countries: new Set(rowsToImport.map((row) => row.countryCode).filter(Boolean)).size,
       created: 0,
-      duplicates: duplicateIataCodes.size,
+      duplicateIata: skipped.duplicateIata,
       errors: rowErrors,
+      invalidIata: skipped.invalidIata,
       largeAirports: countTier(rowsToImport, "large_airport"),
       mediumAirports: countTier(rowsToImport, "medium_airport"),
       megaHubs: countTier(rowsToImport, "mega_hub"),
-      skipped: parsed.rows.length - rowsToImport.length,
+      missingTraffic: skipped.missingTraffic,
+      skipped: Object.values(skipped).reduce((total, count) => total + count, 0),
       totalAirports: rowsToImport.length,
       totalRows: parsed.rows.length,
       updated: 0,
@@ -220,6 +235,53 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  const payload = (await request.json().catch(() => null)) as
+    | { adminEmail?: string }
+    | null;
+  const adminEmail = normalizeEmail(String(payload?.adminEmail ?? ""));
+
+  if (!isAdminEmail(adminEmail)) {
+    return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  }
+
+  try {
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("accounts")
+      .delete()
+      .eq("account_type", "airport")
+      .eq("is_seeded", true)
+      .eq("status", "prospect")
+      .select("id");
+
+    if (error) {
+      console.error("CLEAR IMPORTED TEST AIRPORTS ERROR", error);
+      return NextResponse.json(
+        {
+          details: error.message,
+          error: "Imported test airports could not be cleared.",
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      deleted: data?.length ?? 0,
+      success: true,
+    });
+  } catch (error) {
+    console.error("CLEAR IMPORTED TEST AIRPORTS FAILED", error);
+    return NextResponse.json(
+      {
+        details: error instanceof Error ? error.message : String(error),
+        error: "Imported test airports could not be cleared.",
+      },
+      { status: 500 },
+    );
+  }
+}
+
 function parseMasterAirportCsv(csvText: string) {
   const rows = parseCsvRows(csvText);
   if (rows.length === 0) {
@@ -247,16 +309,24 @@ function parseMasterAirportRow(
   header: string[],
   rowNumber: number,
 ): MasterAirportRow {
-  const annualPassengers = parsePassengerCount(
+  const parsedAnnualPassengers = parsePassengerCount(
     getCsvValue(row, header, "annual_passengers"),
   );
-  const providedPassengerTier = normalizePassengerTierInput(
-    getCsvValue(row, header, "passenger_tier"),
-  );
+  const annualPassengers =
+    typeof parsedAnnualPassengers === "number" &&
+    Number.isFinite(parsedAnnualPassengers) &&
+    parsedAnnualPassengers > 0
+      ? parsedAnnualPassengers
+      : null;
+  const providedPassengerTier =
+    annualPassengers === null
+      ? null
+      : normalizePassengerTierInput(getCsvValue(row, header, "passenger_tier"));
   const passengerTier = providedPassengerTier ?? getPassengerTier(annualPassengers);
-  const providedStrategicPriority = normalizeStrategicPriorityInput(
-    getCsvValue(row, header, "strategic_priority"),
-  );
+  const providedStrategicPriority =
+    annualPassengers === null
+      ? null
+      : normalizeStrategicPriorityInput(getCsvValue(row, header, "strategic_priority"));
   const strategicPriority =
     providedStrategicPriority ?? getStrategicPriorityFromTier(passengerTier);
   const automationScore = parseAutomationScore(
@@ -353,6 +423,50 @@ function createMasterAirportPayload(row: MasterAirportRow, isExistingAccount: bo
   return payload;
 }
 
+function validateMasterAirportRow(
+  row: MasterAirportRow,
+  {
+    allowUnknownTraffic,
+    seenIataCodes,
+  }: {
+    allowUnknownTraffic: boolean;
+    seenIataCodes: Set<string>;
+  },
+):
+  | { importable: true }
+  | {
+      importable: false;
+      reason:
+        | "belowFiveMillionPassengers"
+        | "duplicateIata"
+        | "invalidIata"
+        | "missingTraffic";
+    } {
+  if (!isValidIataCode(row.iataCode)) {
+    return { importable: false, reason: "invalidIata" };
+  }
+
+  if (seenIataCodes.has(row.iataCode)) {
+    return { importable: false, reason: "duplicateIata" };
+  }
+
+  if (
+    row.annualPassengers === null ||
+    !Number.isFinite(row.annualPassengers) ||
+    row.annualPassengers <= 0
+  ) {
+    return allowUnknownTraffic
+      ? { importable: true }
+      : { importable: false, reason: "missingTraffic" };
+  }
+
+  if (row.annualPassengers < 5_000_000) {
+    return { importable: false, reason: "belowFiveMillionPassengers" };
+  }
+
+  return { importable: true };
+}
+
 async function getExistingAirportAccounts(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   iataCodes: string[],
@@ -437,6 +551,10 @@ function parseAutomationScore(value: string) {
   const score = Number.parseInt(value.trim(), 10);
   if (!Number.isFinite(score)) return null;
   return Math.min(100, Math.max(0, score));
+}
+
+function isValidIataCode(value: string) {
+  return /^[A-Z0-9]{3}$/.test(value);
 }
 
 function parseCoordinate(value: string) {
