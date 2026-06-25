@@ -216,6 +216,10 @@ function createAirportAccountPayload(
 
   if (!existingAccount) {
     payload.annual_passengers = null;
+    payload.automation_potential_score = null;
+    payload.automation_potential_tier = "unknown";
+    payload.automation_score_notes =
+      "Initial INConnect automation potential estimate. Passenger traffic is missing; upload traffic enrichment to calculate score.";
     payload.created_at = new Date().toISOString();
     payload.passenger_year = null;
     payload.passenger_tier = passengerTier;

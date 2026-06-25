@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   ACCOUNT_STATUS_LABELS,
+  AUTOMATION_POTENTIAL_TIER_LABELS,
   formatAirportAccountDate,
+  formatAutomationPotentialScore,
   formatAirportPassengerCount,
   getAirportAccounts,
   PASSENGER_TIER_LABELS,
@@ -18,8 +20,10 @@ type AirportAccountsPageProps = {
 };
 
 type AirportAccountFilters = {
+  automationTier: string;
   passengerTier: string;
   query: string;
+  sort: string;
   status: string;
   strategicPriority: string;
 };
@@ -39,7 +43,10 @@ export default async function AirportAccountsPage({
   const params = await searchParams;
   const filters = getAirportAccountFilters(params ?? {});
   const accounts = await getAirportAccounts();
-  const filteredAccounts = filterAirportAccounts(accounts, filters);
+  const filteredAccounts = sortAirportAccounts(
+    filterAirportAccounts(accounts, filters),
+    filters.sort,
+  );
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
@@ -77,7 +84,7 @@ export default async function AirportAccountsPage({
             </div>
             <Link
               className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
-              href="/admin/import-airports"
+              href="/admin/strategic-airport-database"
             >
               Import Airports
             </Link>
@@ -108,7 +115,7 @@ function AirportAccountFiltersForm({
 }) {
   return (
     <form className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr] xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
           Search
           <input
@@ -149,6 +156,32 @@ function AirportAccountFiltersForm({
           </select>
         </label>
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Automation tier
+          <select
+            className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.automationTier}
+            name="automationTier"
+          >
+            <option value="">All automation tiers</option>
+            {Object.entries(AUTOMATION_POTENTIAL_TIER_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Sort
+          <select
+            className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.sort}
+            name="sort"
+          >
+            <option value="">Default</option>
+            <option value="automation_desc">Highest Automation Potential</option>
+          </select>
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
           Status
           <select
             className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
@@ -186,7 +219,7 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
   return (
     <div className="mt-6 overflow-hidden rounded-lg border border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
       <div className="overflow-x-auto">
-        <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1380px] w-full border-collapse text-left text-sm">
           <thead className="bg-[#F8F8F6] text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
             <tr>
               <HeaderCell>Airport Name</HeaderCell>
@@ -196,6 +229,8 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
               <HeaderCell>City</HeaderCell>
               <HeaderCell>Passengers</HeaderCell>
               <HeaderCell>Passenger Tier</HeaderCell>
+              <HeaderCell>Automation Score</HeaderCell>
+              <HeaderCell>Automation Tier</HeaderCell>
               <HeaderCell>Strategic Priority</HeaderCell>
               <HeaderCell>Status</HeaderCell>
               <HeaderCell>Profiles Connected</HeaderCell>
@@ -222,13 +257,25 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
                     {account.iataCode}
                   </span>
                 </BodyCell>
-                <BodyCell>{account.icaoCode || "—"}</BodyCell>
-                <BodyCell>{account.countryName || account.countryCode || "—"}</BodyCell>
-                <BodyCell>{account.city || account.municipality || "—"}</BodyCell>
+                <BodyCell>{account.icaoCode || "-"}</BodyCell>
+                <BodyCell>{account.countryName || account.countryCode || "-"}</BodyCell>
+                <BodyCell>{account.city || account.municipality || "-"}</BodyCell>
                 <BodyCell>{formatAirportPassengerCount(account.annualPassengers)}</BodyCell>
                 <BodyCell>
                   <Badge tone={account.passengerTier === "unknown" ? "gray" : "blue"}>
                     {PASSENGER_TIER_LABELS[account.passengerTier]}
+                  </Badge>
+                </BodyCell>
+                <BodyCell>
+                  {formatAutomationPotentialScore(account.automationPotentialScore)}
+                </BodyCell>
+                <BodyCell>
+                  <Badge
+                    tone={
+                      account.automationPotentialTier === "unknown" ? "gray" : "green"
+                    }
+                  >
+                    {AUTOMATION_POTENTIAL_TIER_LABELS[account.automationPotentialTier]}
                   </Badge>
                 </BodyCell>
                 <BodyCell>
@@ -313,8 +360,10 @@ function getAirportAccountFilters(
   searchParams: Record<string, string | string[] | undefined>,
 ): AirportAccountFilters {
   return {
+    automationTier: getSearchValue(searchParams.automationTier),
     passengerTier: getSearchValue(searchParams.passengerTier),
     query: getSearchValue(searchParams.q),
+    sort: getSearchValue(searchParams.sort),
     status: getSearchValue(searchParams.status),
     strategicPriority: getSearchValue(searchParams.strategicPriority),
   };
@@ -350,6 +399,13 @@ function filterAirportAccounts(
     }
 
     if (
+      filters.automationTier &&
+      filters.automationTier !== account.automationPotentialTier
+    ) {
+      return false;
+    }
+
+    if (
       filters.strategicPriority &&
       filters.strategicPriority !== account.strategicPriority
     ) {
@@ -361,6 +417,16 @@ function filterAirportAccounts(
     }
 
     return true;
+  });
+}
+
+function sortAirportAccounts(accounts: AirportAccount[], sort: string) {
+  if (sort !== "automation_desc") return accounts;
+
+  return [...accounts].sort((first, second) => {
+    const firstScore = first.automationPotentialScore ?? -1;
+    const secondScore = second.automationPotentialScore ?? -1;
+    return secondScore - firstScore || first.displayName.localeCompare(second.displayName);
   });
 }
 

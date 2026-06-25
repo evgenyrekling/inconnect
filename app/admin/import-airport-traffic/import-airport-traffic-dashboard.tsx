@@ -13,10 +13,14 @@ type TrafficPreviewRow = {
 
 type AirportTrafficImportSummary = {
   errors: string[];
+  highAutomationPotential: number;
   invalidRows: number;
+  missingPassengerData: number;
+  recalculatedScores: number;
   totalRows: number;
   unmatchedIataCodes: string[];
   updated: number;
+  veryHighAutomationPotential: number;
 };
 
 type AirportTrafficImportResponse =
@@ -227,6 +231,22 @@ export function ImportAirportTrafficDashboard() {
               {summary ? (
                 <div className="mt-5 grid gap-3">
                   <SummaryRow label="Updated accounts" value={summary.updated} />
+                  <SummaryRow
+                    label="Scores recalculated"
+                    value={summary.recalculatedScores}
+                  />
+                  <SummaryRow
+                    label="Very High automation potential"
+                    value={summary.veryHighAutomationPotential}
+                  />
+                  <SummaryRow
+                    label="High automation potential"
+                    value={summary.highAutomationPotential}
+                  />
+                  <SummaryRow
+                    label="Missing passenger data"
+                    value={summary.missingPassengerData}
+                  />
                   <SummaryRow label="Invalid rows" value={summary.invalidRows} />
                   <SummaryRow
                     label="Unmatched IATA codes"

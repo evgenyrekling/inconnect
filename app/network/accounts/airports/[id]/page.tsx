@@ -5,7 +5,9 @@ import type { ReactNode } from "react";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
   ACCOUNT_STATUS_LABELS,
+  AUTOMATION_POTENTIAL_TIER_LABELS,
   formatAirportAccountDate,
+  formatAutomationPotentialScore,
   formatAirportPassengerCount,
   getAirportAccountById,
   PASSENGER_TIER_LABELS,
@@ -80,6 +82,13 @@ export default async function AirportAccountPage({
                 </StatusBadge>
                 <StatusBadge tone={account.status === "inactive" ? "gray" : "blue"}>
                   {ACCOUNT_STATUS_LABELS[account.status]}
+                </StatusBadge>
+                <StatusBadge
+                  tone={
+                    account.automationPotentialTier === "unknown" ? "gray" : "green"
+                  }
+                >
+                  {`Automation: ${AUTOMATION_POTENTIAL_TIER_LABELS[account.automationPotentialTier]}`}
                 </StatusBadge>
               </div>
             </div>
@@ -186,6 +195,27 @@ export default async function AirportAccountPage({
                   label="Traffic Source"
                   value={account.sourceTraffic || "Not enriched yet"}
                 />
+              </div>
+            </AccountSection>
+
+            <AccountSection title="Automation Potential">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                Initial INConnect automation potential estimate
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#191919]">
+                {formatAutomationPotentialScore(account.automationPotentialScore)}
+              </p>
+              <p className="mt-2 text-lg font-semibold text-[#0A66C2]">
+                {AUTOMATION_POTENTIAL_TIER_LABELS[account.automationPotentialTier]}
+              </p>
+              <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                  Notes
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#666666]">
+                  {account.automationScoreNotes ||
+                    "Calculated from passenger traffic, airport type, and strategic priority."}
+                </p>
               </div>
             </AccountSection>
 

@@ -16,9 +16,20 @@ export type AccountStatus =
   | "competitor"
   | "inactive";
 
+export type AutomationPotentialTier =
+  | "very_high"
+  | "high"
+  | "medium"
+  | "low"
+  | "very_low"
+  | "unknown";
+
 export type AirportAccount = {
   annualPassengers: number | null;
   airportType: string;
+  automationPotentialScore: number | null;
+  automationPotentialTier: AutomationPotentialTier;
+  automationScoreNotes: string;
   city: string;
   countryCode: string;
   countryName: string;
@@ -48,6 +59,9 @@ export type AirportAccount = {
 type AirportAccountRow = {
   annual_passengers: number | null;
   airport_type: string | null;
+  automation_potential_score: number | null;
+  automation_potential_tier: string | null;
+  automation_score_notes: string | null;
   city: string | null;
   country_code: string | null;
   country_name: string | null;
@@ -97,9 +111,24 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   support: "Support",
 };
 
+export const AUTOMATION_POTENTIAL_TIER_LABELS: Record<
+  AutomationPotentialTier,
+  string
+> = {
+  high: "High",
+  low: "Low",
+  medium: "Medium",
+  unknown: "Unknown",
+  very_high: "Very High",
+  very_low: "Very Low",
+};
+
 const AIRPORT_ACCOUNT_SELECT = [
   "annual_passengers",
   "airport_type",
+  "automation_potential_score",
+  "automation_potential_tier",
+  "automation_score_notes",
   "city",
   "country_code",
   "country_name",
@@ -211,6 +240,90 @@ export function getStrategicPriorityFromTier(
   return "unrated";
 }
 
+export function calculateAutomationPotentialScore({
+  airportType,
+  annualPassengers,
+  passengerTier,
+  strategicPriority,
+}: {
+  airportType: string | null | undefined;
+  annualPassengers: number | null | undefined;
+  passengerTier: PassengerTier;
+  strategicPriority: StrategicPriority;
+}) {
+  let score = 20;
+  const notes: string[] = [
+    "Initial INConnect automation potential estimate.",
+  ];
+
+  if (passengerTier === "mega_hub") {
+    score = 70;
+    notes.push("Base score 70 from mega hub passenger tier.");
+  } else if (passengerTier === "large_airport") {
+    score = 55;
+    notes.push("Base score 55 from large airport passenger tier.");
+  } else if (passengerTier === "medium_airport") {
+    score = 40;
+    notes.push("Base score 40 from medium airport passenger tier.");
+  } else {
+    notes.push("Base score 20 because passenger tier is unknown.");
+  }
+
+  if (typeof annualPassengers === "number" && Number.isFinite(annualPassengers)) {
+    if (annualPassengers >= 70_000_000) {
+      score += 10;
+      notes.push("+10 for 70M+ annual passengers.");
+    } else if (annualPassengers >= 40_000_000) {
+      score += 8;
+      notes.push("+8 for 40M to 70M annual passengers.");
+    } else if (annualPassengers >= 15_000_000) {
+      score += 5;
+      notes.push("+5 for 15M to 40M annual passengers.");
+    }
+  }
+
+  if (strategicPriority === "strategic") {
+    score += 5;
+    notes.push("+5 for strategic priority.");
+  } else if (strategicPriority === "high") {
+    score += 3;
+    notes.push("+3 for high strategic priority.");
+  }
+
+  if (airportType === "large_airport") {
+    score += 5;
+    notes.push("+5 for OurAirports large_airport type.");
+  }
+
+  notes.push(
+    "Future factors can include cargo volume, hub airline status, international transfer share, modernization projects, BHS complexity, PBB count, terminal count, supplier presence, digital maturity, passenger growth, and regional investment activity.",
+  );
+
+  const cappedScore = Math.min(100, Math.max(0, score));
+
+  return {
+    notes: notes.join(" "),
+    score: cappedScore,
+    tier: getAutomationPotentialTier(cappedScore),
+  };
+}
+
+export function getAutomationPotentialTier(
+  score: number | null | undefined,
+): AutomationPotentialTier {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "unknown";
+  if (score >= 80) return "very_high";
+  if (score >= 60) return "high";
+  if (score >= 40) return "medium";
+  if (score >= 20) return "low";
+  return "very_low";
+}
+
+export function formatAutomationPotentialScore(score: number | null) {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "Unknown";
+  return `${score} / 100`;
+}
+
 export function formatAirportPassengerCount(annualPassengers: number | null) {
   if (typeof annualPassengers !== "number" || !Number.isFinite(annualPassengers)) {
     return "No traffic data";
@@ -256,6 +369,12 @@ function mapAirportAccountRow(row: AirportAccountRow): AirportAccount {
   return {
     annualPassengers: row.annual_passengers,
     airportType: row.airport_type ?? "",
+    automationPotentialScore: row.automation_potential_score,
+    automationPotentialTier: normalizeAutomationPotentialTier(
+      row.automation_potential_tier,
+      row.automation_potential_score,
+    ),
+    automationScoreNotes: row.automation_score_notes ?? "",
     city: row.city ?? "",
     countryCode: row.country_code ?? "",
     countryName: row.country_name ?? "",
@@ -322,4 +441,22 @@ function normalizeAccountStatus(value: string | null): AccountStatus {
   }
 
   return "prospect";
+}
+
+function normalizeAutomationPotentialTier(
+  value: string | null,
+  score: number | null,
+): AutomationPotentialTier {
+  if (
+    value === "very_high" ||
+    value === "high" ||
+    value === "medium" ||
+    value === "low" ||
+    value === "very_low" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+
+  return getAutomationPotentialTier(score);
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  calculateAutomationPotentialScore,
   getPassengerTier,
   getStrategicPriorityFromTier,
   normalizeAirportIataCode,
@@ -24,16 +25,21 @@ type AirportTrafficRow = {
 };
 
 type ExistingAirportAccount = {
+  airport_type: string | null;
   id: string;
   iata_code: string | null;
 };
 
 type AirportTrafficImportSummary = {
   errors: string[];
+  highAutomationPotential: number;
   invalidRows: number;
+  missingPassengerData: number;
+  recalculatedScores: number;
   totalRows: number;
   unmatchedIataCodes: string[];
   updated: number;
+  veryHighAutomationPotential: number;
 };
 
 const AIRPORT_TRAFFIC_BATCH_SIZE = 400;
@@ -60,10 +66,14 @@ export async function POST(request: NextRequest) {
     );
     const summary: AirportTrafficImportSummary = {
       errors: [],
+      highAutomationPotential: 0,
       invalidRows: 0,
+      missingPassengerData: 0,
+      recalculatedScores: 0,
       totalRows: rows.length,
       unmatchedIataCodes: [],
       updated: 0,
+      veryHighAutomationPotential: 0,
     };
     const unmatchedIataCodes = new Set<string>();
 
@@ -80,15 +90,25 @@ export async function POST(request: NextRequest) {
       }
 
       const passengerTier = getPassengerTier(row.annualPassengers);
+      const strategicPriority = getStrategicPriorityFromTier(passengerTier);
+      const automationPotential = calculateAutomationPotentialScore({
+        airportType: existingAccount.airport_type,
+        annualPassengers: row.annualPassengers,
+        passengerTier,
+        strategicPriority,
+      });
       const { error } = await supabase
         .from("accounts")
         .update({
           annual_passengers: row.annualPassengers,
+          automation_potential_score: automationPotential.score,
+          automation_potential_tier: automationPotential.tier,
+          automation_score_notes: automationPotential.notes,
           passenger_tier: passengerTier,
           passenger_year: row.passengerYear,
           source_traffic: row.sourceTraffic || null,
           source_url: row.sourceUrl || null,
-          strategic_priority: getStrategicPriorityFromTier(passengerTier),
+          strategic_priority: strategicPriority,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingAccount.id);
@@ -100,10 +120,18 @@ export async function POST(request: NextRequest) {
         });
         summary.errors.push(`${row.iataCode}: ${error.message}`);
       } else {
+        summary.recalculatedScores += 1;
+        if (automationPotential.tier === "very_high") {
+          summary.veryHighAutomationPotential += 1;
+        }
+        if (automationPotential.tier === "high") {
+          summary.highAutomationPotential += 1;
+        }
         summary.updated += 1;
       }
     }
 
+    summary.missingPassengerData = summary.invalidRows;
     summary.unmatchedIataCodes = Array.from(unmatchedIataCodes).sort();
 
     return NextResponse.json({ success: true, summary });
@@ -155,7 +183,7 @@ async function getExistingAirportAccounts(
     if (iataChunk.length === 0) continue;
     const { data, error } = await supabase
       .from("accounts")
-      .select("id, iata_code")
+      .select("airport_type, id, iata_code")
       .eq("account_type", "airport")
       .in("iata_code", iataChunk)
       .returns<ExistingAirportAccount[]>();

@@ -304,6 +304,9 @@ create table if not exists public.accounts (
   passenger_tier text default 'unknown',
   strategic_priority text default 'unrated',
   status text default 'prospect',
+  automation_potential_score integer,
+  automation_potential_tier text,
+  automation_score_notes text,
   source_identity text,
   source_traffic text,
   source_url text,
@@ -464,6 +467,12 @@ create index if not exists accounts_airport_strategic_priority_idx
 create index if not exists accounts_airport_status_idx
   on public.accounts (status)
   where account_type = 'airport';
+create index if not exists accounts_airport_automation_score_idx
+  on public.accounts (automation_potential_score)
+  where account_type = 'airport';
+create index if not exists accounts_airport_automation_tier_idx
+  on public.accounts (automation_potential_tier)
+  where account_type = 'airport';
 create index if not exists accounts_airport_is_active_idx
   on public.accounts (is_active)
   where account_type = 'airport';
@@ -492,6 +501,15 @@ comment on column public.accounts.source_traffic is
 
 comment on column public.accounts.status is
   'Generic CRM account status. Supported values: support, prospect, customer, partner, competitor, inactive.';
+
+comment on column public.accounts.automation_potential_score is
+  'Initial INConnect heuristic estimate for airport automation potential. Range 0-100.';
+
+comment on column public.accounts.automation_potential_tier is
+  'Automation potential tier derived from automation_potential_score.';
+
+comment on column public.accounts.automation_score_notes is
+  'Notes explaining the initial heuristic scoring factors and future enrichment placeholders.';
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)
