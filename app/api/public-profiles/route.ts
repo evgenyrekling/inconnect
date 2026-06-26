@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { getVerifiedInconnectUserFromRequest } from "@/lib/auth-server";
 import {
   createPublicProfileFromLatestAssessment,
   deleteOwnerProfile,
@@ -32,13 +33,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json().catch(() => null)) as { userKey?: string } | null;
-    const userKey = body?.userKey?.trim();
-    if (!userKey) {
-      return NextResponse.json({ error: "userKey is required." }, { status: 400 });
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
     }
 
-    const profile = await createPublicProfileFromLatestAssessment(userKey);
+    const profile = await createPublicProfileFromLatestAssessment(verifiedUser.userKey);
     return NextResponse.json({ profile });
   } catch (error) {
     console.error("Public profile creation failed", error);
@@ -69,8 +72,12 @@ export async function PATCH(request: Request) {
     const email = body?.email?.trim();
     const slug = body?.slug?.trim();
     const userKey = body?.userKey?.trim();
-    if (!userKey && !email) {
-      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
     }
 
     const values = {
@@ -84,8 +91,15 @@ export async function PATCH(request: Request) {
       visibility: body?.visibility,
     };
     const profile = slug
-      ? await updateOwnerProfileBySlug(slug, { email, userKey }, values)
-      : await updateOwnerProfile({ email, userKey }, values);
+      ? await updateOwnerProfileBySlug(
+          slug,
+          { email: verifiedUser.email, userKey: verifiedUser.userKey },
+          values,
+        )
+      : await updateOwnerProfile(
+          { email: verifiedUser.email, userKey: verifiedUser.userKey },
+          values,
+        );
     revalidatePath(`/p/${profile.slug}`);
     revalidatePath("/network/profile");
     revalidatePath("/network/profiles");
@@ -107,14 +121,24 @@ export async function DELETE(request: Request) {
     const email = searchParams.get("email")?.trim();
     const slug = searchParams.get("slug")?.trim();
     const userKey = searchParams.get("userKey")?.trim();
-    if (!userKey && !email) {
-      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
     }
 
     if (slug) {
-      await deleteOwnerProfileBySlug(slug, { email, userKey });
+      await deleteOwnerProfileBySlug(slug, {
+        email: verifiedUser.email,
+        userKey: verifiedUser.userKey,
+      });
     } else {
-      await deleteOwnerProfile({ email, userKey });
+      await deleteOwnerProfile({
+        email: verifiedUser.email,
+        userKey: verifiedUser.userKey,
+      });
     }
     return NextResponse.json({ success: true });
   } catch (error) {

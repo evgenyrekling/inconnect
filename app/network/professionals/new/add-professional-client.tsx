@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
+import { getVerifiedAuthHeaders, readStoredVerifiedIdentity } from "@/lib/auth-client";
 
 type ParsedLinkedInProfile = {
   confidence: "high" | "medium" | "low";
@@ -43,9 +45,6 @@ const RELATIONSHIP_OPTIONS = [
   ["other", "Other"],
 ];
 
-const STORAGE_KEY = "inconnect:returning-user";
-const UNIFIED_STORAGE_KEY = "inconnect:user-identity";
-
 export function AddProfessionalClient({
   initialCompanyId = "",
 }: {
@@ -60,6 +59,7 @@ export function AddProfessionalClient({
     headline: "",
     industry: "",
     location: "",
+    professionalEmail: "",
     profileImageUrl: "",
   });
   const [companyQuery, setCompanyQuery] = useState("");
@@ -72,6 +72,9 @@ export function AddProfessionalClient({
   const [savedProfessional, setSavedProfessional] = useState<SavedProfessional | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+  const [resumeSaveAfterSignIn, setResumeSaveAfterSignIn] = useState(false);
+  const [sendInvitation, setSendInvitation] = useState(false);
 
   useEffect(() => {
     if (!initialCompanyId) return;
@@ -134,6 +137,7 @@ export function AddProfessionalClient({
       headline: data.headline,
       industry: "",
       location: data.location,
+      professionalEmail: "",
       profileImageUrl: data.profile_image_url,
     });
     setMessage(
@@ -156,19 +160,32 @@ export function AddProfessionalClient({
 
     setIsSaving(true);
     setMessage("");
-    const ownerEmail = readStoredEmail();
+    const ownerIdentity = readStoredVerifiedIdentity();
+    if (!ownerIdentity?.email) {
+      setIsSaving(false);
+      setResumeSaveAfterSignIn(true);
+      setIsSignInOpen(true);
+      setMessage("Sign in with a verified email before saving private professionals.");
+      return;
+    }
+    const authHeaders = await getVerifiedAuthHeaders();
     const response = await fetch("/api/network/professionals", {
       body: JSON.stringify({
         ...form,
         linkedinUrl,
-        ownerEmail,
+        sendInvitation: isValidEmail(form.professionalEmail) && sendInvitation,
       }),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...authHeaders },
       method: "POST",
     });
     const data = (await response.json().catch(() => null)) as {
       error?: string;
       existing?: boolean;
+      invitation?: {
+        message?: string;
+        sent?: boolean;
+        status?: string;
+      } | null;
       profile?: SavedProfessional;
     } | null;
 
@@ -184,14 +201,13 @@ export function AddProfessionalClient({
       const attachResponse = await fetch("/api/network/professional-company-links", {
         body: JSON.stringify({
           companyId: selectedCompany.id,
-          createdByEmail: ownerEmail,
           department,
           isPrimary,
           professionalId: data.profile.id,
           relationshipType,
           title: form.currentTitle,
         }),
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders },
         method: "POST",
       });
       const attachData = (await attachResponse.json().catch(() => null)) as {
@@ -208,18 +224,44 @@ export function AddProfessionalClient({
 
       setMessage(
         data.existing
-          ? "Professional already exists and is attached to the selected company."
-          : "Professional saved and attached to the selected company.",
+          ? withInvitationMessage(
+              "Professional already exists and is attached to the selected company.",
+              data.invitation,
+            )
+          : withInvitationMessage(
+              "Professional saved and attached to the selected company.",
+              data.invitation,
+            ),
       );
       return;
     }
 
     setIsSaving(false);
-    setMessage(data.existing ? "Professional already exists." : "Professional saved.");
+    setMessage(
+      withInvitationMessage(
+        data.existing ? "Professional already exists." : "Professional saved.",
+        data.invitation,
+      ),
+    );
   }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      {isSignInOpen && (
+        <EmailOTPLoginModal
+          onClose={() => {
+            setIsSignInOpen(false);
+            setResumeSaveAfterSignIn(false);
+          }}
+          onSignedIn={() => {
+            setIsSignInOpen(false);
+            if (resumeSaveAfterSignIn) {
+              setResumeSaveAfterSignIn(false);
+              window.setTimeout(() => void saveProfessional(), 0);
+            }
+          }}
+        />
+      )}
       <section className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
           Step 1
@@ -297,7 +339,38 @@ export function AddProfessionalClient({
               onChange={(value) => setForm({ ...form, industry: value })}
               value={form.industry}
             />
+            <TextField
+              label="Professional email"
+              onChange={(value) => {
+                setForm({ ...form, professionalEmail: value });
+                if (!isValidEmail(value)) setSendInvitation(false);
+              }}
+              placeholder="professional@example.com"
+              type="email"
+              value={form.professionalEmail}
+            />
           </div>
+          {isValidEmail(form.professionalEmail) && (
+            <label className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+              <span className="flex items-start gap-3">
+                <input
+                  checked={sendInvitation}
+                  className="mt-1 h-4 w-4"
+                  onChange={(event) => setSendInvitation(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block font-semibold text-[#191919]">
+                    Send invitation email to this professional
+                  </span>
+                  <span className="mt-1 block">
+                    This will notify the professional that you added them to your
+                    INConnect network and invite them to claim or manage their profile.
+                  </span>
+                </span>
+              </span>
+            </label>
+          )}
           <TextField
             label="Profile photo URL"
             onChange={(value) => setForm({ ...form, profileImageUrl: value })}
@@ -411,11 +484,13 @@ function TextField({
   label,
   onChange,
   placeholder = "",
+  type = "text",
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  type?: string;
   value: string;
 }) {
   return (
@@ -425,21 +500,21 @@ function TextField({
         className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        type={type}
         value={value}
       />
     </label>
   );
 }
 
-function readStoredEmail() {
-  try {
-    const raw =
-      window.localStorage.getItem(UNIFIED_STORAGE_KEY) ??
-      window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return "";
-    const parsed = JSON.parse(raw) as { email?: string };
-    return typeof parsed.email === "string" ? parsed.email : "";
-  } catch {
-    return "";
-  }
+function withInvitationMessage(
+  baseMessage: string,
+  invitation?: { message?: string; sent?: boolean; status?: string } | null,
+) {
+  if (!invitation) return baseMessage;
+  return `${baseMessage} ${invitation.message ?? (invitation.sent ? "Invitation email sent." : "Invitation was not sent.")}`;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }

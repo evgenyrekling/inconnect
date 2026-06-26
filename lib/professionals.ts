@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import { normalizeLinkedInUrl } from "@/lib/identity";
+import { normalizeEmail, normalizeLinkedInUrl } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
 
 export type ProfessionalRelationshipType =
   | "employee"
@@ -26,6 +27,9 @@ export type ProfessionalProfile = {
   slug: string;
   source: string;
   updatedAt: string;
+  ownerEmail: string;
+  ownerUserId: string;
+  professionalEmail: string;
   visibility: string;
 };
 
@@ -47,6 +51,8 @@ export type ProfessionalCompanyLink = {
   id: string;
   isPrimary: boolean;
   notes: string;
+  ownerEmail: string;
+  ownerUserId: string;
   professional: ProfessionalProfile | null;
   professionalId: string;
   relationshipType: ProfessionalRelationshipType;
@@ -78,6 +84,10 @@ type ProfessionalProfileRow = {
   industry: string | null;
   linkedin_url: string | null;
   location: string | null;
+  owner_email: string | null;
+  owner_user_id: string | null;
+  professional_email: string | null;
+  normalized_professional_email: string | null;
   professional_role: string | null;
   profile_image_url: string | null;
   profile_photo_url: string | null;
@@ -105,6 +115,8 @@ type ProfessionalCompanyLinkRow = {
   id: string;
   is_primary: boolean | null;
   notes: string | null;
+  owner_email: string | null;
+  owner_user_id: string | null;
   professional_id: string;
   relationship_type: string | null;
   seniority: string | null;
@@ -122,6 +134,10 @@ const PROFESSIONAL_SELECT = [
   "company",
   "professional_role",
   "location",
+  "owner_email",
+  "owner_user_id",
+  "professional_email",
+  "normalized_professional_email",
   "industry",
   "profile_image_url",
   "profile_photo_url",
@@ -151,8 +167,20 @@ const LINK_SELECT = [
   "seniority",
   "is_primary",
   "notes",
+  "owner_email",
+  "owner_user_id",
   "created_at",
 ].join(", ");
+
+type ProfessionalOwnerIdentity = {
+  ownerEmail: string;
+  ownerUserId: string | null;
+};
+
+type ProfessionalOwnerInput = {
+  ownerEmail?: string | null;
+  ownerUserId?: string | null;
+};
 
 export function parseProfessionalLinkedInUrl(value: string) {
   const raw = value.trim();
@@ -289,11 +317,20 @@ export async function fetchLinkedInPublicProfessionalData(
   }
 }
 
-export async function getProfessionalProfiles() {
+export async function getProfessionalProfiles(ownerInput: {
+  ownerEmail?: string | null;
+  ownerUserId?: string | null;
+}) {
+  const owner = await resolveProfessionalOwnerIdentity(ownerInput, { createUser: false });
+  if (!owner) return [];
+
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("public_profiles")
     .select(PROFESSIONAL_SELECT)
+    .or(getOwnerFilter(owner))
+    .not("normalized_linkedin_url", "is", null)
+    .neq("visibility", "removed")
     .order("updated_at", { ascending: false })
     .returns<ProfessionalProfileRow[]>();
 
@@ -303,19 +340,31 @@ export async function getProfessionalProfiles() {
   }
 
   const profiles = (data ?? []).map(mapProfessionalProfileRow);
-  const counts = await getCompanyLinkCountsForProfessionals(profiles.map((profile) => profile.id));
+  const counts = await getCompanyLinkCountsForProfessionals(
+    profiles.map((profile) => profile.id),
+    owner,
+  );
   return profiles.map((profile) => ({
     ...profile,
     companyLinksCount: counts.get(profile.id) ?? 0,
   }));
 }
 
-export async function getProfessionalProfileById(id: string) {
+export async function getProfessionalProfileById(
+  id: string,
+  ownerInput: ProfessionalOwnerInput,
+) {
+  const owner = await resolveProfessionalOwnerIdentity(ownerInput, { createUser: false });
+  if (!owner) return null;
+
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("public_profiles")
     .select(PROFESSIONAL_SELECT)
     .eq("id", id)
+    .or(getOwnerFilter(owner))
+    .not("normalized_linkedin_url", "is", null)
+    .neq("visibility", "removed")
     .maybeSingle<ProfessionalProfileRow>();
 
   if (error) {
@@ -389,12 +438,20 @@ export async function saveProfessionalFromLinkedInUrl(input: {
   linkedinUrl: string;
   location?: string;
   ownerEmail?: string;
+  ownerUserId?: string;
+  professionalEmail?: string;
   profileImageUrl?: string;
 }) {
   const parsed = parseProfessionalLinkedInUrl(input.linkedinUrl);
   if (!parsed) throw new Error("A valid LinkedIn profile URL is required.");
 
   const supabase = getSupabaseAdminClient();
+  const owner = await resolveProfessionalOwnerIdentity(
+    { ownerEmail: input.ownerEmail, ownerUserId: input.ownerUserId },
+    { createUser: true },
+  );
+  if (!owner) throw new Error("Sign in with email before saving professionals.");
+
   const displayName = cleanText(input.displayName) || parsed.suggestedName;
   if (!displayName) throw new Error("Full name is required.");
 
@@ -407,18 +464,26 @@ export async function saveProfessionalFromLinkedInUrl(input: {
   const slug = await ensureUniqueProfessionalSlug(slugify(displayName));
   const now = new Date().toISOString();
   const profileImageUrl = cleanUrl(input.profileImageUrl);
+  const professionalEmail = cleanEmail(input.professionalEmail);
+  const normalizedProfessionalEmail = professionalEmail ? normalizeEmail(professionalEmail) : "";
   const originalLinkedinUrl = normalizeOriginalLinkedInUrl(
     input.linkedinUrl,
     new URL(parsed.linkedinUrl),
   );
-  const existing = await getProfessionalByNormalizedLinkedInUrl(parsed.normalizedLinkedinUrl);
+  const existing = await getProfessionalByNormalizedLinkedInUrl(
+    parsed.normalizedLinkedinUrl,
+    owner,
+  );
 
   if (existing) {
     const updatePayload: Record<string, unknown> = {
       linkedin_url: originalLinkedinUrl,
       normalized_linkedin_url: parsed.normalizedLinkedinUrl,
+      professional_email: professionalEmail || null,
+      normalized_professional_email: normalizedProfessionalEmail || null,
       source: "linkedin_url",
       updated_at: now,
+      visibility: "private",
     };
 
     if (displayName) updatePayload.display_name = displayName;
@@ -444,6 +509,8 @@ export async function saveProfessionalFromLinkedInUrl(input: {
       updatePayload.profile_photo_url = profileImageUrl;
     }
     if (cleanText(input.ownerEmail)) updatePayload.owner_email = cleanText(input.ownerEmail);
+    updatePayload.owner_email = owner.ownerEmail;
+    updatePayload.owner_user_id = owner.ownerUserId;
 
     const { data, error } = await supabase
       .from("public_profiles")
@@ -474,8 +541,11 @@ export async function saveProfessionalFromLinkedInUrl(input: {
     linkedin_url: originalLinkedinUrl,
     location: cleanText(input.location),
     normalized_linkedin_url: parsed.normalizedLinkedinUrl,
+    professional_email: professionalEmail || null,
+    normalized_professional_email: normalizedProfessionalEmail || null,
     owner_edit_token: crypto.randomBytes(24).toString("hex"),
-    owner_email: cleanText(input.ownerEmail),
+    owner_email: owner.ownerEmail,
+    owner_user_id: owner.ownerUserId,
     professional_role: currentTitle,
     profile_image_url: profileImageUrl,
     profile_photo_url: profileImageUrl,
@@ -497,6 +567,7 @@ export async function saveProfessionalFromLinkedInUrl(input: {
     if (error.code === "23505") {
       const duplicate = await getProfessionalByNormalizedLinkedInUrl(
         parsed.normalizedLinkedinUrl,
+        owner,
       );
       if (duplicate) return { existing: true, profile: duplicate };
     }
@@ -513,18 +584,34 @@ export async function attachProfessionalToCompany(input: {
   department?: string;
   isPrimary?: boolean;
   notes?: string;
+  ownerEmail?: string;
+  ownerUserId?: string;
   professionalId: string;
   relationshipType?: string;
   seniority?: string;
   title?: string;
 }) {
+  const owner = await resolveProfessionalOwnerIdentity(
+    {
+      ownerEmail: input.ownerEmail || input.createdByEmail,
+      ownerUserId: input.ownerUserId,
+    },
+    { createUser: false },
+  );
+  if (!owner) throw new Error("Sign in with email before attaching professionals.");
+
+  const professional = await getProfessionalProfileById(input.professionalId, owner);
+  if (!professional) throw new Error("Professional was not found for this user.");
+
   const relationshipType = normalizeRelationshipType(input.relationshipType);
   const payload = {
     company_id: input.companyId,
-    created_by_email: cleanText(input.createdByEmail),
+    created_by_email: cleanText(input.createdByEmail) || owner.ownerEmail,
     department: cleanText(input.department),
     is_primary: Boolean(input.isPrimary),
     notes: cleanText(input.notes),
+    owner_email: owner.ownerEmail,
+    owner_user_id: owner.ownerUserId,
     professional_id: input.professionalId,
     relationship_type: relationshipType,
     seniority: cleanText(input.seniority),
@@ -546,21 +633,38 @@ export async function attachProfessionalToCompany(input: {
   return mapProfessionalCompanyLinkRow(data, null, null);
 }
 
-export async function deleteProfessionalCompanyLink(id: string) {
+export async function deleteProfessionalCompanyLink(
+  id: string,
+  ownerInput: ProfessionalOwnerInput,
+) {
+  const owner = await resolveProfessionalOwnerIdentity(ownerInput, { createUser: false });
+  if (!owner) throw new Error("Sign in with email before removing links.");
+
   const supabase = getSupabaseAdminClient();
-  const { error } = await supabase.from("professional_company_links").delete().eq("id", id);
+  const { error } = await supabase
+    .from("professional_company_links")
+    .delete()
+    .eq("id", id)
+    .or(getOwnerFilter(owner));
   if (error) {
     console.error("PROFESSIONAL COMPANY LINK DELETE ERROR", { error, id });
     throw new Error(error.message || "Company link could not be removed.");
   }
 }
 
-export async function getProfessionalCompanyLinksByProfessionalId(professionalId: string) {
+export async function getProfessionalCompanyLinksByProfessionalId(
+  professionalId: string,
+  ownerInput: ProfessionalOwnerInput,
+) {
+  const owner = await resolveProfessionalOwnerIdentity(ownerInput, { createUser: false });
+  if (!owner) return [];
+
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("professional_company_links")
     .select(LINK_SELECT)
     .eq("professional_id", professionalId)
+    .or(getOwnerFilter(owner))
     .order("created_at", { ascending: false })
     .returns<ProfessionalCompanyLinkRow[]>();
 
@@ -575,12 +679,19 @@ export async function getProfessionalCompanyLinksByProfessionalId(professionalId
   );
 }
 
-export async function getProfessionalLinksForCompany(companyId: string) {
+export async function getProfessionalLinksForCompany(
+  companyId: string,
+  ownerInput: ProfessionalOwnerInput,
+) {
+  const owner = await resolveProfessionalOwnerIdentity(ownerInput, { createUser: false });
+  if (!owner) return [];
+
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("professional_company_links")
     .select(LINK_SELECT)
     .eq("company_id", companyId)
+    .or(getOwnerFilter(owner))
     .order("created_at", { ascending: false })
     .returns<ProfessionalCompanyLinkRow[]>();
 
@@ -589,18 +700,25 @@ export async function getProfessionalLinksForCompany(companyId: string) {
     return [];
   }
 
-  const professionals = await getProfessionalMap((data ?? []).map((link) => link.professional_id));
+  const professionals = await getProfessionalMap(
+    (data ?? []).map((link) => link.professional_id),
+    owner,
+  );
   return (data ?? []).map((link) =>
     mapProfessionalCompanyLinkRow(link, null, professionals.get(link.professional_id) ?? null),
   );
 }
 
-async function getProfessionalByNormalizedLinkedInUrl(normalizedLinkedinUrl: string) {
+async function getProfessionalByNormalizedLinkedInUrl(
+  normalizedLinkedinUrl: string,
+  owner: ProfessionalOwnerIdentity,
+) {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("public_profiles")
     .select(PROFESSIONAL_SELECT)
     .eq("normalized_linkedin_url", normalizedLinkedinUrl)
+    .or(getOwnerFilter(owner))
     .maybeSingle<ProfessionalProfileRow>();
 
   if (error) {
@@ -614,7 +732,10 @@ async function getProfessionalByNormalizedLinkedInUrl(normalizedLinkedinUrl: str
   return data ? mapProfessionalProfileRow(data) : null;
 }
 
-async function getCompanyLinkCountsForProfessionals(professionalIds: string[]) {
+async function getCompanyLinkCountsForProfessionals(
+  professionalIds: string[],
+  owner: ProfessionalOwnerIdentity,
+) {
   const counts = new Map<string, number>();
   const ids = Array.from(new Set(professionalIds.filter(Boolean)));
   if (ids.length === 0) return counts;
@@ -624,6 +745,7 @@ async function getCompanyLinkCountsForProfessionals(professionalIds: string[]) {
     .from("professional_company_links")
     .select("professional_id")
     .in("professional_id", ids)
+    .or(getOwnerFilter(owner))
     .returns<Array<{ professional_id: string }>>();
 
   if (error) {
@@ -662,7 +784,7 @@ async function getCompanyMap(companyIds: string[]) {
   return map;
 }
 
-async function getProfessionalMap(professionalIds: string[]) {
+async function getProfessionalMap(professionalIds: string[], owner: ProfessionalOwnerIdentity) {
   const ids = Array.from(new Set(professionalIds.filter(Boolean)));
   const map = new Map<string, ProfessionalProfile>();
   if (ids.length === 0) return map;
@@ -672,6 +794,8 @@ async function getProfessionalMap(professionalIds: string[]) {
     .from("public_profiles")
     .select(PROFESSIONAL_SELECT)
     .in("id", ids)
+    .or(getOwnerFilter(owner))
+    .neq("visibility", "removed")
     .returns<ProfessionalProfileRow[]>();
 
   if (error) {
@@ -684,6 +808,73 @@ async function getProfessionalMap(professionalIds: string[]) {
   }
 
   return map;
+}
+
+async function resolveProfessionalOwnerIdentity(
+  input: ProfessionalOwnerInput,
+  options: { createUser: boolean },
+): Promise<ProfessionalOwnerIdentity | null> {
+  const ownerEmail = cleanText(input.ownerEmail);
+  const ownerUserId = cleanText(input.ownerUserId);
+  const supabase = getSupabaseAdminClient();
+
+  if (ownerUserId) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, email, normalized_email")
+      .eq("id", ownerUserId)
+      .maybeSingle<{ email: string | null; id: string; normalized_email: string | null }>();
+    if (error) console.error("Professional owner user_id lookup failed", error);
+    if (data) {
+      return {
+        ownerEmail: normalizeEmail(data.normalized_email || data.email || ownerEmail),
+        ownerUserId: data.id,
+      };
+    }
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) return null;
+  const normalizedOwnerEmail = normalizeEmail(ownerEmail);
+
+  if (options.createUser) {
+    const { user } = await getOrCreateUserByEmail(supabase, {
+      email: normalizedOwnerEmail,
+      isAdminUser: getAdminEmails().includes(normalizedOwnerEmail),
+      planType: getAdminEmails().includes(normalizedOwnerEmail) ? "admin" : "free",
+    });
+    return {
+      ownerEmail: normalizeEmail(user.normalized_email || user.email || normalizedOwnerEmail),
+      ownerUserId: user.id,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, normalized_email")
+    .eq("normalized_email", normalizedOwnerEmail)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .returns<Array<{ email: string | null; id: string; normalized_email: string | null }>>();
+  if (error) console.error("Professional owner email lookup failed", error);
+
+  return {
+    ownerEmail: normalizedOwnerEmail,
+    ownerUserId: data?.[0]?.id ?? null,
+  };
+}
+
+function getOwnerFilter(owner: ProfessionalOwnerIdentity) {
+  const filters = [];
+  if (owner.ownerUserId) filters.push(`owner_user_id.eq.${owner.ownerUserId}`);
+  filters.push(`owner_email.eq.${owner.ownerEmail}`);
+  return filters.join(",");
+}
+
+function getAdminEmails() {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
 }
 
 async function ensureUniqueProfessionalSlug(value: string) {
@@ -715,6 +906,9 @@ function mapProfessionalProfileRow(row: ProfessionalProfileRow): ProfessionalPro
     industry: row.industry ?? "",
     linkedinUrl: row.linkedin_url ?? "",
     location: row.location ?? "",
+    ownerEmail: row.owner_email ?? "",
+    ownerUserId: row.owner_user_id ?? "",
+    professionalEmail: row.professional_email ?? "",
     profileImageUrl: row.profile_image_url ?? row.profile_photo_url ?? "",
     slug: row.slug,
     source: row.source ?? "",
@@ -748,6 +942,8 @@ function mapProfessionalCompanyLinkRow(
     id: row.id,
     isPrimary: Boolean(row.is_primary),
     notes: row.notes ?? "",
+    ownerEmail: row.owner_email ?? "",
+    ownerUserId: row.owner_user_id ?? "",
     professional,
     professionalId: row.professional_id,
     relationshipType: normalizeRelationshipType(row.relationship_type),
@@ -978,6 +1174,11 @@ function cleanMetadata(value: string) {
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function cleanEmail(value: unknown) {
+  const text = cleanText(value).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : "";
 }
 
 function cleanUrl(value: unknown) {

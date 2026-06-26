@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getVerifiedAuthHeaders, readStoredVerifiedIdentity } from "@/lib/auth-client";
 import type { PublicProfile, PublicProfileSection } from "@/lib/public-profiles";
 
 type StoredIdentity = {
@@ -67,7 +68,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
         userKey: identity.userKey,
         visibility,
       }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "PATCH",
     });
     setIsBusy(false);
@@ -88,7 +89,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
         slug: activeProfile.slug,
         userKey: identity.userKey,
       }).toString()}`,
-      { method: "DELETE" },
+      { headers: await getVerifiedAuthHeaders(), method: "DELETE" },
     );
     setIsBusy(false);
     if (!response.ok) {
@@ -309,14 +310,8 @@ function ProfileSectionCard({
 }
 
 function readIdentity() {
-  try {
-    const raw = window.localStorage.getItem(UNIFIED_STORAGE_KEY) ?? window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredIdentity;
-    return parsed?.userKey && parsed?.email ? parsed : null;
-  } catch {
-    return null;
-  }
+  const identity = readStoredVerifiedIdentity();
+  return identity?.userKey && identity.email ? identity : null;
 }
 
 function isProfileOwner(identity: StoredIdentity | null, profile: PublicProfile) {

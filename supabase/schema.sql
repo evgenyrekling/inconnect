@@ -10,6 +10,11 @@ create table if not exists public.users (
   normalized_linkedin_url text,
   is_admin boolean not null default false,
   plan_type text not null default 'free',
+  email_verified boolean default false,
+  email_verified_at timestamptz,
+  last_login_at timestamptz,
+  auth_provider text default 'email_otp',
+  supabase_auth_user_id uuid,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
@@ -270,6 +275,17 @@ create table if not exists public.email_deliveries (
   created_at timestamptz default now()
 );
 
+create table if not exists public.airport_email_delivery_log (
+  id uuid primary key default gen_random_uuid(),
+  briefing_id uuid references public.airport_briefings(id) on delete set null,
+  recipient_email text,
+  status text not null,
+  provider text default 'resend',
+  provider_message_id text,
+  error_message text,
+  sent_at timestamptz default now()
+);
+
 create table if not exists public.professional_connections (
   id uuid primary key default gen_random_uuid(),
   source_user_id uuid references public.users(id),
@@ -328,6 +344,8 @@ create table if not exists public.public_profiles (
   headline text,
   linkedin_url text,
   normalized_linkedin_url text,
+  professional_email text,
+  normalized_professional_email text,
   location text,
   company text,
   professional_role text,
@@ -365,15 +383,42 @@ create table if not exists public.professional_company_links (
   seniority text,
   is_primary boolean default false,
   notes text,
+  owner_user_id uuid references public.users(id) on delete cascade,
+  owner_email text,
   created_by_email text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
+);
+
+create table if not exists public.professional_invitations (
+  id uuid primary key default gen_random_uuid(),
+  professional_id uuid references public.public_profiles(id) on delete cascade,
+  owner_user_id uuid references public.users(id) on delete cascade,
+  professional_email text not null,
+  normalized_professional_email text not null,
+  invitation_token text unique not null,
+  status text default 'sent',
+  sent_at timestamptz,
+  claimed_at timestamptz,
+  removed_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.professional_invitation_events (
+  id uuid primary key default gen_random_uuid(),
+  invitation_id uuid references public.professional_invitations(id) on delete cascade,
+  event_type text not null,
+  details jsonb default '{}'::jsonb,
+  created_at timestamptz default now()
 );
 
 create index if not exists users_user_key_idx on public.users (user_key);
 create unique index if not exists users_normalized_email_unique_idx
   on public.users (normalized_email)
   where normalized_email is not null;
+create unique index if not exists users_supabase_auth_user_id_unique_idx
+  on public.users (supabase_auth_user_id)
+  where supabase_auth_user_id is not null;
 create index if not exists assessments_user_key_created_at_idx
   on public.assessments (user_key, created_at desc);
 create index if not exists usage_limits_user_key_period_idx
@@ -461,6 +506,14 @@ create index if not exists email_deliveries_sent_at_idx
   on public.email_deliveries (sent_at desc);
 create index if not exists email_deliveries_resend_email_id_idx
   on public.email_deliveries (resend_email_id);
+create index if not exists airport_email_delivery_log_briefing_id_idx
+  on public.airport_email_delivery_log (briefing_id);
+create index if not exists airport_email_delivery_log_recipient_email_idx
+  on public.airport_email_delivery_log (recipient_email);
+create index if not exists airport_email_delivery_log_status_idx
+  on public.airport_email_delivery_log (status);
+create index if not exists airport_email_delivery_log_sent_at_idx
+  on public.airport_email_delivery_log (sent_at desc);
 create index if not exists professional_connections_source_user_id_idx
   on public.professional_connections (source_user_id);
 create index if not exists professional_connections_target_user_id_idx
@@ -521,9 +574,22 @@ create index if not exists public_profiles_is_public_idx
 create index if not exists public_profiles_linkedin_url_idx
   on public.public_profiles (linkedin_url)
   where linkedin_url is not null;
-create unique index if not exists public_profiles_normalized_linkedin_url_unique_idx
-  on public.public_profiles (normalized_linkedin_url)
-  where normalized_linkedin_url is not null;
+create index if not exists public_profiles_normalized_professional_email_idx
+  on public.public_profiles (normalized_professional_email)
+  where normalized_professional_email is not null;
+create unique index if not exists public_profiles_owner_linkedin_unique_idx
+  on public.public_profiles (
+    (coalesce(owner_user_id::text, lower(owner_email))),
+    normalized_linkedin_url
+  )
+  where normalized_linkedin_url is not null
+    and (owner_user_id is not null or owner_email is not null);
+create index if not exists public_profiles_owner_user_id_idx
+  on public.public_profiles (owner_user_id)
+  where owner_user_id is not null;
+create index if not exists public_profiles_owner_email_idx
+  on public.public_profiles (owner_email)
+  where owner_email is not null;
 create unique index if not exists professional_company_links_unique_idx
   on public.professional_company_links (professional_id, company_id, relationship_type);
 create index if not exists professional_company_links_professional_id_idx
@@ -532,6 +598,22 @@ create index if not exists professional_company_links_company_id_idx
   on public.professional_company_links (company_id);
 create index if not exists professional_company_links_relationship_type_idx
   on public.professional_company_links (relationship_type);
+create index if not exists professional_company_links_owner_user_id_idx
+  on public.professional_company_links (owner_user_id)
+  where owner_user_id is not null;
+create index if not exists professional_company_links_owner_email_idx
+  on public.professional_company_links (owner_email)
+  where owner_email is not null;
+create index if not exists professional_invitations_professional_id_idx
+  on public.professional_invitations (professional_id);
+create index if not exists professional_invitations_owner_user_id_idx
+  on public.professional_invitations (owner_user_id);
+create index if not exists professional_invitations_normalized_email_idx
+  on public.professional_invitations (normalized_professional_email);
+create index if not exists professional_invitations_recent_idx
+  on public.professional_invitations (owner_user_id, normalized_professional_email, sent_at desc);
+create index if not exists professional_invitation_events_invitation_id_idx
+  on public.professional_invitation_events (invitation_id);
 
 comment on table public.professional_connections is
   'Private professional connection graph foundation for business matchmaking, mutual connections, partner discovery, opportunity matching, and company network intelligence.';
@@ -565,6 +647,122 @@ comment on column public.accounts.website is
 
 comment on column public.accounts.linkedin_url is
   'Account LinkedIn URL imported from master account data.';
+
+alter table public.accounts enable row level security;
+alter table public.users enable row level security;
+alter table public.public_profiles enable row level security;
+alter table public.professional_company_links enable row level security;
+alter table public.subscriptions enable row level security;
+
+drop policy if exists "users_owner_select" on public.users;
+create policy "users_owner_select"
+  on public.users
+  for select
+  to authenticated
+  using (
+    supabase_auth_user_id = auth.uid()
+    or lower(normalized_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "users_owner_update" on public.users;
+create policy "users_owner_update"
+  on public.users
+  for update
+  to authenticated
+  using (
+    supabase_auth_user_id = auth.uid()
+    or lower(normalized_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    supabase_auth_user_id = auth.uid()
+    or lower(normalized_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "accounts_read_authenticated" on public.accounts;
+create policy "accounts_read_authenticated"
+  on public.accounts
+  for select
+  to authenticated
+  using (true);
+
+drop policy if exists "public_profiles_owner_select" on public.public_profiles;
+create policy "public_profiles_owner_select"
+  on public.public_profiles
+  for select
+  to authenticated
+  using (
+    is_public = true
+    or owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "public_profiles_owner_insert" on public.public_profiles;
+create policy "public_profiles_owner_insert"
+  on public.public_profiles
+  for insert
+  to authenticated
+  with check (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "public_profiles_owner_update" on public.public_profiles;
+create policy "public_profiles_owner_update"
+  on public.public_profiles
+  for update
+  to authenticated
+  using (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "professional_company_links_owner_select" on public.professional_company_links;
+create policy "professional_company_links_owner_select"
+  on public.professional_company_links
+  for select
+  to authenticated
+  using (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "professional_company_links_owner_insert" on public.professional_company_links;
+create policy "professional_company_links_owner_insert"
+  on public.professional_company_links
+  for insert
+  to authenticated
+  with check (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "professional_company_links_owner_update" on public.professional_company_links;
+create policy "professional_company_links_owner_update"
+  on public.professional_company_links
+  for update
+  to authenticated
+  using (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "professional_company_links_owner_delete" on public.professional_company_links;
+create policy "professional_company_links_owner_delete"
+  on public.professional_company_links
+  for delete
+  to authenticated
+  using (
+    owner_user_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 insert into storage.buckets (id, name, public)
 values ('profile-pdfs', 'profile-pdfs', false)

@@ -25,15 +25,16 @@ export default async function AddProfessionalPage({
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <Link className="text-sm font-semibold text-[#0A66C2]" href="/network/professionals">
-            Back to Professionals
+            Back to My Professionals
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Professionals
+            My Professionals
           </p>
           <h1 className="mt-3 text-4xl font-semibold">Add Professional</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
-            Add a professional from a public LinkedIn profile URL, confirm the
-            available details manually, and attach the person to a company account.
+            Add a private professional contact from a public LinkedIn profile URL,
+            confirm the available details manually, and attach the person to a
+            company account.
           </p>
         </div>
       </section>

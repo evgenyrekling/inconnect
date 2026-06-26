@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
+import {
+  getVerifiedAuthHeaders,
+  readStoredVerifiedIdentity,
+  storeVerifiedIdentity,
+} from "@/lib/auth-client";
 
 type CreatedProfile = {
   isPublic: boolean;
@@ -19,6 +25,8 @@ export function CreateNetworkProfileClient() {
   const [message, setMessage] = useState("");
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [createdProfile, setCreatedProfile] = useState<CreatedProfile | null>(null);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+  const [resumeGenerateAfterSignIn, setResumeGenerateAfterSignIn] = useState(false);
   const [form, setForm] = useState({
     about: "",
     achievements: "",
@@ -42,6 +50,19 @@ export function CreateNetworkProfileClient() {
 
   async function generateProfile() {
     setMessage("");
+    const identity = readStoredVerifiedIdentity();
+    if (!identity?.email) {
+      setResumeGenerateAfterSignIn(true);
+      setIsSignInOpen(true);
+      setMessage("Sign in with a verified email before creating your profile.");
+      return;
+    }
+    if (form.email.trim().toLowerCase() !== identity.email.trim().toLowerCase()) {
+      setMessage("Profile email must match your verified sign-in email.");
+      setForm({ ...form, email: identity.email });
+      return;
+    }
+
     setIsGenerating(true);
     const response = await fetch("/api/network/create-profile", {
       body: JSON.stringify({
@@ -53,7 +74,7 @@ export function CreateNetworkProfileClient() {
           (section) => section.title.trim() && section.content.trim(),
         ),
       }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "POST",
     });
     const payload = (await response.json().catch(() => null)) as {
@@ -108,7 +129,7 @@ export function CreateNetworkProfileClient() {
         userKey: identity?.userKey,
         visibility: "public",
       }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "PATCH",
     });
     const payload = (await response.json().catch(() => null)) as {
@@ -131,6 +152,26 @@ export function CreateNetworkProfileClient() {
 
   return (
     <section className="px-5 py-12 sm:px-8 lg:px-10">
+      {isSignInOpen && (
+        <EmailOTPLoginModal
+          onClose={() => {
+            setIsSignInOpen(false);
+            setResumeGenerateAfterSignIn(false);
+          }}
+          onSignedIn={(identity) => {
+            setForm((current) => ({
+              ...current,
+              email: identity.email,
+              name: current.name || identity.name || "",
+            }));
+            setIsSignInOpen(false);
+            if (resumeGenerateAfterSignIn) {
+              setResumeGenerateAfterSignIn(false);
+              window.setTimeout(() => void generateProfile(), 0);
+            }
+          }}
+        />
+      )}
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <aside className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
@@ -486,6 +527,7 @@ async function uploadProfilePhoto({
 
   const response = await fetch("/api/public-profiles/photo", {
     body: formData,
+    headers: await getVerifiedAuthHeaders(),
     method: "POST",
   });
   const payload = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -495,27 +537,14 @@ async function uploadProfilePhoto({
 }
 
 function saveIdentity(identity: { email: string; name: string; userKey: string }) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(identity));
-    window.localStorage.setItem(
-      UNIFIED_STORAGE_KEY,
-      JSON.stringify({
-        ...identity,
-        normalizedEmail: identity.email.trim().toLowerCase(),
-        signedInAt: new Date().toISOString(),
-      }),
-    );
-  } catch {
-    // localStorage can be unavailable in private browsing.
-  }
+  storeVerifiedIdentity({
+    ...identity,
+    linkedinUrl: "",
+    normalizedEmail: identity.email.trim().toLowerCase(),
+    signedInAt: new Date().toISOString(),
+  });
 }
 
 function readIdentity() {
-  try {
-    const raw = window.localStorage.getItem(UNIFIED_STORAGE_KEY) ?? window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as { email: string; userKey: string };
-  } catch {
-    return null;
-  }
+  return readStoredVerifiedIdentity();
 }

@@ -2,6 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
+import {
+  getVerifiedAuthHeaders,
+  readStoredVerifiedIdentity,
+} from "@/lib/auth-client";
 
 type CompanyOption = {
   accountType: string;
@@ -43,6 +48,8 @@ export function ProfessionalCompanyAttachmentPanel({
   const [isPrimary, setIsPrimary] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+  const [resumeAttachAfterSignIn, setResumeAttachAfterSignIn] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(async () => {
@@ -59,6 +66,14 @@ export function ProfessionalCompanyAttachmentPanel({
   }, [query]);
 
   async function attachProfessional() {
+    const identity = readStoredVerifiedIdentity();
+    if (!identity?.email) {
+      setResumeAttachAfterSignIn(true);
+      setIsSignInOpen(true);
+      setMessage("Sign in to attach private professionals.");
+      return;
+    }
+
     if (!selectedCompany) {
       setMessage("Select a company first.");
       return;
@@ -75,7 +90,7 @@ export function ProfessionalCompanyAttachmentPanel({
         relationshipType,
         title,
       }),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "POST",
     });
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -92,6 +107,21 @@ export function ProfessionalCompanyAttachmentPanel({
 
   return (
     <div className="rounded-lg border border-[#D9DDE3] bg-white p-5">
+      {isSignInOpen && (
+        <EmailOTPLoginModal
+          onClose={() => {
+            setIsSignInOpen(false);
+            setResumeAttachAfterSignIn(false);
+          }}
+          onSignedIn={() => {
+            setIsSignInOpen(false);
+            if (resumeAttachAfterSignIn) {
+              setResumeAttachAfterSignIn(false);
+              window.setTimeout(() => void attachProfessional(), 0);
+            }
+          }}
+        />
+      )}
       <h3 className="text-lg font-semibold">Attach to Company</h3>
       <div className="mt-4 grid gap-4">
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
@@ -173,7 +203,9 @@ export function RemoveProfessionalCompanyLinkButton({ id }: { id: string }) {
 
   async function removeLink() {
     setIsLoading(true);
-    await fetch(`/api/network/professional-company-links?id=${encodeURIComponent(id)}`, {
+    const params = new URLSearchParams({ id });
+    await fetch(`/api/network/professional-company-links?${params.toString()}`, {
+      headers: await getVerifiedAuthHeaders(),
       method: "DELETE",
     });
     setIsLoading(false);

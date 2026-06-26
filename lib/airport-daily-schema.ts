@@ -55,6 +55,17 @@ export const AIRPORT_DAILY_CANDIDATES_EXPECTED_COLUMNS = [
   "updated_at",
 ] as const;
 
+export const AIRPORT_EMAIL_DELIVERY_LOG_EXPECTED_COLUMNS = [
+  "id",
+  "briefing_id",
+  "recipient_email",
+  "status",
+  "provider",
+  "provider_message_id",
+  "error_message",
+  "sent_at",
+] as const;
+
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdminClient>;
 
 export type AirportDailySchemaValidationResult = {
@@ -84,6 +95,13 @@ export async function validateAirportDailySchema(
     result,
     supabase,
     table: "airport_daily_candidates",
+  });
+  await validateTableColumns({
+    columns: AIRPORT_EMAIL_DELIVERY_LOG_EXPECTED_COLUMNS,
+    context,
+    result,
+    supabase,
+    table: "airport_email_delivery_log",
   });
 
   const hasMissing =

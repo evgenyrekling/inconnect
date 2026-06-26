@@ -1,11 +1,46 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { getVerifiedInconnectUserFromRequest } from "@/lib/auth-server";
 import {
   attachProfessionalToCompany,
   deleteProfessionalCompanyLink,
+  getProfessionalCompanyLinksByProfessionalId,
+  getProfessionalLinksForCompany,
 } from "@/lib/professionals";
 
 export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  const owner = await getVerifiedInconnectUserFromRequest(request);
+  if (!owner) {
+    return NextResponse.json(
+      { error: "Verified email sign-in is required.", links: [] },
+      { status: 401 },
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const companyId = searchParams.get("companyId")?.trim() ?? "";
+  const professionalId = searchParams.get("professionalId")?.trim() ?? "";
+
+  if (companyId) {
+    const links = await getProfessionalLinksForCompany(companyId, {
+      ownerEmail: owner.email,
+      ownerUserId: owner.userId,
+    });
+    return NextResponse.json({ links });
+  }
+
+  if (professionalId) {
+    const links = await getProfessionalCompanyLinksByProfessionalId(professionalId, {
+      ownerEmail: owner.email,
+      ownerUserId: owner.userId,
+    });
+    return NextResponse.json({ links });
+  }
+
+  return NextResponse.json({ links: [] });
+}
 
 export async function POST(request: Request) {
   try {
@@ -30,12 +65,22 @@ export async function POST(request: Request) {
       );
     }
 
+    const owner = await getVerifiedInconnectUserFromRequest(request);
+    if (!owner) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
+    }
+
     const link = await attachProfessionalToCompany({
       companyId,
-      createdByEmail: body?.createdByEmail,
+      createdByEmail: owner.email,
       department: body?.department,
       isPrimary: body?.isPrimary,
       notes: body?.notes,
+      ownerEmail: owner.email,
+      ownerUserId: owner.userId,
       professionalId,
       relationshipType: body?.relationshipType,
       seniority: body?.seniority,
@@ -68,7 +113,18 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Link id is required." }, { status: 400 });
     }
 
-    await deleteProfessionalCompanyLink(id);
+    const owner = await getVerifiedInconnectUserFromRequest(request);
+    if (!owner) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
+    }
+
+    await deleteProfessionalCompanyLink(id, {
+      ownerEmail: owner.email,
+      ownerUserId: owner.userId,
+    });
     revalidatePath("/network/professionals");
     revalidatePath("/network/accounts/airports");
 

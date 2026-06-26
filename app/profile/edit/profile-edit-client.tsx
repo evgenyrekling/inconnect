@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { getVerifiedAuthHeaders, readStoredVerifiedIdentity } from "@/lib/auth-client";
 import type { PublicProfile, PublicProfileSection } from "@/lib/public-profiles";
 
 type StoredIdentity = {
@@ -53,7 +54,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
     setMessage("");
     const response = await fetch("/api/public-profiles", {
       body: JSON.stringify({ userKey: identity.userKey }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "POST",
     });
     const payload = (await response.json()) as { error?: string; profile?: PublicProfile };
@@ -87,7 +88,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
         userKey: identity.userKey,
         visibility: nextProfile.visibility,
       }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
       method: "PATCH",
     });
     const payload = (await response.json()) as { error?: string; profile?: PublicProfile };
@@ -129,7 +130,8 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
         userKey: identity.userKey,
       }).toString()}`,
       {
-      method: "DELETE",
+        headers: await getVerifiedAuthHeaders(),
+        method: "DELETE",
       },
     );
     setIsSaving(false);
@@ -161,6 +163,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
 
       const response = await fetch("/api/public-profiles/photo", {
         body: formData,
+        headers: await getVerifiedAuthHeaders(),
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -197,7 +200,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
         ...(profileSlug ? { slug: profileSlug } : {}),
         userKey: identity.userKey,
       }).toString()}`,
-      { method: "DELETE" },
+      { headers: await getVerifiedAuthHeaders(), method: "DELETE" },
     );
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     setIsPhotoSaving(false);
@@ -510,12 +513,6 @@ function moveSection(
 }
 
 function readIdentity() {
-  try {
-    const raw = window.localStorage.getItem(UNIFIED_STORAGE_KEY) ?? window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredIdentity;
-    return parsed?.userKey && parsed?.email ? parsed : null;
-  } catch {
-    return null;
-  }
+  const identity = readStoredVerifiedIdentity();
+  return identity?.userKey && identity.email ? identity : null;
 }

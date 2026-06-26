@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { getVerifiedInconnectUserFromRequest } from "@/lib/auth-server";
 import { normalizeEmail } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
@@ -88,6 +89,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
+    }
+    if (normalizeEmail(input.email) !== verifiedUser.normalizedEmail) {
+      return NextResponse.json(
+        { error: "Profile email must match your verified sign-in email." },
+        { status: 400 },
+      );
+    }
+
     const supabase = getSupabaseAdminClient();
     const normalizedEmail = normalizeEmail(input.email);
     const isAdminUser = getAdminEmails().includes(normalizedEmail);

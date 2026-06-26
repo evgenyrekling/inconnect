@@ -13,8 +13,8 @@ import {
   PASSENGER_TIER_LABELS,
   STRATEGIC_PRIORITY_LABELS,
 } from "@/lib/airport-accounts";
-import { getProfessionalLinksForCompany } from "@/lib/professionals";
 import { createSeoMetadata } from "@/lib/seo";
+import { CompanyProfessionalsPanel } from "./company-professionals-panel";
 
 type AirportAccountPageProps = {
   params: Promise<{
@@ -50,7 +50,6 @@ export default async function AirportAccountPage({
   const { id } = await params;
   const account = await getAirportAccountById(id);
   if (!account) notFound();
-  const professionalLinks = await getProfessionalLinksForCompany(account.id);
 
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
@@ -158,65 +157,8 @@ export default async function AirportAccountPage({
               </p>
             </AccountSection>
 
-            <AccountSection title="Professionals">
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-[#666666]">
-                  Professionals attached to this company account.
-                </p>
-                <Link
-                  className="inline-flex h-10 w-fit items-center justify-center rounded-lg bg-[#4A6FD0] px-4 text-sm font-semibold text-white transition hover:bg-[#3859B8]"
-                  href={`/network/professionals/new?companyId=${account.id}`}
-                >
-                  Add Professional
-                </Link>
-              </div>
-              {professionalLinks.length > 0 ? (
-                <div className="grid gap-3">
-                  {professionalLinks.map((link) => (
-                    <article
-                      className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4"
-                      key={link.id}
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <Link
-                            className="text-lg font-semibold text-[#191919] transition hover:text-[#0A66C2]"
-                            href={`/network/professionals/${link.professionalId}`}
-                          >
-                            {link.professional?.displayName ?? "Professional"}
-                          </Link>
-                          <p className="mt-1 text-sm leading-6 text-[#666666]">
-                            {[
-                              link.title || link.professional?.currentTitle,
-                              link.department,
-                              formatRelationship(link.relationshipType),
-                            ]
-                              .filter(Boolean)
-                              .join(" / ")}
-                          </p>
-                          {link.professional?.linkedinUrl && (
-                            <a
-                              className="mt-2 inline-flex text-sm font-semibold text-[#0A66C2] transition hover:underline"
-                              href={link.professional.linkedinUrl}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              LinkedIn
-                            </a>
-                          )}
-                        </div>
-                        {link.isPrimary && (
-                          <span className="inline-flex w-fit rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-                            Primary
-                          </span>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState description="No professionals connected." />
-              )}
+            <AccountSection title="Attached Professionals">
+              <CompanyProfessionalsPanel companyId={account.id} />
             </AccountSection>
 
             <AccountSection title="Timeline">
@@ -370,8 +312,4 @@ function StatusBadge({
       {children}
     </span>
   );
-}
-
-function formatRelationship(value: string) {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

@@ -179,15 +179,7 @@ export async function getAirportAccounts() {
     return [];
   }
 
-  const accounts = (data ?? []).map(mapAirportAccountRow);
-  const professionalCounts = await getProfessionalCountsForAccounts(
-    accounts.map((account) => account.id),
-  );
-
-  return accounts.map((account) => ({
-    ...account,
-    professionalsCount: professionalCounts.get(account.id) ?? 0,
-  }));
+  return (data ?? []).map(mapAirportAccountRow);
 }
 
 export async function getAirportAccountByIata(iataCode: string) {
@@ -495,28 +487,4 @@ function normalizeAutomationPotentialTier(
   }
 
   return getAutomationPotentialTier(score);
-}
-
-async function getProfessionalCountsForAccounts(accountIds: string[]) {
-  const counts = new Map<string, number>();
-  const ids = Array.from(new Set(accountIds.filter(Boolean)));
-  if (ids.length === 0) return counts;
-
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("professional_company_links")
-    .select("company_id")
-    .in("company_id", ids)
-    .returns<Array<{ company_id: string }>>();
-
-  if (error) {
-    console.warn("Airport professional counts unavailable", error);
-    return counts;
-  }
-
-  for (const row of data ?? []) {
-    counts.set(row.company_id, (counts.get(row.company_id) ?? 0) + 1);
-  }
-
-  return counts;
 }

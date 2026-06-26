@@ -1,6 +1,12 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
+import {
+  getVerifiedAuthHeaders,
+  readStoredVerifiedIdentity,
+  storeVerifiedIdentity,
+} from "@/lib/auth-client";
 
 type DigestType =
   | "airport_automation_daily"
@@ -47,41 +53,36 @@ export function DigestSubscriptionCard({
   digestType,
 }: DigestSubscriptionCardProps) {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [isChecking, setIsChecking] = useState(true);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [resumeSubscribeAfterSignIn, setResumeSubscribeAfterSignIn] = useState(false);
 
   const displayName = useMemo(() => getIdentityDisplayName(identity), [identity]);
   const isKnownUser = Boolean(identity?.email);
-  const canSubmit = isKnownUser || (name.trim().length >= 2 && isValidEmail(email));
 
   useEffect(() => {
     const storedIdentity = readStoredIdentity();
     setIdentity(storedIdentity);
     if (storedIdentity?.email) {
-      setName(storedIdentity.name ?? "");
-      setEmail(storedIdentity.email);
-      void loadStatus(storedIdentity.email);
+      void loadStatus();
     } else {
       setIsChecking(false);
     }
   }, [digestType]);
 
-  async function loadStatus(statusEmail: string) {
+  async function loadStatus() {
     setIsChecking(true);
     setError("");
 
     try {
-      const params = new URLSearchParams({
-        digestType,
-        email: statusEmail,
-      });
+      const params = new URLSearchParams({ digestType });
       const response = await fetch(`/api/subscriptions?${params.toString()}`, {
         cache: "no-store",
+        headers: await getVerifiedAuthHeaders(),
       });
       const payload = (await response.json().catch(() => null)) as
         | { isSubscribed?: boolean; error?: string }
@@ -103,10 +104,13 @@ export function DigestSubscriptionCard({
     }
   }
 
-  async function handleSubscribe(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    if (!canSubmit || isSubmitting) return;
-
+  async function handleSubscribe() {
+    if (isSubmitting) return;
+    if (!identity?.email) {
+      setResumeSubscribeAfterSignIn(true);
+      setIsSignInOpen(true);
+      return;
+    }
     await saveSubscription("subscribe");
   }
 
@@ -125,11 +129,8 @@ export function DigestSubscriptionCard({
         body: JSON.stringify({
           action,
           digestType,
-          email: identity?.email ?? email,
-          name: identity?.name ?? name,
-          userKey: identity?.userKey,
         }),
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as
@@ -151,15 +152,13 @@ export function DigestSubscriptionCard({
       if (payload.user) {
         const nextIdentity: StoredIdentity = {
           email: payload.user.email,
-          name: payload.user.name ?? name,
+          name: payload.user.name ?? "",
           normalizedEmail: payload.user.normalizedEmail,
           signedInAt: new Date().toISOString(),
           userId: payload.user.userId,
           userKey: payload.user.userKey,
         };
         setIdentity(nextIdentity);
-        setName(nextIdentity.name ?? "");
-        setEmail(nextIdentity.email);
         storeIdentity(nextIdentity);
       }
     } catch (saveError) {
@@ -171,6 +170,30 @@ export function DigestSubscriptionCard({
 
   return (
     <section className="mt-8 rounded-lg border border-[#0A66C2]/20 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-6">
+      {isSignInOpen && (
+        <EmailOTPLoginModal
+          onClose={() => {
+            setIsSignInOpen(false);
+            setResumeSubscribeAfterSignIn(false);
+          }}
+          onSignedIn={(nextIdentity) => {
+            const normalizedIdentity = {
+              email: nextIdentity.email,
+              name: nextIdentity.name,
+              normalizedEmail: nextIdentity.normalizedEmail,
+              signedInAt: nextIdentity.signedInAt,
+              userId: nextIdentity.userId,
+              userKey: nextIdentity.userKey,
+            };
+            setIdentity(normalizedIdentity);
+            setIsSignInOpen(false);
+            if (resumeSubscribeAfterSignIn) {
+              setResumeSubscribeAfterSignIn(false);
+              window.setTimeout(() => void saveSubscription("subscribe"), 0);
+            }
+          }}
+        />
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A66C2]">
@@ -235,50 +258,24 @@ export function DigestSubscriptionCard({
           )}
         </div>
       ) : (
-        <form className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={handleSubscribe}>
-          <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-            Name
-            <input
-              className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your name"
-              value={name}
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-            Email
-            <input
-              className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-            />
-          </label>
+        <div className="mt-5">
           <button
-            className="mt-0 inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] sm:mt-7"
-            disabled={!canSubmit || isSubmitting || isChecking}
-            type="submit"
+            className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3]"
+            disabled={isSubmitting || isChecking}
+            onClick={() => void handleSubscribe()}
+            type="button"
           >
-            {isSubmitting ? "Subscribing..." : "Subscribe"}
+            Sign in to Subscribe
           </button>
-        </form>
+        </div>
       )}
     </section>
   );
 }
 
 function readStoredIdentity(): StoredIdentity | null {
-  try {
-    const raw =
-      window.localStorage.getItem(UNIFIED_IDENTITY_STORAGE_KEY) ??
-      window.localStorage.getItem(RETURNING_USER_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    return isStoredIdentity(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  const identity = readStoredVerifiedIdentity();
+  return identity && isStoredIdentity(identity) ? identity : null;
 }
 
 function storeIdentity(identity: StoredIdentity) {
@@ -288,8 +285,7 @@ function storeIdentity(identity: StoredIdentity) {
       normalizedEmail: identity.normalizedEmail ?? identity.email.trim().toLowerCase(),
       signedInAt: identity.signedInAt ?? new Date().toISOString(),
     };
-    window.localStorage.setItem(UNIFIED_IDENTITY_STORAGE_KEY, JSON.stringify(normalizedIdentity));
-    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(normalizedIdentity));
+    storeVerifiedIdentity(normalizedIdentity);
   } catch {
     // localStorage can be unavailable in private browsing.
   }
@@ -305,8 +301,4 @@ function getIdentityDisplayName(identity: StoredIdentity | null) {
   const name = identity?.name?.trim() ?? "";
   if (name && !/^not clearly/i.test(name)) return name;
   return identity?.email?.split("@")[0] ?? "";
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }

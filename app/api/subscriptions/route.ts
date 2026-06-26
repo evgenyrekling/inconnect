@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { getVerifiedInconnectUserFromRequest } from "@/lib/auth-server";
 import { normalizeEmail } from "@/lib/identity";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
-import { getOrCreateUserByEmail } from "@/lib/user-profile-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,23 +39,24 @@ type SubscriptionPayload = {
 
 export async function GET(request: NextRequest) {
   const digestType = normalizeDigestType(request.nextUrl.searchParams.get("digestType") ?? "");
-  const email = request.nextUrl.searchParams.get("email") ?? "";
 
   if (!digestType) {
     return NextResponse.json({ error: "A supported digest type is required." }, { status: 400 });
   }
 
-  if (!isValidEmail(email)) {
+  const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+  if (!verifiedUser) {
     return NextResponse.json({
       digestType,
       isSubscribed: false,
+      requiresSignIn: true,
       subscription: null,
     });
   }
 
   try {
     const supabase = getSupabaseAdminClient();
-    const normalizedEmail = normalizeEmail(email);
+    const normalizedEmail = normalizeEmail(verifiedUser.email);
     const { data, error } = await supabase
       .from("subscriptions")
       .select("id, user_id, email, normalized_email, name, digest_type, is_active, unsubscribe_token, created_at, updated_at")
@@ -96,33 +97,22 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => null)) as SubscriptionPayload | null;
   const digestType = normalizeDigestType(payload?.digestType ?? "");
   const action = payload?.action === "unsubscribe" ? "unsubscribe" : "subscribe";
-  const email = payload?.email?.trim() ?? "";
-  const name = payload?.name?.trim() ?? "";
-  const userKey = payload?.userKey?.trim() ?? "";
 
   if (!digestType) {
     return NextResponse.json({ error: "A supported digest type is required." }, { status: 400 });
   }
 
-  if (!isValidEmail(email)) {
-    return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
-  }
-
-  if (action === "subscribe" && !userKey && name.length < 2) {
-    return NextResponse.json({ error: "Name is required to subscribe." }, { status: 400 });
+  const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+  if (!verifiedUser) {
+    return NextResponse.json(
+      { error: "Verified email sign-in is required." },
+      { status: 401 },
+    );
   }
 
   try {
     const supabase = getSupabaseAdminClient();
-    const normalizedEmail = normalizeEmail(email);
-    const isAdminUser = getAdminEmails().includes(normalizedEmail);
-    const { user } = await getOrCreateUserByEmail(supabase, {
-      email,
-      isAdminUser,
-      name,
-      planType: isAdminUser ? "admin" : "free",
-      userKey: userKey || undefined,
-    });
+    const normalizedEmail = normalizeEmail(verifiedUser.email);
 
     const timestamp = new Date().toISOString();
     const { data: existingSubscription, error: lookupError } = await supabase
@@ -142,10 +132,10 @@ export async function POST(request: NextRequest) {
     }
 
     const subscriptionPayload = {
-      user_id: user.id,
+      user_id: verifiedUser.userId,
       email: normalizedEmail,
       normalized_email: normalizedEmail,
-      name: user.name ?? name,
+      name: verifiedUser.name || null,
       digest_type: digestType,
       is_active: action === "subscribe",
       unsubscribe_token: existingSubscription?.unsubscribe_token ?? createUnsubscribeToken(),
@@ -190,11 +180,11 @@ export async function POST(request: NextRequest) {
         : `Unsubscribed from ${DIGESTS[digestType]}.`,
       subscription: result.data,
       user: {
-        email: user.email,
-        name: user.name ?? name,
-        normalizedEmail: user.normalized_email,
-        userId: user.id,
-        userKey: user.user_key,
+        email: verifiedUser.email,
+        name: verifiedUser.name,
+        normalizedEmail: verifiedUser.normalizedEmail,
+        userId: verifiedUser.userId,
+        userKey: verifiedUser.userKey,
       },
     });
   } catch (error) {
@@ -215,17 +205,6 @@ export async function POST(request: NextRequest) {
 function normalizeDigestType(value: string): DigestType | "" {
   const normalized = value.trim();
   return normalized in DIGESTS ? (normalized as DigestType) : "";
-}
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-}
-
-function getAdminEmails() {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((email) => normalizeEmail(email))
-    .filter(Boolean);
 }
 
 function createUnsubscribeToken() {

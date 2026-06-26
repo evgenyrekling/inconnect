@@ -30,10 +30,10 @@ export default function NetworkPage() {
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-4">
           <NetworkCard
             actionHref="/network/professionals"
-            actionLabel="Explore Professionals"
-            description="Professional profiles created from user-approved data, LinkedIn URLs, and future company relationship mapping."
+            actionLabel="Open My Professionals"
+            description="Private professional contacts you create from user-approved data, LinkedIn URLs, and future company relationship mapping."
             status="Active"
-            title="Professionals"
+            title="My Professionals"
           />
           <NetworkCard
             actionHref="/network/accounts"

@@ -34,6 +34,13 @@ import {
 } from "@/lib/authority-analysis";
 import type { BlogPost } from "@/lib/blog-posts";
 import { Logo } from "@/components/Logo";
+import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
+import {
+  clearStoredIdentity,
+  getVerifiedAuthHeaders,
+  signOutVerifiedUser,
+  storeVerifiedIdentity,
+} from "@/lib/auth-client";
 
 type ShareStatus = "idle" | "saving" | "sharing" | "success" | "error";
 type AssessmentDiagnostic = {
@@ -564,24 +571,11 @@ function readStoredReturningIdentity(): StoredReturningIdentity | null {
 }
 
 function storeReturningIdentity(identity: StoredReturningIdentity) {
-  try {
-    const normalizedIdentity = normalizeStoredIdentity(identity);
-    window.localStorage.setItem(UNIFIED_IDENTITY_STORAGE_KEY, JSON.stringify(normalizedIdentity));
-    window.localStorage.setItem(RETURNING_USER_STORAGE_KEY, JSON.stringify(normalizedIdentity));
-    window.dispatchEvent(new Event("inconnect:identity-changed"));
-  } catch {
-    // localStorage can be unavailable in private browsing or embedded contexts.
-  }
+  storeVerifiedIdentity(normalizeStoredIdentity(identity));
 }
 
 function clearReturningIdentity() {
-  try {
-    window.localStorage.removeItem(RETURNING_USER_STORAGE_KEY);
-    window.localStorage.removeItem(UNIFIED_IDENTITY_STORAGE_KEY);
-    window.dispatchEvent(new Event("inconnect:identity-changed"));
-  } catch {
-    // localStorage can be unavailable in private browsing or embedded contexts.
-  }
+  clearStoredIdentity();
 }
 
 function isStoredReturningIdentity(value: unknown): value is StoredReturningIdentity {
@@ -1167,7 +1161,7 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
 function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavItem[] {
   return [
     { href: "/network", label: "Network Overview" },
-    { href: "/network/professionals", label: "Professionals" },
+    { href: "/network/professionals", label: "My Professionals" },
     { href: "/network/professionals/new", label: "Add Professional" },
     { href: "/network/create-profile", label: "Create Professional Profile" },
     { href: "/network/accounts", label: "Companies" },
@@ -1194,8 +1188,8 @@ function AccountMenu({
 
   const firstName = getFirstNameFromDisplayName(getIdentityDisplayName(identity));
 
-  function handleLogout() {
-    clearLocalAccountState();
+  async function handleLogout() {
+    await signOutVerifiedUser();
     onIdentityChange(null);
     window.location.href = "/";
   }
@@ -1211,10 +1205,13 @@ function AccountMenu({
           Sign In
         </button>
         {isSignInOpen && (
-          <AccountSignInModal
+          <EmailOTPLoginModal
             onClose={() => setIsSignInOpen(false)}
             onSignedIn={(nextIdentity) => {
-              onIdentityChange(nextIdentity);
+              onIdentityChange({
+                ...nextIdentity,
+                linkedinUrl: nextIdentity.linkedinUrl ?? "",
+              });
               setIsSignInOpen(false);
             }}
           />
@@ -5014,7 +5011,7 @@ function PublicProfileCreationCard({
     try {
       const response = await fetch("/api/public-profiles", {
         body: JSON.stringify({ userKey: assessment.userKey }),
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await getVerifiedAuthHeaders()) },
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as {

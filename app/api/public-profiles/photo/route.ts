@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getVerifiedInconnectUserFromRequest } from "@/lib/auth-server";
 import { normalizeEmail } from "@/lib/identity";
 import { getEditableProfileBySlug } from "@/lib/public-profiles";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
@@ -27,11 +28,12 @@ export async function POST(request: Request) {
     const userKey = formData.get("userKey");
     const file = formData.get("file");
 
-    if (
-      (typeof userKey !== "string" || !userKey.trim()) &&
-      (typeof email !== "string" || !email.trim())
-    ) {
-      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
     }
 
     if (!(file instanceof File)) {
@@ -54,8 +56,8 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseAdminClient();
     const identity = {
-      email: typeof email === "string" ? email : "",
-      userKey: typeof userKey === "string" ? userKey : "",
+      email: verifiedUser.email,
+      userKey: verifiedUser.userKey,
     };
     const editableProfile =
       typeof slug === "string" && slug.trim()
@@ -135,12 +137,20 @@ export async function DELETE(request: Request) {
     const email = searchParams.get("email")?.trim();
     const slug = searchParams.get("slug")?.trim();
     const userKey = searchParams.get("userKey")?.trim();
-    if (!userKey && !email) {
-      return NextResponse.json({ error: "userKey or email is required." }, { status: 400 });
+    const verifiedUser = await getVerifiedInconnectUserFromRequest(request);
+    if (!verifiedUser) {
+      return NextResponse.json(
+        { error: "Verified email sign-in is required." },
+        { status: 401 },
+      );
     }
 
     const supabase = getSupabaseAdminClient();
-    const editableProfile = slug ? await getEditableProfileBySlug(slug, { email, userKey }) : null;
+    const identity = {
+      email: verifiedUser.email,
+      userKey: verifiedUser.userKey,
+    };
+    const editableProfile = slug ? await getEditableProfileBySlug(slug, identity) : null;
     const profile = editableProfile
       ? {
           id: editableProfile.id,
@@ -148,7 +158,7 @@ export async function DELETE(request: Request) {
           user_id: editableProfile.userId,
           user_key: editableProfile.userKey,
         }
-      : await getPhotoProfile({ email, userKey });
+      : await getPhotoProfile(identity);
     if (!profile) {
       return NextResponse.json({ error: "Public profile was not found." }, { status: 404 });
     }

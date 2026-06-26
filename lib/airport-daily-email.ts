@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sendAirportDailyEmail } from "@/lib/email/resend";
+import { ResendEmailSendError, sendAirportDailyEmail } from "@/lib/email/resend";
 import {
   getAirportDailyMissingSchemaField,
   isAirportDailyMissingSchemaError,
@@ -57,7 +57,7 @@ export async function sendLatestAirportDailyEmail({
   briefingId,
   requireUnsent = true,
 }: SendAirportDailyOptions = {}): Promise<AirportDailySendResult> {
-  console.info("AIRPORT DAILY START", {
+  console.info("AIRPORT DAILY EMAIL START", {
     digest_type: "airport_automation_daily",
     requireUnsent,
   });
@@ -68,14 +68,11 @@ export async function sendLatestAirportDailyEmail({
     .from("airport_briefings")
     .select(
       "id, slug, title, content, hero_image_url, summary, inconnect_view, source_url, auto_send_allowed, published, published_at, sent_at, generated_at, created_at",
-    )
-    .eq("published", true)
-    .eq("auto_send_allowed", true);
+    );
 
   if (briefingId) {
     briefingQuery = briefingQuery.eq("id", briefingId);
   } else {
-    if (requireUnsent) briefingQuery = briefingQuery.is("sent_at", null);
     briefingQuery = briefingQuery
       .order("published_at", { ascending: false, nullsFirst: false })
       .order("generated_at", { ascending: false, nullsFirst: false })
@@ -97,6 +94,10 @@ export async function sendLatestAirportDailyEmail({
         missingField,
         skipReason,
       });
+      await logAirportEmailDeliveryDiagnostic(supabase, {
+        errorMessage: skipReason,
+        status: "skipped",
+      });
       return createSkippedAirportDailySendResult(skipReason);
     }
     console.error("AIRPORT DAILY EMAIL BRIEFING LOOKUP ERROR", briefingError);
@@ -104,8 +105,14 @@ export async function sendLatestAirportDailyEmail({
   }
 
   if (!briefing) {
+    const skipReason = "No approved published airport briefing found for email delivery.";
+    console.warn("AIRPORT DAILY EMAIL SKIP REASON", { skipReason });
+    await logAirportEmailDeliveryDiagnostic(supabase, {
+      errorMessage: skipReason,
+      status: "skipped",
+    });
     return createSkippedAirportDailySendResult(
-      "No approved published airport briefing found for email delivery.",
+      skipReason,
     );
   }
 
@@ -114,7 +121,40 @@ export async function sendLatestAirportDailyEmail({
     slug: briefing.slug,
     title: briefing.title,
     auto_send_allowed: briefing.auto_send_allowed ?? null,
+    published: briefing.published,
+    sent_at: briefing.sent_at,
   });
+
+  const briefingText = createEmailBriefingText(briefing).trim();
+  const skipReason = getAirportEmailSkipReason({
+    briefing,
+    briefingText,
+    requireUnsent,
+  });
+  if (skipReason) {
+    console.warn("AIRPORT DAILY EMAIL SKIP REASON", {
+      auto_send_allowed: briefing.auto_send_allowed ?? null,
+      briefing_id: briefing.id,
+      published: briefing.published,
+      sent_at: briefing.sent_at,
+      skipReason,
+      slug: briefing.slug,
+    });
+    await logAirportEmailDeliveryDiagnostic(supabase, {
+      briefingId: briefing.id,
+      errorMessage: skipReason,
+      status: "skipped",
+    });
+    return createSkippedAirportDailySendResult(skipReason, briefing);
+  }
+
+  if (!briefing.hero_image_url) {
+    console.warn("AIRPORT DAILY EMAIL IMAGE MISSING", {
+      briefing_id: briefing.id,
+      fallbackImage: "/hero-professionals-collage.png",
+      slug: briefing.slug,
+    });
+  }
 
   const { data: subscriptions, error: subscriptionsError } = await supabase
     .from("subscriptions")
@@ -129,10 +169,35 @@ export async function sendLatestAirportDailyEmail({
   }
 
   const subscribers = subscriptions ?? [];
-  console.info("AIRPORT SUBSCRIBERS FOUND", {
+  console.info("AIRPORT DAILY EMAIL SUBSCRIBERS LOADED", {
     digest_type: "airport_automation_daily",
-    subscriber_count: subscribers.length,
   });
+  console.info("AIRPORT DAILY EMAIL SUBSCRIBERS COUNT", {
+    count: subscribers.length,
+    digest_type: "airport_automation_daily",
+  });
+  if (process.env.NODE_ENV === "development") {
+    console.info("AIRPORT DAILY EMAIL SUBSCRIBER EMAILS", {
+      emails: subscribers.map((subscriber) =>
+        normalizeEmail(subscriber.normalized_email || subscriber.email),
+      ),
+    });
+  }
+
+  if (subscribers.length === 0) {
+    const noSubscribersReason = "No subscribers";
+    console.warn("AIRPORT DAILY EMAIL SKIP REASON", {
+      briefing_id: briefing.id,
+      skipReason: noSubscribersReason,
+      slug: briefing.slug,
+    });
+    await logAirportEmailDeliveryDiagnostic(supabase, {
+      briefingId: briefing.id,
+      errorMessage: noSubscribersReason,
+      status: "skipped",
+    });
+    return createSkippedAirportDailySendResult(noSubscribersReason, briefing);
+  }
 
   const readUrl = `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`;
   const heroImageUrl = toAbsoluteUrl(briefing.hero_image_url || "/hero-professionals-collage.png");
@@ -142,9 +207,22 @@ export async function sendLatestAirportDailyEmail({
   for (const subscription of subscribers) {
     const recipientEmail = normalizeEmail(subscription.normalized_email || subscription.email);
     if (!recipientEmail) {
+      const errorMessage = "Subscriber email is empty.";
+      console.error("AIRPORT EMAIL SEND FAILURE", {
+        briefing_id: briefing.id,
+        email: subscription.email,
+        error: errorMessage,
+        subscriptionId: subscription.id,
+      });
+      await logAirportEmailDeliveryDiagnostic(supabase, {
+        briefingId: briefing.id,
+        errorMessage,
+        recipientEmail: subscription.email,
+        status: "failed",
+      });
       results.push({
         email: subscription.email,
-        error: "Subscriber email is empty.",
+        error: errorMessage,
         status: "failed",
       });
       continue;
@@ -156,10 +234,18 @@ export async function sendLatestAirportDailyEmail({
     });
     if (alreadySent) {
       skippedDuplicates += 1;
+      const duplicateReason = "Already sent today";
       console.info("AIRPORT EMAIL SEND SKIPPED DUPLICATE", {
         briefing_id: briefing.id,
         digest_type: "airport_automation_daily",
+        reason: duplicateReason,
         recipient: recipientEmail,
+      });
+      await logAirportEmailDeliveryDiagnostic(supabase, {
+        briefingId: briefing.id,
+        errorMessage: duplicateReason,
+        recipientEmail,
+        status: "skipped",
       });
       continue;
     }
@@ -178,7 +264,7 @@ export async function sendLatestAirportDailyEmail({
       });
 
       const resendResult = await sendAirportDailyEmail({
-        briefingText: createEmailBriefingText(briefing),
+        briefingText,
         heroImageUrl,
         readUrl,
         sourceUrl: briefing.source_url ?? undefined,
@@ -195,21 +281,32 @@ export async function sendLatestAirportDailyEmail({
         status: "sent",
         subscriptionId: subscription.id,
       });
+      await logAirportEmailDeliveryDiagnostic(supabase, {
+        briefingId: briefing.id,
+        providerMessageId: resendResult.id,
+        recipientEmail,
+        status: "sent",
+      });
 
       console.info("AIRPORT EMAIL SEND SUCCESS", {
         briefing_id: briefing.id,
+        provider: resendResult.provider,
+        providerResponse: resendResult.providerResponse,
         recipient: recipientEmail,
         resendMessageId: resendResult.id,
+        status: resendResult.status,
       });
 
       results.push({ email: recipientEmail, status: "sent" });
     } catch (sendError) {
       const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
+      const providerDetails = getResendProviderErrorDetails(sendError);
       console.error("AIRPORT EMAIL SEND FAILURE", {
         briefing_id: briefing.id,
         digest_type: "airport_automation_daily",
         email: recipientEmail,
         error: errorMessage,
+        ...providerDetails,
         subscriptionId: subscription.id,
       });
 
@@ -220,6 +317,12 @@ export async function sendLatestAirportDailyEmail({
         errorMessage,
         status: "failed",
         subscriptionId: subscription.id,
+      });
+      await logAirportEmailDeliveryDiagnostic(supabase, {
+        briefingId: briefing.id,
+        errorMessage: formatAirportEmailErrorMessage(errorMessage, providerDetails),
+        recipientEmail,
+        status: "failed",
       });
 
       results.push({ email: recipientEmail, error: errorMessage, status: "failed" });
@@ -268,12 +371,17 @@ export async function sendAirportDailyTestEmail({
   briefingId?: string;
   to: string;
 }) {
+  console.info("AIRPORT DAILY EMAIL START", {
+    digest_type: "airport_automation_daily",
+    recipient: normalizeEmail(to),
+    test: true,
+  });
   validateAirportDailyEmailEnvironment();
   const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("airport_briefings")
     .select(
-      "id, slug, title, content, hero_image_url, summary, inconnect_view, source_url, published, published_at, sent_at, generated_at, created_at",
+      "id, slug, title, content, hero_image_url, summary, inconnect_view, source_url, auto_send_allowed, published, published_at, sent_at, generated_at, created_at",
     )
     .eq("published", true);
 
@@ -291,6 +399,22 @@ export async function sendAirportDailyTestEmail({
   if (error) throw new Error(error.message);
   if (!briefing) throw new Error("No published airport briefing found for test email.");
 
+  const briefingText = createEmailBriefingText(briefing).trim();
+  if (!briefing.title?.trim()) {
+    throw new Error("Missing title");
+  }
+  if (!briefingText) {
+    throw new Error("Missing summary/content");
+  }
+  if (!briefing.hero_image_url) {
+    console.warn("AIRPORT DAILY EMAIL IMAGE MISSING", {
+      briefing_id: briefing.id,
+      fallbackImage: "/hero-professionals-collage.png",
+      slug: briefing.slug,
+      test: true,
+    });
+  }
+
   console.info("AIRPORT EMAIL SEND START", {
     briefing_id: briefing.id,
     digest_type: "airport_automation_daily",
@@ -299,43 +423,149 @@ export async function sendAirportDailyTestEmail({
     test: true,
   });
 
-  const result = await sendAirportDailyEmail({
-    briefingText: createEmailBriefingText(briefing),
-    heroImageUrl: toAbsoluteUrl(briefing.hero_image_url || "/hero-professionals-collage.png"),
-    readUrl: `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`,
-    sourceUrl: briefing.source_url ?? undefined,
-    title: briefing.title,
-    to: normalizeEmail(to),
-  });
+  try {
+    const result = await sendAirportDailyEmail({
+      briefingText,
+      heroImageUrl: toAbsoluteUrl(briefing.hero_image_url || "/hero-professionals-collage.png"),
+      readUrl: `${SITE_URL}/intelligence/airport-automation/${briefing.slug}`,
+      sourceUrl: briefing.source_url ?? undefined,
+      title: briefing.title,
+      to: normalizeEmail(to),
+    });
 
-  console.info("AIRPORT EMAIL SEND SUCCESS", {
-    briefing_id: briefing.id,
-    recipient: normalizeEmail(to),
-    resendMessageId: result.id,
-    test: true,
-  });
+    await logAirportEmailDeliveryDiagnostic(supabase, {
+      briefingId: briefing.id,
+      providerMessageId: result.id,
+      recipientEmail: normalizeEmail(to),
+      status: "sent",
+    });
 
-  return {
-    ...result,
-    briefing,
-  };
+    console.info("AIRPORT EMAIL SEND SUCCESS", {
+      briefing_id: briefing.id,
+      provider: result.provider,
+      providerResponse: result.providerResponse,
+      recipient: normalizeEmail(to),
+      resendMessageId: result.id,
+      status: result.status,
+      test: true,
+    });
+
+    return {
+      ...result,
+      briefing,
+    };
+  } catch (sendError) {
+    const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
+    const providerDetails = getResendProviderErrorDetails(sendError);
+    console.error("AIRPORT EMAIL SEND FAILURE", {
+      briefing_id: briefing.id,
+      email: normalizeEmail(to),
+      error: errorMessage,
+      ...providerDetails,
+      test: true,
+    });
+    await logAirportEmailDeliveryDiagnostic(supabase, {
+      briefingId: briefing.id,
+      errorMessage: formatAirportEmailErrorMessage(errorMessage, providerDetails),
+      recipientEmail: normalizeEmail(to),
+      status: "failed",
+    });
+    throw sendError;
+  }
 }
 
-function createSkippedAirportDailySendResult(skipReason: string): AirportDailySendResult {
+function createSkippedAirportDailySendResult(
+  skipReason: string,
+  briefing?: AirportBriefingRow,
+): AirportDailySendResult {
   console.warn("AIRPORT DAILY EMAIL SKIPPED", { skipReason });
   return {
-    briefingId: "",
+    briefingId: briefing?.id ?? "",
     failed: 0,
     results: [],
     sent: 0,
     skipped: true,
     skippedDuplicates: 0,
     skipReason,
-    slug: "",
+    slug: briefing?.slug ?? "",
     subscribers: 0,
     success: true,
-    title: "Airport Daily email skipped",
+    title: briefing?.title ?? "Airport Daily email skipped",
   };
+}
+
+function getAirportEmailSkipReason({
+  briefing,
+  briefingText,
+  requireUnsent,
+}: {
+  briefing: AirportBriefingRow;
+  briefingText: string;
+  requireUnsent: boolean;
+}) {
+  if (!briefing.published) return "Article marked draft";
+  if (briefing.auto_send_allowed === false) return "auto_send_allowed = false";
+  if (!briefing.title?.trim()) return "Missing title";
+  if (!briefingText) return "Missing summary/content";
+  if (requireUnsent && briefing.sent_at) return "Already sent today";
+  return "";
+}
+
+async function logAirportEmailDeliveryDiagnostic(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  values: {
+    briefingId?: string | null;
+    errorMessage?: string | null;
+    providerMessageId?: string | null;
+    recipientEmail?: string | null;
+    status: string;
+  },
+) {
+  const { error } = await supabase.from("airport_email_delivery_log").insert({
+    briefing_id: values.briefingId ?? null,
+    error_message: values.errorMessage ?? null,
+    provider: "resend",
+    provider_message_id: values.providerMessageId ?? null,
+    recipient_email: values.recipientEmail ? normalizeEmail(values.recipientEmail) : null,
+    sent_at: new Date().toISOString(),
+    status: values.status,
+  });
+
+  if (error) {
+    console.error("AIRPORT EMAIL DELIVERY DIAGNOSTIC LOG ERROR", {
+      error,
+      status: values.status,
+    });
+  }
+}
+
+function getResendProviderErrorDetails(error: unknown) {
+  if (error instanceof ResendEmailSendError) {
+    return {
+      httpStatus: error.httpStatus,
+      provider: error.provider,
+      providerCode: error.providerCode,
+      providerResponse: error.providerResponse,
+      recipient: error.recipient,
+    };
+  }
+
+  return {};
+}
+
+function formatAirportEmailErrorMessage(
+  errorMessage: string,
+  providerDetails: ReturnType<typeof getResendProviderErrorDetails>,
+) {
+  const status =
+    "httpStatus" in providerDetails && providerDetails.httpStatus
+      ? `HTTP ${providerDetails.httpStatus}`
+      : "";
+  const code =
+    "providerCode" in providerDetails && providerDetails.providerCode
+      ? providerDetails.providerCode
+      : "";
+  return [errorMessage, status, code].filter(Boolean).join(" | ");
 }
 
 async function logEmailDelivery(
