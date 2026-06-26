@@ -163,6 +163,7 @@ export function parseProfessionalLinkedInUrl(value: string) {
   const linkedinUrl = `https://www.linkedin.com/in/${publicSlug}/`;
 
   return {
+    originalLinkedinUrl: normalizeOriginalLinkedInUrl(raw, parsed),
     linkedinUrl,
     normalizedLinkedinUrl: normalizeLinkedInUrl(linkedinUrl),
     publicSlug,
@@ -338,7 +339,7 @@ export async function saveProfessionalFromLinkedInUrl(input: {
     industry,
     interests: [],
     is_public: false,
-    linkedin_url: parsed.linkedinUrl,
+    linkedin_url: normalizeOriginalLinkedInUrl(input.linkedinUrl, new URL(parsed.linkedinUrl)),
     location: cleanText(input.location),
     normalized_linkedin_url: parsed.normalizedLinkedinUrl,
     owner_edit_token: crypto.randomBytes(24).toString("hex"),
@@ -704,6 +705,13 @@ function cleanUrl(value: unknown) {
   } catch {
     return "";
   }
+}
+
+function normalizeOriginalLinkedInUrl(raw: string, parsed: URL) {
+  const original = raw.trim();
+  if (!original) return parsed.toString();
+  if (/^https?:\/\//i.test(original)) return original;
+  return `https://${original.replace(/^\/+/, "")}`;
 }
 
 function slugify(value: string) {

@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   const metadata = await fetchLinkedInOpenGraphMetadata(parsed.linkedinUrl);
 
   return NextResponse.json({
-    linkedinUrl: parsed.linkedinUrl,
+    canonicalLinkedinUrl: parsed.linkedinUrl,
+    linkedinUrl: parsed.originalLinkedinUrl,
     metadataSource: metadata ? "open_graph" : "url",
     normalizedLinkedinUrl: parsed.normalizedLinkedinUrl,
     profileImageUrl: metadata?.image ?? "",
