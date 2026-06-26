@@ -5,7 +5,7 @@ import { createSeoMetadata } from "@/lib/seo";
 export const metadata: Metadata = createSeoMetadata({
   title: "About INConnect | Professional Intelligence Platform",
   description:
-    "Learn how INConnect combines professional profile intelligence, industry insights, authority building, and future networking opportunities.",
+    "Learn how INConnect connects professionals, companies, and market insights through a professional intelligence platform.",
   path: "/about",
 });
 
@@ -14,34 +14,65 @@ export default function AboutPage() {
     <BusinessPage
       eyebrow="About INConnect"
       title="About INConnect"
-      intro="INConnect is a professional intelligence platform helping professionals and companies discover opportunities, stay informed, and connect with the right people."
+      intro="INConnect is a professional intelligence platform that connects people, companies, and market insights."
       sections={[
         {
-          title: "What INConnect does",
+          title: "Professionals: people and expertise",
           body: [
-            "INConnect combines professional profile intelligence, industry insights, authority-building tools, and future networking opportunities into one platform.",
-            "The platform helps users understand how they are positioned, what is happening in relevant markets, and where future professional and business opportunities may emerge.",
+            "INConnect helps professionals create a credible professional profile, highlight expertise, and become visible to the right business network.",
+            "The professional layer is designed around people, skills, credibility, and future opportunity discovery.",
           ],
           items: [
-            "Analyzes professional profile positioning",
-            "Provides industry intelligence streams",
-            "Supports authority building and clearer communication",
-            "Includes practical LinkedIn tools for profile improvement",
-            "Builds toward future business matching and opportunity discovery",
+            "Professional profiles",
+            "Expertise and industry signals",
+            "Profile visibility controls",
+            "Future expert discovery",
           ],
         },
         {
-          title: "Current platform modules",
+          title: "Companies: organizations and business targets",
           body: [
-            "INConnect currently includes the Profile Intelligence Assessment, LinkedIn Headline Generator, LinkedIn About Generator, LinkedIn Daily, Airport Automation Daily, AI-generated professional insights, professional profile memory, and early foundations for future Pro tools.",
-            "LinkedIn tools remain part of the platform, but the wider direction is professional intelligence, industry insights, authority building, business matching, and opportunity discovery.",
+            "Companies are the organization layer of INConnect: airport operators, airlines, technology suppliers, system integrators, authorities, ground handlers, cargo operators, consultants, and partners.",
+            "This layer becomes the foundation for future business development, account intelligence, and company-to-professional matching.",
+          ],
+          items: [
+            "Airport operators",
+            "Suppliers and integrators",
+            "Authorities and ground handlers",
+            "Future business targets",
+          ],
+        },
+        {
+          title: "Market Intelligence: briefings, news, and technology watch",
+          body: [
+            "INConnect Market Intelligence tracks daily briefings, industry news, reports, technology trends, and market signals.",
+            "Airport Automation Daily and LinkedIn Daily are the first active intelligence streams, with more verticals planned.",
+          ],
+          items: [
+            "Daily briefings",
+            "Industry news",
+            "Reports and market insights",
+            "Technology watch",
+          ],
+        },
+        {
+          title: "Tools: practical AI support",
+          body: [
+            "INConnect also includes practical AI tools for professional visibility and business development.",
+            "LinkedIn tools remain part of the platform, but INConnect is not only a LinkedIn tool. The broader platform connects professionals, companies, and market intelligence.",
+          ],
+          items: [
+            "LinkedIn Assessment",
+            "Headline Generator",
+            "Content Intelligence",
+            "Trend Radar",
           ],
         },
         {
           title: "Long-term vision",
           body: [
-            "INConnect is evolving into an intelligence layer for professional growth, business visibility, and opportunity discovery.",
-            "The long-term direction includes deeper industry intelligence, professional authority signals, a professional profile graph, business opportunity matching, and partner discovery for professionals and companies.",
+            "INConnect is evolving into an intelligence layer for professional growth, company discovery, market understanding, and opportunity matching.",
+            "The long-term direction includes deeper market intelligence, professional authority signals, company account intelligence, business matching, and partner discovery.",
           ],
         },
       ]}

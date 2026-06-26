@@ -105,7 +105,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "INConnect | Professional Intelligence Platform",
   description:
-    "Discover opportunities, stay informed, and connect with the right professionals through profile intelligence, industry insights, and future networking opportunities.",
+    "INConnect helps professionals discover opportunities, understand markets, and connect with the right companies through professionals, companies, and market intelligence.",
   other: {
     "google-adsense-account": ADSENSE_PUBLISHER_ID,
     ...(GOOGLE_SITE_VERIFICATION
@@ -118,7 +118,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "INConnect | Professional Intelligence Platform",
     description:
-      "Discover opportunities, stay informed, and connect with the right professionals through INConnect.",
+      "Connect people, companies, and market insights with INConnect.",
     url: SITE_URL,
     siteName: "INConnect",
     images: [
@@ -135,7 +135,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "INConnect | Professional Intelligence Platform",
     description:
-      "Discover opportunities, stay informed, and connect with the right professionals through INConnect.",
+      "Connect people, companies, and market insights with INConnect.",
     images: [DEFAULT_OG_IMAGE],
   },
 };

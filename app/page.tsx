@@ -4,7 +4,7 @@ import { createSeoMetadata, SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
   description:
-    "Professional intelligence for growth, visibility, and connections. Discover opportunities, stay informed, improve your professional presence, and connect with the right people.",
+    "INConnect helps professionals discover opportunities, understand markets, and connect with the right companies through professionals, companies, and market intelligence.",
   path: "/",
   title: "INConnect | Professional Intelligence Platform",
 });
@@ -14,7 +14,7 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     description:
-      "Professional intelligence platform combining industry insights, professional visibility tools, and future network intelligence.",
+      "Professional intelligence platform connecting people, companies, and market insights.",
     name: "INConnect",
     potentialAction: {
       "@type": "SearchAction",

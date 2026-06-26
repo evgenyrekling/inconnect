@@ -44,13 +44,13 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
   async function copyProfileLink() {
     const url = window.location.href;
     await navigator.clipboard.writeText(url);
-    setMessage("Profile link copied.");
+    setMessage("Professional profile link copied.");
   }
 
   async function shareProfile() {
     if (!navigator.share) return;
     await navigator.share({
-      title: `${profile.displayName} | INConnect Profile`,
+      title: `${profile.displayName} | INConnect Professional`,
       text: profile.headline,
       url: window.location.href,
     });
@@ -73,7 +73,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     setIsBusy(false);
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      setMessage(payload?.error ?? "Profile visibility could not be updated.");
+      setMessage(payload?.error ?? "Professional profile visibility could not be updated.");
       return;
     }
     window.location.reload();
@@ -93,7 +93,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
     setIsBusy(false);
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      setMessage(payload?.error ?? "Profile could not be deleted.");
+      setMessage(payload?.error ?? "Professional profile could not be deleted.");
       return;
     }
     window.location.href = "/network";
@@ -112,7 +112,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="rounded-lg border border-[#C8D7EA] bg-white px-3 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#4A6FD0] hover:text-[#0A66C2]" onClick={copyProfileLink} type="button">
-            Copy Profile Link
+            Copy Professional Link
           </button>
           {typeof navigator !== "undefined" && "share" in navigator && (
             <button className="rounded-lg border border-[#C8D7EA] bg-white px-3 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#4A6FD0] hover:text-[#0A66C2]" onClick={shareProfile} type="button">
@@ -120,7 +120,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
             </button>
           )}
           <a className="rounded-lg bg-[#4A6FD0] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href={`/p/${activeProfile.slug}/edit`}>
-            Edit Profile
+            Edit Professional Profile
           </a>
           {activeProfile.visibility !== "public" && (
             <button className="rounded-lg border border-[#C8D7EA] bg-white px-3 py-2 text-sm font-semibold text-[#0A192F] transition hover:border-[#4A6FD0] hover:text-[#0A66C2]" disabled={isBusy} onClick={() => updateVisibility("public")} type="button">
@@ -138,7 +138,7 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
             </button>
           )}
           <button className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700" disabled={isBusy} onClick={() => setShowDeleteConfirm(true)} type="button">
-            Delete Profile
+            Delete Professional Profile
           </button>
         </div>
       </div>
@@ -146,16 +146,16 @@ export function ProfileOwnerControls({ profile }: { profile: PublicProfile }) {
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center bg-[#0A192F]/70 p-6">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-semibold text-[#0A192F]">Delete Profile</h2>
+            <h2 className="text-xl font-semibold text-[#0A192F]">Delete Professional Profile</h2>
             <p className="mt-3 text-sm leading-6 text-[#475569]">
-              Are you sure? This will remove your INConnect profile page.
+              Are you sure? This will remove your INConnect professional profile page.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button className="rounded-lg border border-[#D9DDE3] px-4 py-2 text-sm font-semibold" onClick={() => setShowDeleteConfirm(false)} type="button">
                 Cancel
               </button>
               <button className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white" disabled={isBusy} onClick={deleteProfile} type="button">
-                Delete Profile
+                Delete Professional Profile
               </button>
             </div>
           </div>
@@ -200,11 +200,11 @@ export function PrivateProfileOwnerGate({ slug }: { slug: string }) {
     <section className="px-5 py-16 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-2xl rounded-lg border border-[#D9DDE3] bg-white p-8 text-center shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-          Private Profile
+          Private Professional Profile
         </p>
-        <h1 className="mt-4 text-3xl font-semibold text-[#0A192F]">This profile is private.</h1>
+        <h1 className="mt-4 text-3xl font-semibold text-[#0A192F]">This professional profile is private.</h1>
         <p className="mt-3 text-sm leading-6 text-[#666666]">
-          The profile owner controls who can view this INConnect profile page.
+          The professional controls who can view this INConnect profile page.
         </p>
       </div>
     </section>
@@ -226,7 +226,7 @@ export function ProfileDisplay({
           <ProfileHeaderPhoto name={profile.displayName} url={profile.profilePhotoUrl} />
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78B7F4]">
-              INConnect Profile
+              INConnect Professional
             </p>
             <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">{profile.displayName}</h1>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-white/78">{profile.headline}</p>

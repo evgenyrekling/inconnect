@@ -3,7 +3,7 @@ import { Footer, Header } from "@/components/inconnect-platform";
 import { CreateNetworkProfileClient } from "./create-network-profile-client";
 
 export const metadata: Metadata = {
-  title: "Create INConnect Profile | INConnect Network",
+  title: "Create Professional Profile | INConnect Network",
   description: "Build a shareable INConnect professional profile manually or from your LinkedIn profile.",
 };
 

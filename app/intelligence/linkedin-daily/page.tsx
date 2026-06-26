@@ -7,7 +7,7 @@ import { createSeoMetadata } from "@/lib/seo";
 import { BlogArticlesList } from "../../blog/blog-articles-list";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "LinkedIn Daily | INConnect Intelligence",
+  title: "LinkedIn Daily | INConnect Market Intelligence",
   description:
     "Daily insights covering LinkedIn visibility, personal branding, networking, content strategy, AI tools, thought leadership, and professional growth.",
   path: "/intelligence/linkedin-daily",
@@ -27,7 +27,7 @@ export default async function LinkedInDailyIntelligencePage() {
             className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
             href="/intelligence"
           >
-            Back to Intelligence
+            Back to Market Intelligence
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#057642]">
             Active

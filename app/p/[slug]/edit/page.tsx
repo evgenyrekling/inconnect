@@ -7,8 +7,8 @@ type PublicProfileEditPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Edit INConnect Profile | INConnect",
-  description: "Edit your INConnect public profile.",
+  title: "Edit Professional Profile | INConnect",
+  description: "Edit your INConnect public professional profile.",
   robots: { follow: false, index: false },
 };
 

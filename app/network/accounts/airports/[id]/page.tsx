@@ -30,15 +30,15 @@ export async function generateMetadata({
   const account = await getAirportAccountById(id);
   if (!account) {
     return createSeoMetadata({
-      title: "Airport Account | INConnect Accounts",
-      description: "Airport account details in the INConnect Accounts foundation.",
+      title: "Airport Operator | INConnect Companies",
+      description: "Airport operator company details in the INConnect Companies foundation.",
       path: `/network/accounts/airports/${encodeURIComponent(id)}`,
     });
   }
 
   return createSeoMetadata({
-    title: `${account.displayName} | INConnect Airport Account`,
-    description: `Airport account for ${account.displayName}, including identity, passenger tier, strategic priority, and CRM status.`,
+    title: `${account.displayName} | INConnect Airport Operator`,
+    description: `Airport operator company profile for ${account.displayName}, including identity, passenger tier, strategic priority, and CRM status.`,
     path: `/network/accounts/airports/${encodeURIComponent(account.id)}`,
   });
 }
@@ -59,7 +59,7 @@ export default async function AirportAccountPage({
             className="text-sm font-semibold text-[#0A66C2]"
             href="/network/accounts/airports"
           >
-            Back to Airport Accounts
+            Back to Airport Operators
           </Link>
           <div className="mt-8 flex flex-wrap items-center gap-2">
             <HeaderBadge>{account.iataCode}</HeaderBadge>
@@ -105,7 +105,7 @@ export default async function AirportAccountPage({
                 disabled
                 type="button"
               >
-                Attach Profile
+                Attach Professional
               </button>
               <button
                 className="inline-flex h-11 cursor-not-allowed items-center justify-center rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-4 text-sm font-semibold text-[#777777]"
@@ -157,15 +157,15 @@ export default async function AirportAccountPage({
               </p>
             </AccountSection>
 
-            <AccountSection title="Connected Profiles">
+            <AccountSection title="Connected Professionals">
               <EmptyState
-                actionLabel="Attach Profile"
-                description="No profiles connected."
+                actionLabel="Attach Professional"
+                description="No professionals connected."
               />
             </AccountSection>
 
             <AccountSection title="Timeline">
-              <EmptyState description="No account timeline activity yet." />
+              <EmptyState description="No company timeline activity yet." />
             </AccountSection>
 
             <AccountSection title="Future Opportunities">
@@ -219,7 +219,7 @@ export default async function AirportAccountPage({
               </div>
             </AccountSection>
 
-            <AccountSection title="Account Metadata">
+            <AccountSection title="Company Metadata">
               <div className="grid gap-3">
                 <DetailItem label="Identity Source" value={account.sourceIdentity} />
                 <DetailItem label="Source URL" value={account.sourceUrl} />

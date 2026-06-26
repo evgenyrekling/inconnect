@@ -226,9 +226,9 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
     <section className="px-5 py-12 sm:px-8 lg:px-10">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-          <h1 className="text-3xl font-semibold">Edit INConnect Profile</h1>
+          <h1 className="text-3xl font-semibold">Edit INConnect Professional Profile</h1>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
-            You control what is visible. Profiles are unlisted by default.
+            You control what is visible. Professional profiles are unlisted by default.
           </p>
           {!profile ? (
             <button
@@ -237,7 +237,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
               onClick={createProfile}
               type="button"
             >
-              {isSaving ? "Creating..." : "Create My Profile"}
+              {isSaving ? "Creating..." : "Create Professional Profile"}
             </button>
           ) : (
             <div className="mt-6 grid gap-4">
@@ -311,11 +311,11 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
                   Add Custom Section
                 </button>
                 <button className="rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-600" onClick={deleteProfile} type="button">
-                  Delete Profile
+                  Delete Professional Profile
                 </button>
               </div>
               <a className="text-sm font-semibold text-[#0A66C2]" href={`/p/${profile.slug}`}>
-                View Profile
+                View Professional
               </a>
             </div>
           )}
@@ -328,7 +328,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
                     className="rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]"
                     href={savedProfilePath}
                   >
-                    View Updated Profile
+                    View Updated Professional Profile
                   </Link>
                   <button
                     className="rounded-lg border border-[#D9DDE3] px-4 py-3 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:text-[#0A66C2]"
@@ -341,7 +341,7 @@ export function ProfileEditClient({ profileSlug }: { profileSlug?: string }) {
               )}
               {isRedirectPending && (
                 <p className="mt-3 text-xs leading-5 text-[#666666]">
-                  Redirecting to your updated profile...
+                  Redirecting to your updated professional profile...
                 </p>
               )}
             </div>

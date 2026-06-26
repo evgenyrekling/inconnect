@@ -219,10 +219,28 @@ type DropdownNavItem = {
   onSelect?: () => void;
   status?: "Active" | "Coming Soon";
 };
-const intelligenceNavItems: DropdownNavItem[] = [
+const dashboardNavItems: DropdownNavItem[] = [
+  {
+    href: "/",
+    label: "Dashboard Overview",
+  },
+  {
+    href: "/network/profiles",
+    label: "Build Professional Profile",
+  },
+  {
+    href: "/network/accounts",
+    label: "Browse Companies",
+  },
+];
+const marketIntelligenceNavItems: DropdownNavItem[] = [
   {
     href: "/intelligence",
-    label: "Intelligence Overview",
+    label: "Market Intelligence Overview",
+  },
+  {
+    href: "/intelligence",
+    label: "Daily Briefings",
   },
   {
     href: "/intelligence/airport-automation",
@@ -235,6 +253,16 @@ const intelligenceNavItems: DropdownNavItem[] = [
     status: "Active",
   },
   {
+    href: "/intelligence/linkedin-daily",
+    label: "Industry News",
+    status: "Active",
+  },
+  {
+    href: "/intelligence",
+    label: "Reports",
+    status: "Coming Soon",
+  },
+  {
     href: "/intelligence/smart-mobility",
     label: "Smart Mobility Daily",
     status: "Coming Soon",
@@ -244,11 +272,27 @@ const intelligenceNavItems: DropdownNavItem[] = [
     label: "Industrial Automation Daily",
     status: "Coming Soon",
   },
+  {
+    href: "/intelligence/airport-automation",
+    label: "Technology Watch",
+    status: "Active",
+  },
+  {
+    href: "/intelligence",
+    label: "Market Insights",
+    status: "Coming Soon",
+  },
 ];
 const toolNavItems: DropdownNavItem[] = [
-  { label: "LinkedIn Profile Assessment", href: "/assessment" },
+  { label: "LinkedIn Assessment", href: "/assessment" },
   { label: "Headline Generator", href: "/headline-generator" },
-  { label: "About Generator", href: "/about-generator" },
+  { label: "Content Intelligence", status: "Coming Soon" },
+  { label: "Trend Radar", status: "Coming Soon" },
+];
+const pricingNavItems: DropdownNavItem[] = [
+  { href: "/pricing", label: "Pricing Overview" },
+  { href: "/pricing", label: "Free Tools" },
+  { href: "/pricing", label: "Future Pro Features" },
 ];
 
 type CurrentPublicProfileNavState = {
@@ -1068,14 +1112,22 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         <div className="flex items-center gap-3">
           <nav className="hidden items-center gap-1 lg:flex">
             <NavigationDropdown
-              items={intelligenceNavItems}
-              label="Intelligence"
+              items={dashboardNavItems}
+              label="Dashboard"
+            />
+            <NavigationDropdown items={networkNavItems} label="Network" />
+            <NavigationDropdown
+              items={marketIntelligenceNavItems}
+              label="Market Intelligence"
             />
             <NavigationDropdown
               items={toolNavItems}
-              label="LinkedIn Tools"
+              label="Tools"
             />
-            <NavigationDropdown items={networkNavItems} label="Network" />
+            <NavigationDropdown
+              items={pricingNavItems}
+              label="Pricing"
+            />
           </nav>
           <AccountMenu
             currentProfile={currentProfile}
@@ -1086,16 +1138,26 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
       </div>
       <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
         <NavigationDropdown
-          items={intelligenceNavItems}
-          label="Intelligence"
+          items={dashboardNavItems}
+          label="Dashboard"
+          mobile
+        />
+        <NavigationDropdown items={networkNavItems} label="Network" mobile />
+        <NavigationDropdown
+          items={marketIntelligenceNavItems}
+          label="Market Intelligence"
           mobile
         />
         <NavigationDropdown
           items={toolNavItems}
-          label="LinkedIn Tools"
+          label="Tools"
           mobile
         />
-        <NavigationDropdown items={networkNavItems} label="Network" mobile />
+        <NavigationDropdown
+          items={pricingNavItems}
+          label="Pricing"
+          mobile
+        />
       </nav>
       {showSocialProof && <UserCountSocialProof />}
     </header>
@@ -1105,14 +1167,14 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
 function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavItem[] {
   return [
     { href: "/network", label: "Network Overview" },
-    { href: "/network/profiles", label: "Professional Profiles" },
-    { href: "/network/accounts", label: "Accounts" },
-    { href: "/network/accounts/airports", label: "Airports" },
-    { href: "/network/create-profile", label: "Create My Profile" },
+    { href: "/network/profiles", label: "Professionals" },
+    { href: "/network/create-profile", label: "Create Professional Profile" },
+    { href: "/network/accounts", label: "Companies" },
+    { href: "/network/accounts/airports", label: "Airport Operators" },
     ...(profile
       ? [
-          { href: `/p/${profile.slug}/edit`, label: "Profile Edit" },
-          { href: `/p/${profile.slug}`, label: "My Profile" },
+          { href: `/p/${profile.slug}/edit`, label: "Edit Professional Profile" },
+          { href: `/p/${profile.slug}`, label: "My Professional Profile" },
         ]
       : []),
   ];
@@ -1163,11 +1225,11 @@ function AccountMenu({
   const accountItems: DropdownNavItem[] = [
     ...(currentProfile
       ? [
-          { href: `/p/${currentProfile.slug}`, label: "My Profile" },
-          { href: `/p/${currentProfile.slug}/edit`, label: "Edit Profile" },
+          { href: `/p/${currentProfile.slug}`, label: "My Professional Profile" },
+          { href: `/p/${currentProfile.slug}/edit`, label: "Edit Professional Profile" },
         ]
-      : [{ href: "/network/create-profile", label: "Create My Profile" }]),
-    { href: "/my-intelligence", label: "My Intelligence" },
+      : [{ href: "/network/create-profile", label: "Create Professional Profile" }]),
+    { href: "/my-intelligence", label: "My Market Intelligence" },
     { label: "Sign Out", onSelect: handleLogout },
   ];
 
@@ -1522,7 +1584,11 @@ function NavigationDropdown({
         >
           <div className="rounded-lg border border-[#D9DDE3] bg-white p-2 shadow-[0_14px_34px_rgba(10,25,47,0.14)]">
             {items.map((item) => (
-              <DropdownMenuItem item={item} key={item.href ?? item.label} onClose={closeMenu} />
+              <DropdownMenuItem
+                item={item}
+                key={`${item.label}-${item.href ?? "action"}`}
+                onClose={closeMenu}
+              />
             ))}
             {menuFooter && (
               <p className="px-3 pb-2 pt-2 text-xs leading-5 text-[#666666]">
@@ -1590,66 +1656,13 @@ function DropdownMenuItem({
 }
 
 function UserCountSocialProof() {
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadUsersCount() {
-      try {
-        const response = await fetch("/api/stats/users-count", {
-          cache: "no-store",
-        });
-        const payload = (await response.json().catch(() => null)) as unknown;
-
-        if (!isActive) return;
-
-        if (!response.ok || !isUsersCountResponse(payload)) {
-          setMessage("Professionals are already joining INConnect");
-          return;
-        }
-
-        setMessage(getUsersCountMessage(payload.usersCount));
-      } catch {
-        if (isActive) {
-          setMessage("Professionals are already joining INConnect");
-        }
-      }
-    }
-
-    void loadUsersCount();
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  if (!message) return null;
-
   return (
     <div className="border-t border-[#D9DDE3] bg-[#F3F7FD] px-5 py-2 text-center sm:px-8 lg:px-10">
       <p className="text-sm font-semibold leading-6 text-[#0A66C2]">
-        {message}
+        Join 1,442 professionals and 867 companies already growing their network with INConnect.
       </p>
     </div>
   );
-}
-
-function isUsersCountResponse(value: unknown): value is { usersCount: number } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "usersCount" in value &&
-    typeof value.usersCount === "number" &&
-    Number.isFinite(value.usersCount) &&
-    value.usersCount >= 0
-  );
-}
-
-function getUsersCountMessage(usersCount: number) {
-  const count = Math.floor(usersCount);
-  if (count === 0) return "Be among the first professionals to join INConnect";
-  if (count === 1) return "1 professional has already joined INConnect";
-  return `${count.toLocaleString("en-US")} professionals have already joined INConnect`;
 }
 
 function HeroSection() {
@@ -1668,11 +1681,11 @@ function HeroSection() {
             Professional Intelligence Platform
           </p>
           <h1 className="mt-5 max-w-5xl text-4xl font-semibold leading-tight sm:text-6xl">
-            Professional Intelligence for Growth, Visibility, and Connections
+            INConnect helps professionals discover opportunities, understand markets, and connect with the right companies.
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/72 sm:text-lg">
-            Discover opportunities, stay informed, improve your professional
-            presence, and connect with the right people.
+            Join 1,442 professionals and 867 companies already growing their
+            network with INConnect.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a
@@ -1682,19 +1695,19 @@ function HeroSection() {
               )}
               href="/intelligence"
             >
-              Explore Intelligence
+              Explore Market Intelligence
             </a>
             <a
               className="inline-flex h-12 items-center justify-center rounded-lg border border-white/40 bg-white/10 px-5 text-sm font-semibold text-white transition hover:border-white/70 hover:bg-white/16"
               href="/network/profiles"
             >
-              Build Your Profile
+              Build Your Professional Profile
             </a>
             <a
               className="inline-flex h-12 items-center justify-center rounded-lg px-2 text-sm font-semibold text-[#B9D9FF] transition hover:text-white"
-              href="/assessment"
+              href="/network/accounts"
             >
-              Try LinkedIn Tools
+              Browse Companies
             </a>
           </div>
         </div>
@@ -1710,6 +1723,34 @@ function PlatformPillars() {
       <PillarSection
         cards={[
           {
+            href: "/network/profiles",
+            status: "Active",
+            title: "Professionals",
+          },
+          {
+            href: "/network/create-profile",
+            status: "Active",
+            title: "Create Professional Profile",
+          },
+          { status: "Coming Soon", title: "Expert Discovery" },
+          { status: "Coming Soon", title: "Opportunity Matching" },
+        ]}
+        subtitle="Create a professional profile, highlight your expertise, and become visible to the right business network."
+        title="Professionals"
+      />
+      <PillarSection
+        cards={[
+          { href: "/network/accounts/airports", status: "Active", title: "Airport Operators" },
+          { href: "/network/accounts", status: "Active", title: "Companies" },
+          { status: "Coming Soon", title: "Technology Suppliers" },
+          { status: "Coming Soon", title: "System Integrators" },
+        ]}
+        subtitle="Discover and organize companies, airport operators, suppliers, integrators, and future business targets."
+        title="Companies"
+      />
+      <PillarSection
+        cards={[
+          {
             href: "/intelligence/airport-automation",
             status: "Active",
             title: "Airport Automation Daily",
@@ -1719,22 +1760,22 @@ function PlatformPillars() {
             status: "Active",
             title: "LinkedIn Daily",
           },
-          { status: "Coming Soon", title: "Smart Mobility Daily" },
-          { status: "Coming Soon", title: "Industrial Automation Daily" },
+          { status: "Coming Soon", title: "Reports" },
+          { status: "Coming Soon", title: "Technology Watch" },
         ]}
-        subtitle="Stay ahead with AI-curated daily briefings, market signals, and business-relevant insights."
-        title="Professional Intelligence"
+        subtitle="Track daily briefings, industry news, reports, technology trends, and market signals."
+        title="Market Intelligence"
       />
       <PillarSection
         cards={[
-          { href: "/assessment", title: "LinkedIn Profile Assessment" },
+          { href: "/assessment", title: "LinkedIn Assessment" },
           { href: "/headline-generator", title: "Headline Generator" },
-          { href: "/about-generator", title: "About Generator" },
+          { status: "Coming Soon", title: "Content Intelligence" },
+          { status: "Coming Soon", title: "Trend Radar" },
         ]}
-        subtitle="Improve how the market understands your expertise, authority, and professional value."
-        title="Professional Visibility"
+        subtitle="Use AI-powered tools to improve your LinkedIn presence, headline, profile positioning, and content strategy."
+        title="Tools"
       />
-      <NetworkSummarySection />
     </div>
   );
 }
@@ -4944,7 +4985,7 @@ function AssessmentCardLogo() {
         <div className="leading-tight">
           <p className="text-xl font-semibold text-white">INConnect</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#78B7F4]">
-            Profile Intelligence Platform
+            Professional Intelligence Platform
           </p>
         </div>
       )}
@@ -4963,7 +5004,7 @@ function PublicProfileCreationCard({
 
   async function handleCreateProfile() {
     if (!assessment.userKey) {
-      setMessage("Profile could not be created because user identity is missing.");
+      setMessage("Professional profile could not be created because user identity is missing.");
       return;
     }
 
@@ -4981,14 +5022,14 @@ function PublicProfileCreationCard({
       } | null;
 
       if (!response.ok || !payload?.profile?.slug) {
-        throw new Error(payload?.error || "Profile could not be created.");
+        throw new Error(payload?.error || "Professional profile could not be created.");
       }
 
       const nextUrl = `${window.location.origin}/p/${payload.profile.slug}`;
       setProfileUrl(nextUrl);
-      setMessage("Your profile has been created.");
+      setMessage("Your professional profile has been created.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Profile could not be created.");
+      setMessage(error instanceof Error ? error.message : "Professional profile could not be created.");
     } finally {
       setIsCreating(false);
     }
@@ -4997,7 +5038,7 @@ function PublicProfileCreationCard({
   async function handleCopyLink() {
     if (!profileUrl) return;
     const copied = await copyTextToClipboard(profileUrl);
-    setMessage(copied ? "Profile link copied." : "Could not copy profile link.");
+    setMessage(copied ? "Professional link copied." : "Could not copy professional link.");
   }
 
   return (
@@ -5006,11 +5047,11 @@ function PublicProfileCreationCard({
         INConnect Network
       </p>
       <h2 className="mt-3 text-2xl font-semibold text-[#191919]">
-        Your INConnect Profile is ready.
+        Your INConnect Professional Profile is ready.
       </h2>
       <p className="mt-3 text-sm leading-6 text-[#666666]">
-        Create a professional public profile from your strongest assessment
-        insights. You control what is visible. Profiles are unlisted by default.
+        Create a public professional profile from your strongest assessment
+        insights. You control what is visible. Professional profiles are unlisted by default.
       </p>
       {!profileUrl ? (
         <button
@@ -5022,7 +5063,7 @@ function PublicProfileCreationCard({
           onClick={handleCreateProfile}
           type="button"
         >
-          {isCreating ? "Creating Profile..." : "Create My Profile"}
+          {isCreating ? "Creating Professional Profile..." : "Create Professional Profile"}
         </button>
       ) : (
         <div className="mt-5 flex flex-wrap gap-3">
@@ -5033,20 +5074,20 @@ function PublicProfileCreationCard({
             )}
             href={profileUrl}
           >
-            View Profile
+            View Professional
           </a>
           <a
             className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] px-4 text-sm font-semibold text-[#0A66C2]"
             href="/profile/edit"
           >
-            Edit Visibility
+            Edit Professional Profile
           </a>
           <button
             className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] px-4 text-sm font-semibold text-[#0A66C2]"
             onClick={handleCopyLink}
             type="button"
           >
-            Copy Profile Link
+            Copy Professional Link
           </button>
         </div>
       )}
@@ -5596,7 +5637,7 @@ function ImprovementSection({
   ] as const;
 
   return (
-    <InfoSection eyebrow="Profile recommendations" title="How To Improve Your Profile">
+    <InfoSection eyebrow="Profile recommendations" title="How To Build Your Professional Profile">
       <div className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4">
           <h3 className="font-semibold">Headline Improvement</h3>
@@ -5830,7 +5871,7 @@ export function Footer() {
         <div className="flex flex-col gap-3 sm:items-end">
           <div>
             <p className="font-semibold text-[#191919]">&copy; INConnect</p>
-            <p className="mt-1 text-sm">Profile Intelligence Platform</p>
+            <p className="mt-1 text-sm">Professional Intelligence Platform</p>
           </div>
           <nav className="flex flex-wrap gap-4 text-sm font-semibold">
             {footerLinks.map((link) => (
@@ -6260,10 +6301,10 @@ export function INConnectIntelligencePage({
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            INConnect Intelligence
+            INConnect Market Intelligence
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
-            Daily intelligence for professionals who want to stay ahead.
+            Daily market intelligence for professionals who want to stay ahead.
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
             AI-curated industry briefings, market developments, technology
@@ -6385,7 +6426,7 @@ export function INConnectIntelligencePage({
               </a>
             ) : (
               <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
-                INConnect intelligence insights will appear here as soon as
+                INConnect Market Intelligence insights will appear here as soon as
                 published briefings are available.
               </p>
             )}

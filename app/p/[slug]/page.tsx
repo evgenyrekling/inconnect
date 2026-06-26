@@ -18,11 +18,11 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: PublicProfilePageProps): Promise<Metadata> {
   const { slug } = await params;
   const profile = await getPublicProfileBySlug(slug);
-  if (!profile) return { title: "Profile Not Found | INConnect" };
+  if (!profile) return { title: "Professional Not Found | INConnect" };
   if (profile.visibility === "private") {
     return {
-      title: "Private Profile | INConnect",
-      description: "This INConnect profile is private.",
+      title: "Private Professional Profile | INConnect",
+      description: "This INConnect professional profile is private.",
       robots: { follow: false, index: false },
     };
   }
@@ -30,11 +30,11 @@ export async function generateMetadata({ params }: PublicProfilePageProps): Prom
   const canonical = `${SITE_URL}/p/${profile.slug}`;
   const indexable = profile.visibility === "public" && profile.isPublic;
   return {
-    title: `${profile.displayName} | INConnect Profile`,
+    title: `${profile.displayName} | INConnect Professional`,
     description: profile.summary || profile.headline,
     alternates: { canonical },
     openGraph: {
-      title: `${profile.displayName} | INConnect Profile`,
+      title: `${profile.displayName} | INConnect Professional`,
       description: profile.summary || profile.headline,
       siteName: "INConnect",
       type: "profile",

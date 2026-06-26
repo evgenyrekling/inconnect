@@ -64,7 +64,7 @@ export function CreateNetworkProfileClient() {
     setIsGenerating(false);
 
     if (!response.ok || !payload?.profile) {
-      setMessage(payload?.error ?? "Profile could not be created.");
+      setMessage(payload?.error ?? "Professional profile could not be created.");
       return;
     }
 
@@ -116,7 +116,7 @@ export function CreateNetworkProfileClient() {
       profile?: { isPublic: boolean; slug: string; visibility: string };
     } | null;
     if (!response.ok || !payload?.profile) {
-      setMessage(payload?.error ?? "Profile visibility could not be updated.");
+      setMessage(payload?.error ?? "Professional profile visibility could not be updated.");
       return;
     }
     setCreatedProfile({
@@ -126,7 +126,7 @@ export function CreateNetworkProfileClient() {
         url: `/p/${payload.profile.slug}`,
         visibility: payload.profile.visibility,
       });
-    setMessage("Your profile is now public.");
+    setMessage("Your professional profile is now public.");
   }
 
   return (
@@ -136,7 +136,7 @@ export function CreateNetworkProfileClient() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
             Build Manually
           </p>
-          <h1 className="mt-3 text-3xl font-semibold">Create Your INConnect Profile</h1>
+          <h1 className="mt-3 text-3xl font-semibold">Create Your Professional Profile</h1>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
             Add the basics, describe your expertise, and INConnect will generate a shareable
             professional profile.
@@ -202,7 +202,7 @@ export function CreateNetworkProfileClient() {
             <div>
               <h2 className="text-2xl font-semibold">Step 3</h2>
               <p className="mt-3 text-sm leading-6 text-[#666666]">
-                Generate your INConnect profile. It will be created as unlisted first, so only
+                Generate your INConnect professional profile. It will be created as unlisted first, so only
                 people with the link can view it.
               </p>
               {!createdProfile ? (
@@ -211,7 +211,7 @@ export function CreateNetworkProfileClient() {
                     Back
                   </button>
                   <button className="rounded-lg bg-[#4A6FD0] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7] disabled:cursor-not-allowed disabled:bg-[#D9DDE3] disabled:text-[#666666]" disabled={isGenerating || Boolean(requiredError)} onClick={generateProfile} type="button">
-                    {isGenerating ? "Generating Profile..." : "Generate Profile with AI"}
+                    {isGenerating ? "Generating Professional Profile..." : "Generate Professional Profile with AI"}
                   </button>
                 </div>
               ) : (
@@ -221,7 +221,7 @@ export function CreateNetworkProfileClient() {
                   </p>
                   <div className="mt-4 rounded-lg border border-[#D9DDE3] bg-white p-4">
                     <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm font-semibold text-[#191919]">Profile Strength</p>
+                      <p className="text-sm font-semibold text-[#191919]">Professional Profile Strength</p>
                       <p className="text-2xl font-semibold text-[#0A66C2]">
                         {createdProfile.profileStrength}/100
                       </p>
@@ -239,10 +239,10 @@ export function CreateNetworkProfileClient() {
                   </div>
                   <div className="mt-5 flex flex-wrap gap-3">
                     <a className="rounded-lg bg-[#4A6FD0] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href={createdProfile.url}>
-                      View Profile
+                      View Professional
                     </a>
                     <a className="rounded-lg border border-[#D9DDE3] px-5 py-3 text-sm font-semibold" href="/profile/edit">
-                      Edit Profile
+                      Edit Professional Profile
                     </a>
                     {createdProfile.visibility !== "public" && (
                       <button className="rounded-lg border border-[#D9DDE3] px-5 py-3 text-sm font-semibold" onClick={makePublic} type="button">

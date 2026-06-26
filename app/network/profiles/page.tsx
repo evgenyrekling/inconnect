@@ -4,8 +4,8 @@ import { Footer, Header } from "@/components/inconnect-platform";
 import { getPublicProfiles } from "@/lib/public-profiles";
 
 export const metadata: Metadata = {
-  title: "Professional Profiles | INConnect Network",
-  description: "Explore public professional INConnect profiles by expertise, industry, and location.",
+  title: "Professionals | INConnect Network",
+  description: "Explore public INConnect professionals by expertise, industry, and location.",
 };
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export default async function NetworkProfilesPage() {
           <Link className="text-sm font-semibold text-[#0A66C2]" href="/network">
             Back to Network
           </Link>
-          <h1 className="mt-8 text-4xl font-semibold">Professional Profiles</h1>
+          <h1 className="mt-8 text-4xl font-semibold">Professionals</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
             Build a professional profile you can share with colleagues, customers,
             partners, and recruiters.
@@ -32,7 +32,7 @@ export default async function NetworkProfilesPage() {
         <div className="mx-auto max-w-7xl">
           <div className="rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0A66C2]">
-              Build Your INConnect Profile
+              Build Your INConnect Professional Profile
             </p>
             <h2 className="mt-3 text-3xl font-semibold">Create a professional profile</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#666666]">
@@ -60,7 +60,7 @@ export default async function NetworkProfilesPage() {
                 <h3 className="mt-3 text-xl font-semibold">Build Manually</h3>
                 <p className="mt-2 text-sm leading-6 text-[#666666]">
                   Enter your professional details and generate an unlisted INConnect
-                  profile with AI.
+                  professional profile with AI.
                 </p>
                 <Link className="mt-5 inline-flex rounded-lg bg-[#4A6FD0] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3D5EB7]" href="/network/create-profile">
                   Build Manually
@@ -72,9 +72,9 @@ export default async function NetworkProfilesPage() {
           {profiles.length > 0 && (
             <>
               <div className="mt-12">
-                <h2 className="text-3xl font-semibold">Public Profiles</h2>
+                <h2 className="text-3xl font-semibold">Public Professionals</h2>
                 <p className="mt-3 text-sm leading-6 text-[#666666]">
-                  Explore public INConnect profiles created from user-approved
+                  Explore public INConnect professionals created from user-approved
                   professional intelligence.
                 </p>
               </div>
@@ -106,7 +106,7 @@ export default async function NetworkProfilesPage() {
                   )}
                   <TagRow label="Industries" items={profile.industries.slice(0, 4)} />
                   <TagRow label="Expertise" items={profile.expertise.slice(0, 5)} />
-                  <span className="sr-only">View {profile.displayName} profile</span>
+                  <span className="sr-only">View {profile.displayName}</span>
                 </Link>
               ))}
             </div>

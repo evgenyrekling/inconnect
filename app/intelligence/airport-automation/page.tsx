@@ -12,7 +12,7 @@ import { createSeoMetadata } from "@/lib/seo";
 export const metadata: Metadata = createSeoMetadata({
   title: "Airport Automation Daily | INConnect 1-Minute Briefing",
   description:
-    "The one airport automation development worth knowing today from INConnect Intelligence.",
+    "The one airport automation development worth knowing today from INConnect Market Intelligence.",
   path: "/intelligence/airport-automation",
 });
 
@@ -32,10 +32,10 @@ export default async function AirportAutomationIntelligencePage() {
             className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
             href="/intelligence"
           >
-            Back to Intelligence
+            Back to Market Intelligence
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#057642]">
-            Active Intelligence Stream
+            Active Market Intelligence Stream
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
             Airport Automation Daily

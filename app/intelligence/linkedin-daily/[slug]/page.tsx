@@ -59,7 +59,7 @@ export async function generateMetadata({
       ],
       type: "article",
       publishedTime: post.publishedAt,
-      authors: ["INConnect Intelligence"],
+      authors: ["INConnect Market Intelligence"],
       url: canonicalUrl,
     },
     twitter: {
@@ -91,7 +91,7 @@ export default async function LinkedInDailyBriefingPage({
     "@type": "Article",
     author: {
       "@type": "Organization",
-      name: "INConnect Intelligence",
+      name: "INConnect Market Intelligence",
     },
     dateModified: post.publishedAt,
     datePublished: post.publishedAt,
@@ -116,7 +116,7 @@ export default async function LinkedInDailyBriefingPage({
               className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
               href="/intelligence"
             >
-              Back to Intelligence
+              Back to Market Intelligence
             </Link>
             <Link
               className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
@@ -133,7 +133,7 @@ export default async function LinkedInDailyBriefingPage({
           </h1>
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#666666]">
             <span>{formatBlogDate(post.publishedAt)}</span>
-            <span>INConnect Intelligence</span>
+            <span>INConnect Market Intelligence</span>
           </div>
           <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
             <img

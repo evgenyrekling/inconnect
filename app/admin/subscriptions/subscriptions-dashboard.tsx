@@ -147,7 +147,7 @@ export function AdminSubscriptionsDashboard() {
           Digest Subscriptions
         </h1>
         <p className="mt-3 max-w-3xl text-base leading-7 text-[#666666]">
-          Monitor subscriber growth for INConnect Intelligence email products.
+          Monitor subscriber growth for INConnect Market Intelligence email products.
         </p>
 
         <form

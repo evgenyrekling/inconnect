@@ -3,8 +3,8 @@ import { Footer, Header } from "@/components/inconnect-platform";
 import { ProfileEditClient } from "./profile-edit-client";
 
 export const metadata: Metadata = {
-  title: "Edit Profile | INConnect Network",
-  description: "Edit your INConnect public profile visibility and sections.",
+  title: "Edit Professional Profile | INConnect Network",
+  description: "Edit your INConnect public professional profile visibility and sections.",
   robots: {
     follow: false,
     index: false,

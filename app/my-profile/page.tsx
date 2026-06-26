@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Footer, Header } from "@/components/inconnect-platform";
 
 export const metadata: Metadata = {
-  title: "My Profile | INConnect",
-  description: "Manage your INConnect profile identity and preferences.",
+  title: "My Professional Profile | INConnect",
+  description: "Manage your INConnect professional profile identity and preferences.",
   robots: {
     follow: false,
     index: false,
@@ -20,10 +20,10 @@ export default function MyProfilePage() {
             Account
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-[#191919]">
-            My Profile
+            My Professional Profile
           </h1>
           <p className="mt-4 text-sm leading-6 text-[#666666]">
-            Profile management is being prepared. For now, use the account menu
+            Professional profile management is being prepared. For now, use the account menu
             to sign out and remove local identification from this device.
           </p>
         </div>

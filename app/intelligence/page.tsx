@@ -5,9 +5,9 @@ import { type BlogPost, getPublishedBlogPosts } from "@/lib/blog-posts";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Intelligence | INConnect",
+  title: "Market Intelligence | INConnect",
   description:
-    "Daily professional intelligence streams for industry briefings, market developments, technology trends, and business opportunities.",
+    "Daily market intelligence streams for industry briefings, market developments, technology trends, and business opportunities.",
   path: "/intelligence",
 });
 

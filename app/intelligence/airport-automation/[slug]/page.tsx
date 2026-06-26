@@ -60,7 +60,7 @@ export async function generateMetadata({
       ],
       type: "article",
       publishedTime: briefing.generatedAt,
-      authors: ["INConnect Intelligence"],
+      authors: ["INConnect Market Intelligence"],
       url: canonicalUrl,
     },
     twitter: {
@@ -92,7 +92,7 @@ export default async function AirportBriefingPage({
     "@type": "Article",
     author: {
       "@type": "Organization",
-      name: "INConnect Intelligence",
+      name: "INConnect Market Intelligence",
     },
     dateModified: briefing.generatedAt,
     datePublished: briefing.generatedAt,
@@ -117,7 +117,7 @@ export default async function AirportBriefingPage({
               className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
               href="/intelligence"
             >
-              Back to Intelligence
+              Back to Market Intelligence
             </Link>
             <Link
               className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"

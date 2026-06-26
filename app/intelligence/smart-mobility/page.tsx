@@ -5,7 +5,7 @@ import { Footer, Header } from "@/components/inconnect-platform";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Smart Mobility Daily | INConnect Intelligence",
+  title: "Smart Mobility Daily | INConnect Market Intelligence",
   description:
     "Preview page for Smart Mobility Daily, a future INConnect intelligence stream covering connected mobility, fleets, transport technology, and autonomous systems.",
   path: "/intelligence/smart-mobility",
@@ -21,7 +21,7 @@ export default function SmartMobilityIntelligencePage() {
             className="text-sm font-semibold text-[#0A66C2] transition hover:text-[#004182]"
             href="/intelligence"
           >
-            Back to Intelligence
+            Back to Market Intelligence
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#666666]">
             Coming Soon
@@ -38,8 +38,8 @@ export default function SmartMobilityIntelligencePage() {
               Preview page only.
             </p>
             <p className="mt-2 text-sm leading-6 text-[#666666]">
-              Smart Mobility Daily will become a dedicated INConnect
-              intelligence stream in a future release.
+              Smart Mobility Daily will become a dedicated INConnect Market
+              Intelligence stream in a future release.
             </p>
           </div>
           <DigestSubscriptionCard

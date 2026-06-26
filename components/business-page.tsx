@@ -36,9 +36,9 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
           </Link>
           <Link
             className={primaryCtaClass}
-            href="/assessment"
+            href="/intelligence"
           >
-            Back to Assessment
+            Explore Market Intelligence
           </Link>
         </div>
       </header>
@@ -88,7 +88,7 @@ export function BusinessPage({ eyebrow, intro, sections, title }: BusinessPagePr
         <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-semibold text-[#191919]">&copy; INConnect</p>
-            <p className="mt-1 text-sm">Profile Intelligence Platform</p>
+            <p className="mt-1 text-sm">Professional Intelligence Platform</p>
           </div>
           <nav className="flex flex-wrap gap-4 text-sm font-semibold">
             {footerLinks.map((link) => (

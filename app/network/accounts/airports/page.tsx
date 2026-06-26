@@ -29,9 +29,9 @@ type AirportAccountFilters = {
 };
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Airport Accounts | INConnect Network",
+  title: "Airport Operators | INConnect Companies",
   description:
-    "Explore airport accounts in the INConnect Accounts foundation by IATA, ICAO, country, city, passenger tier, and strategic priority.",
+    "Explore airport operator companies in the INConnect Companies foundation by IATA, ICAO, country, city, passenger tier, and strategic priority.",
   path: "/network/accounts/airports",
 });
 
@@ -54,18 +54,18 @@ export default async function AirportAccountsPage({
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <Link className="text-sm font-semibold text-[#0A66C2]" href="/network/accounts">
-            Back to Accounts
+            Back to Companies
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Accounts / Airports
+            Companies / Airport Operators
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight sm:text-5xl">
-            Airport Accounts
+            Airport Operators
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            Airport records stored in the generic INConnect Accounts table with
-            `account_type = airport`. This is the first account list foundation
-            for future CRM, profile attachment, and opportunity workflows.
+            Airport operator companies stored in the generic INConnect Companies
+            layer. This is the first company list foundation for future CRM,
+            professional attachment, and opportunity workflows.
           </p>
         </div>
       </section>
@@ -79,14 +79,14 @@ export default async function AirportAccountsPage({
               <h2 className="text-2xl font-semibold">Airports</h2>
               <p className="mt-2 text-sm leading-6 text-[#666666]">
                 Showing {filteredAccounts.length} of {accounts.length} airport
-                accounts.
+                operators.
               </p>
             </div>
             <Link
               className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
               href="/admin/import-strategic-airports"
             >
-              Import Airports
+              Import Airport Operators
             </Link>
           </div>
 
@@ -94,7 +94,7 @@ export default async function AirportAccountsPage({
             <AirportAccountsTable accounts={filteredAccounts} />
           ) : (
             <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-white p-8 text-center shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-              <h2 className="text-2xl font-semibold">No airport accounts found</h2>
+              <h2 className="text-2xl font-semibold">No airport operators found</h2>
               <p className="mt-3 text-sm leading-6 text-[#666666]">
                 Adjust the search or import airport identity data from OurAirports
                 airports.csv.
@@ -202,7 +202,7 @@ function AirportAccountFiltersForm({
           className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8]"
           type="submit"
         >
-          Search Accounts
+          Search Companies
         </button>
         <Link
           className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
@@ -233,7 +233,7 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
               <HeaderCell>Automation Tier</HeaderCell>
               <HeaderCell>Strategic Priority</HeaderCell>
               <HeaderCell>Status</HeaderCell>
-              <HeaderCell>Profiles Connected</HeaderCell>
+              <HeaderCell>Professionals Connected</HeaderCell>
               <HeaderCell>Last Updated</HeaderCell>
               <HeaderCell>Actions</HeaderCell>
             </tr>
@@ -305,7 +305,7 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
                       disabled
                       type="button"
                     >
-                      Attach Profile
+                      Attach Professional
                     </button>
                     <button
                       className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 text-xs font-semibold text-[#777777]"

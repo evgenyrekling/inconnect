@@ -5,9 +5,9 @@ import { getAirportAccounts } from "@/lib/airport-accounts";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Accounts | INConnect Network",
+  title: "Companies | INConnect Network",
   description:
-    "Explore INConnect account intelligence foundations for airports, airlines, suppliers, integrators, and future CRM account types.",
+    "Explore INConnect company intelligence foundations for airport operators, airlines, suppliers, integrators, authorities, ground handlers, cargo operators, consultants, and future business targets.",
   path: "/network/accounts",
 });
 
@@ -25,15 +25,15 @@ export default async function AccountsPage() {
             Back to Network
           </Link>
           <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Accounts
+            Companies
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight sm:text-5xl">
-            INConnect Accounts
+            INConnect Companies
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-[#666666] sm:text-lg">
-            A CRM-style account foundation for airports, airlines, suppliers,
-            integrators, authorities, ground handlers, cargo operators, and future
-            business opportunities.
+            A company foundation for airport operators, airlines, technology
+            suppliers, system integrators, authorities, ground handlers, cargo
+            operators, consultants, and future business opportunities.
           </p>
         </div>
       </section>
@@ -43,24 +43,24 @@ export default async function AccountsPage() {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <AccountCategoryCard
               actionHref="/network/accounts/airports"
-              actionLabel="Open Airports"
+              actionLabel="Open Airport Operators"
               count={airportAccounts.length}
-              description="Seeded airport accounts using OurAirports identity data, passenger tiers, strategic priority, and future profile attachment."
+              description="Seeded airport operator companies using OurAirports identity data, passenger tiers, strategic priority, and future professional attachment."
               status="Active"
-              title="Airports"
+              title="Airport Operators"
             />
             <AccountCategoryCard
-              description="Future account layer for airline relationships, route strategy, passenger experience, and operational stakeholders."
+              description="Future company layer for airline relationships, route strategy, passenger experience, and operational stakeholders."
               status="Future"
               title="Airlines"
             />
             <AccountCategoryCard
-              description="Future supplier intelligence for airport technology vendors, automation providers, and infrastructure partners."
+              description="Future company intelligence for airport technology vendors, automation providers, and infrastructure partners."
               status="Future"
               title="Suppliers"
             />
             <AccountCategoryCard
-              description="Future integrator account layer for project delivery partners, system integrators, and implementation networks."
+              description="Future company layer for project delivery partners, system integrators, and implementation networks."
               status="Future"
               title="Integrators"
             />
@@ -95,7 +95,7 @@ function AccountCategoryCard({
         </p>
         {typeof count === "number" && (
           <span className="rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2]">
-            {count} accounts
+            {count} companies
           </span>
         )}
       </div>

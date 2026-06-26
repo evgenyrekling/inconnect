@@ -30,17 +30,17 @@ export default function NetworkPage() {
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-4">
           <NetworkCard
             actionHref="/network/profiles"
-            actionLabel="Explore Profiles"
+            actionLabel="Explore Professionals"
             description="AI-generated professional profiles created from INConnect assessments and user-approved data."
             status="Active"
-            title="Professional Profiles"
+            title="Professionals"
           />
           <NetworkCard
             actionHref="/network/accounts"
-            actionLabel="Explore Accounts"
-            description="CRM-style account foundations for airports today, with future airline, supplier, and integrator account layers."
+            actionLabel="Explore Companies"
+            description="Company foundations for airport operators today, with future airline, supplier, integrator, authority, ground handler, cargo operator, and consultant layers."
             status="Active"
-            title="Accounts"
+            title="Companies"
           />
           <NetworkCard
             description="Discover potential partners, customers, suppliers, experts, and opportunities."

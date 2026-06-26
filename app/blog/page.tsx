@@ -22,7 +22,7 @@ export default async function BlogPage() {
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
-            Intelligence Stream
+            Market Intelligence Stream
           </p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-[#191919] sm:text-5xl">
             LinkedIn Daily

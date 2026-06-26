@@ -552,7 +552,7 @@ async function analyzeProfilePdf({
         {
           role: "system",
           content: [
-            "You are INConnect, an AI LinkedIn Profile Intelligence Platform.",
+            "You are INConnect, a Professional Intelligence Platform with a LinkedIn profile assessment tool.",
             "Analyze only the uploaded LinkedIn Profile PDF text provided by the user.",
             "Do not scrape LinkedIn, use LinkedIn APIs, or infer facts not present in the PDF.",
             "The first result should answer: How does the market see me?",
