@@ -1167,7 +1167,8 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
 function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavItem[] {
   return [
     { href: "/network", label: "Network Overview" },
-    { href: "/network/profiles", label: "Professionals" },
+    { href: "/network/professionals", label: "Professionals" },
+    { href: "/network/professionals/new", label: "Add Professional" },
     { href: "/network/create-profile", label: "Create Professional Profile" },
     { href: "/network/accounts", label: "Companies" },
     { href: "/network/accounts/airports", label: "Airport Operators" },

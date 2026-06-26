@@ -29,9 +29,9 @@ export default function NetworkPage() {
       <section className="px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-4">
           <NetworkCard
-            actionHref="/network/profiles"
+            actionHref="/network/professionals"
             actionLabel="Explore Professionals"
-            description="AI-generated professional profiles created from INConnect assessments and user-approved data."
+            description="Professional profiles created from user-approved data, LinkedIn URLs, and future company relationship mapping."
             status="Active"
             title="Professionals"
           />
