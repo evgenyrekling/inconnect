@@ -54,6 +54,20 @@ export type ProfessionalCompanyLink = {
   title: string;
 };
 
+export type LinkedInProfessionalFetchResult = {
+  confidence: "high" | "medium" | "low";
+  current_company: string;
+  current_title: string;
+  full_name: string;
+  headline: string;
+  linkedin_url: string;
+  location: string;
+  normalized_linkedin_url: string;
+  profile_image_url: string;
+  public_slug: string;
+  source: "linkedin_public_metadata" | "linkedin_slug";
+};
+
 type ProfessionalProfileRow = {
   company: string | null;
   current_company: string | null;
@@ -204,6 +218,77 @@ export async function fetchLinkedInOpenGraphMetadata(linkedinUrl: string) {
   }
 }
 
+export async function fetchLinkedInPublicProfessionalData(
+  linkedinUrl: string,
+): Promise<LinkedInProfessionalFetchResult | null> {
+  const parsed = parseProfessionalLinkedInUrl(linkedinUrl);
+  if (!parsed) return null;
+
+  const fallback = createLinkedInSlugFallback(parsed);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(parsed.linkedinUrl, {
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "accept-language": "en-US,en;q=0.9",
+        "user-agent":
+          "Mozilla/5.0 (compatible; INConnectBot/1.0; +https://in-connect.app)",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return fallback;
+
+    const html = await response.text();
+    const ogTitle = cleanMetadata(extractMeta(html, "og:title"));
+    const pageTitle = cleanMetadata(extractTitle(html));
+    const description = cleanMetadata(
+      extractMeta(html, "og:description") || extractMeta(html, "description"),
+    );
+    const image = cleanMetadata(extractMeta(html, "og:image"));
+    const firstName = cleanMetadata(extractMeta(html, "profile:first_name"));
+    const lastName = cleanMetadata(extractMeta(html, "profile:last_name"));
+    const title = normalizeLinkedInTitle(ogTitle || pageTitle);
+    const inferred = inferLinkedInProfileFields({
+      description,
+      fallbackName: parsed.suggestedName,
+      firstName,
+      lastName,
+      title,
+    });
+
+    const hasPublicMetadata = Boolean(
+      inferred.fullName ||
+        inferred.headline ||
+        inferred.currentTitle ||
+        inferred.currentCompany ||
+        inferred.location ||
+        image,
+    );
+
+    if (!hasPublicMetadata) return fallback;
+
+    return {
+      confidence: getLinkedInMetadataConfidence(inferred, image),
+      current_company: inferred.currentCompany,
+      current_title: inferred.currentTitle,
+      full_name: inferred.fullName || parsed.suggestedName,
+      headline: inferred.headline,
+      linkedin_url: parsed.originalLinkedinUrl,
+      location: inferred.location,
+      normalized_linkedin_url: parsed.normalizedLinkedinUrl,
+      profile_image_url: image,
+      public_slug: parsed.publicSlug,
+      source: "linkedin_public_metadata",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export async function getProfessionalProfiles() {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
@@ -310,11 +395,6 @@ export async function saveProfessionalFromLinkedInUrl(input: {
   if (!parsed) throw new Error("A valid LinkedIn profile URL is required.");
 
   const supabase = getSupabaseAdminClient();
-  const existing = await getProfessionalByNormalizedLinkedInUrl(parsed.normalizedLinkedinUrl);
-  if (existing) {
-    return { existing: true, profile: existing };
-  }
-
   const displayName = cleanText(input.displayName) || parsed.suggestedName;
   if (!displayName) throw new Error("Full name is required.");
 
@@ -327,6 +407,58 @@ export async function saveProfessionalFromLinkedInUrl(input: {
   const slug = await ensureUniqueProfessionalSlug(slugify(displayName));
   const now = new Date().toISOString();
   const profileImageUrl = cleanUrl(input.profileImageUrl);
+  const originalLinkedinUrl = normalizeOriginalLinkedInUrl(
+    input.linkedinUrl,
+    new URL(parsed.linkedinUrl),
+  );
+  const existing = await getProfessionalByNormalizedLinkedInUrl(parsed.normalizedLinkedinUrl);
+
+  if (existing) {
+    const updatePayload: Record<string, unknown> = {
+      linkedin_url: originalLinkedinUrl,
+      normalized_linkedin_url: parsed.normalizedLinkedinUrl,
+      source: "linkedin_url",
+      updated_at: now,
+    };
+
+    if (displayName) updatePayload.display_name = displayName;
+    if (headline) {
+      updatePayload.headline = headline;
+      updatePayload.summary = headline;
+    }
+    if (currentTitle) {
+      updatePayload.current_title = currentTitle;
+      updatePayload.professional_role = currentTitle;
+    }
+    if (currentCompany) {
+      updatePayload.current_company = currentCompany;
+      updatePayload.company = currentCompany;
+    }
+    if (industry) {
+      updatePayload.industry = industry;
+      updatePayload.industries = [industry];
+    }
+    if (cleanText(input.location)) updatePayload.location = cleanText(input.location);
+    if (profileImageUrl) {
+      updatePayload.profile_image_url = profileImageUrl;
+      updatePayload.profile_photo_url = profileImageUrl;
+    }
+    if (cleanText(input.ownerEmail)) updatePayload.owner_email = cleanText(input.ownerEmail);
+
+    const { data, error } = await supabase
+      .from("public_profiles")
+      .update(updatePayload)
+      .eq("id", existing.id)
+      .select(PROFESSIONAL_SELECT)
+      .single<ProfessionalProfileRow>();
+
+    if (error) {
+      console.error("PROFESSIONAL UPDATE ERROR", { error, updatePayload });
+      throw new Error(error.message || "Professional could not be updated.");
+    }
+
+    return { existing: true, profile: mapProfessionalProfileRow(data) };
+  }
 
   const payload = {
     company: currentCompany,
@@ -339,7 +471,7 @@ export async function saveProfessionalFromLinkedInUrl(input: {
     industry,
     interests: [],
     is_public: false,
-    linkedin_url: normalizeOriginalLinkedInUrl(input.linkedinUrl, new URL(parsed.linkedinUrl)),
+    linkedin_url: originalLinkedinUrl,
     location: cleanText(input.location),
     normalized_linkedin_url: parsed.normalizedLinkedinUrl,
     owner_edit_token: crypto.randomBytes(24).toString("hex"),
@@ -657,6 +789,158 @@ function normalizeLinkedInTitle(title: string) {
     .replace(/\s+\|\s+LinkedIn.*$/i, "")
     .replace(/\s+-\s+LinkedIn.*$/i, "")
     .trim();
+}
+
+function createLinkedInSlugFallback(
+  parsed: NonNullable<ReturnType<typeof parseProfessionalLinkedInUrl>>,
+): LinkedInProfessionalFetchResult {
+  return {
+    confidence: "low",
+    current_company: "",
+    current_title: "",
+    full_name: parsed.suggestedName,
+    headline: "",
+    linkedin_url: parsed.originalLinkedinUrl,
+    location: "",
+    normalized_linkedin_url: parsed.normalizedLinkedinUrl,
+    profile_image_url: "",
+    public_slug: parsed.publicSlug,
+    source: "linkedin_slug",
+  };
+}
+
+function inferLinkedInProfileFields({
+  description,
+  fallbackName,
+  firstName,
+  lastName,
+  title,
+}: {
+  description: string;
+  fallbackName: string;
+  firstName: string;
+  lastName: string;
+  title: string;
+}) {
+  const titleParts = title
+    .split(/\s+-\s+/)
+    .map((part) => cleanLinkedInField(part))
+    .filter(Boolean)
+    .filter((part) => !/^linkedin$/i.test(part));
+
+  const metadataName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const descriptionName = extractLinkedInDescriptionName(description);
+  const fullName = cleanLinkedInField(
+    metadataName || descriptionName || titleParts[0] || fallbackName,
+  );
+  const headlineParts = titleParts[0] && namesLookEqual(titleParts[0], fullName)
+    ? titleParts.slice(1)
+    : titleParts.slice(1).length > 0
+      ? titleParts.slice(1)
+      : titleParts;
+  const titleHeadline = cleanLinkedInField(headlineParts.join(" - "));
+  const descriptionHeadline = extractLinkedInDescriptionHeadline(description, fullName);
+  const headline = cleanLinkedInField(titleHeadline || descriptionHeadline);
+  const titleAndCompany = inferTitleAndCompany(headline || descriptionHeadline);
+
+  return {
+    currentCompany: titleAndCompany.company,
+    currentTitle: titleAndCompany.title,
+    fullName,
+    headline,
+    location: extractLinkedInLocation(description),
+  };
+}
+
+function extractLinkedInDescriptionName(description: string) {
+  const match = description.match(/View\s+(.+?)(?:'s|’s)\s+profile\s+on\s+LinkedIn/i);
+  return cleanLinkedInField(match?.[1] ?? "");
+}
+
+function extractLinkedInDescriptionHeadline(description: string, fullName: string) {
+  const normalized = description
+    .replace(/View\s+.+?(?:'s|’s)\s+profile\s+on\s+LinkedIn\.?/i, "")
+    .replace(/LinkedIn is the world's largest business network.*$/i, "")
+    .trim();
+  const atMatch = normalized.match(/([^.,;]+?\s+at\s+[^.,;]+)/i);
+  if (atMatch?.[1]) return cleanLinkedInField(atMatch[1]);
+
+  const sentence = normalized
+    .split(/[.!?]\s+/)
+    .map((part) => cleanLinkedInField(part))
+    .find((part) => part && !part.toLowerCase().includes("connections"));
+
+  if (!sentence || namesLookEqual(sentence, fullName)) return "";
+  return sentence;
+}
+
+function extractLinkedInLocation(description: string) {
+  const explicitLocation = description.match(/(?:Location|Located in)\s*[:\-]\s*([^.;]+)/i);
+  if (explicitLocation?.[1]) return cleanLinkedInField(explicitLocation[1]);
+
+  const areaMatch = description.match(/\b([A-Z][A-Za-z .'-]+(?: Area| Metropolitan Area| Region))\b/);
+  return cleanLinkedInField(areaMatch?.[1] ?? "");
+}
+
+function inferTitleAndCompany(value: string) {
+  const atMatch = value.match(/^(.+?)\s+(?:at|@)\s+(.+)$/i);
+  if (atMatch?.[1] && atMatch?.[2]) {
+    return {
+      company: cleanLinkedInField(atMatch[2]),
+      title: cleanLinkedInField(atMatch[1]),
+    };
+  }
+
+  const separators = [" | ", " - ", " · "];
+  for (const separator of separators) {
+    const parts = value.split(separator).map((part) => cleanLinkedInField(part)).filter(Boolean);
+    if (parts.length >= 2) {
+      return {
+        company: parts[1],
+        title: parts[0],
+      };
+    }
+  }
+
+  return {
+    company: "",
+    title: cleanLinkedInField(value),
+  };
+}
+
+function getLinkedInMetadataConfidence(
+  inferred: ReturnType<typeof inferLinkedInProfileFields>,
+  image: string,
+): "high" | "medium" | "low" {
+  let score = 0;
+  if (inferred.fullName) score += 2;
+  if (inferred.headline) score += 2;
+  if (inferred.currentTitle) score += 1;
+  if (inferred.currentCompany) score += 1;
+  if (inferred.location) score += 1;
+  if (image) score += 1;
+
+  if (score >= 5) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+
+function namesLookEqual(left: string, right: string) {
+  return normalizeNameForComparison(left) === normalizeNameForComparison(right);
+}
+
+function normalizeNameForComparison(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function cleanLinkedInField(value: string) {
+  return value
+    .replace(/\s+\|\s+LinkedIn.*$/i, "")
+    .replace(/\s+-\s+LinkedIn.*$/i, "")
+    .replace(/\s+on\s+LinkedIn$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 260);
 }
 
 function extractMeta(html: string, property: string) {

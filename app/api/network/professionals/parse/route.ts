@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  fetchLinkedInOpenGraphMetadata,
-  parseProfessionalLinkedInUrl,
-} from "@/lib/professionals";
+import { fetchLinkedInPublicProfessionalData } from "@/lib/professionals";
 
 export const runtime = "nodejs";
 
@@ -11,25 +8,29 @@ export async function POST(request: Request) {
     linkedinUrl?: string;
   } | null;
   const linkedinUrl = body?.linkedinUrl?.trim() ?? "";
-  const parsed = parseProfessionalLinkedInUrl(linkedinUrl);
+  const profile = await fetchLinkedInPublicProfessionalData(linkedinUrl);
 
-  if (!parsed) {
+  if (!profile) {
     return NextResponse.json(
       { error: "Please enter a valid public LinkedIn profile URL." },
       { status: 400 },
     );
   }
 
-  const metadata = await fetchLinkedInOpenGraphMetadata(parsed.linkedinUrl);
-
   return NextResponse.json({
-    canonicalLinkedinUrl: parsed.linkedinUrl,
-    linkedinUrl: parsed.originalLinkedinUrl,
-    metadataSource: metadata ? "open_graph" : "url",
-    normalizedLinkedinUrl: parsed.normalizedLinkedinUrl,
-    profileImageUrl: metadata?.image ?? "",
-    publicSlug: parsed.publicSlug,
-    suggestedHeadline: metadata?.description ?? "",
-    suggestedName: metadata?.title || parsed.suggestedName,
+    canonicalLinkedinUrl: profile.normalized_linkedin_url,
+    confidence: profile.confidence,
+    currentCompany: profile.current_company,
+    currentTitle: profile.current_title,
+    linkedinUrl: profile.linkedin_url,
+    location: profile.location,
+    metadataSource:
+      profile.source === "linkedin_public_metadata" ? "open_graph" : "url",
+    normalizedLinkedinUrl: profile.normalized_linkedin_url,
+    profileImageUrl: profile.profile_image_url,
+    publicSlug: profile.public_slug,
+    source: profile.source,
+    suggestedHeadline: profile.headline,
+    suggestedName: profile.full_name,
   });
 }

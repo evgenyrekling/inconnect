@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type ParsedLinkedInProfile = {
-  linkedinUrl: string;
-  metadataSource: string;
-  profileImageUrl: string;
-  publicSlug: string;
-  suggestedHeadline: string;
-  suggestedName: string;
+  confidence: "high" | "medium" | "low";
+  current_company: string;
+  current_title: string;
+  full_name: string;
+  headline: string;
+  linkedin_url: string;
+  location: string;
+  normalized_linkedin_url: string;
+  profile_image_url: string;
+  public_slug: string;
+  source: "linkedin_public_metadata" | "linkedin_slug";
 };
 
 type CompanyOption = {
@@ -105,8 +110,8 @@ export function AddProfessionalClient({
     setMessage("");
     setSavedProfessional(null);
 
-    const response = await fetch("/api/network/professionals/parse", {
-      body: JSON.stringify({ linkedinUrl }),
+    const response = await fetch("/api/professionals/fetch-linkedin", {
+      body: JSON.stringify({ linkedin_url: linkedinUrl }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
@@ -121,20 +126,20 @@ export function AddProfessionalClient({
     }
 
     setParsedProfile(data);
-    setLinkedinUrl(data.linkedinUrl);
+    setLinkedinUrl(data.linkedin_url);
     setForm({
-      currentCompany: "",
-      currentTitle: "",
-      displayName: data.suggestedName,
-      headline: data.suggestedHeadline,
+      currentCompany: data.current_company,
+      currentTitle: data.current_title,
+      displayName: data.full_name,
+      headline: data.headline,
       industry: "",
-      location: "",
-      profileImageUrl: data.profileImageUrl,
+      location: data.location,
+      profileImageUrl: data.profile_image_url,
     });
     setMessage(
-      data.metadataSource === "open_graph"
-        ? "Available public metadata was found. Please confirm before saving."
-        : "LinkedIn URL parsed. Please confirm the professional details before saving.",
+      data.source === "linkedin_public_metadata"
+        ? "Review and edit before saving. INConnect uses only publicly available metadata."
+        : "LinkedIn public metadata was not available, so INConnect used the profile URL slug. Review and edit before saving.",
     );
   }
 
@@ -236,8 +241,8 @@ export function AddProfessionalClient({
             {isParsing ? "Fetching..." : "Fetch Available Data"}
           </button>
           <p className="text-sm leading-6 text-[#666666]">
-            INConnect only parses the public URL and optional public metadata. It
-            does not scrape LinkedIn behind login or verify private data.
+            INConnect uses only publicly available metadata when LinkedIn allows
+            it. It does not scrape behind login or verify private data.
           </p>
         </div>
       </section>
@@ -247,6 +252,19 @@ export function AddProfessionalClient({
           Step 2
         </p>
         <h2 className="mt-3 text-2xl font-semibold">Confirm professional details</h2>
+        {parsedProfile && (
+          <div className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+            <p className="font-semibold text-[#191919]">
+              Review and edit before saving. INConnect uses only publicly available metadata.
+            </p>
+            <p className="mt-1">
+              Source: {parsedProfile.source === "linkedin_public_metadata" ? "LinkedIn public metadata" : "LinkedIn URL slug"} · Confidence: {parsedProfile.confidence}
+            </p>
+            <p className="mt-1 break-all">
+              Duplicate key: {parsedProfile.normalized_linkedin_url}
+            </p>
+          </div>
+        )}
         <div className="mt-5 grid gap-4">
           <div className="grid gap-4 md:grid-cols-2">
             <TextField
