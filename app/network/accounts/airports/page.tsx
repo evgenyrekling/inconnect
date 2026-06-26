@@ -3,11 +3,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Footer, Header } from "@/components/inconnect-platform";
 import {
-  ACCOUNT_STATUS_LABELS,
-  AUTOMATION_POTENTIAL_TIER_LABELS,
-  formatAirportAccountDate,
   formatAutomationPotentialScore,
-  formatAirportPassengerCount,
+  formatCompactAirportPassengerCount,
   getAirportAccounts,
   PASSENGER_TIER_LABELS,
   STRATEGIC_PRIORITY_LABELS,
@@ -20,11 +17,13 @@ type AirportAccountsPageProps = {
 };
 
 type AirportAccountFilters = {
-  automationTier: string;
+  automationScoreMax: string;
+  automationScoreMin: string;
+  city: string;
+  country: string;
   passengerTier: string;
   query: string;
   sort: string;
-  status: string;
   strategicPriority: string;
 };
 
@@ -115,7 +114,7 @@ function AirportAccountFiltersForm({
 }) {
   return (
     <form className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr] xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr]">
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
           Search
           <input
@@ -123,6 +122,24 @@ function AirportAccountFiltersForm({
             defaultValue={filters.query}
             name="q"
             placeholder="Airport name, IATA, ICAO, city, or country"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Country
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.country}
+            name="country"
+            placeholder="Country"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          City
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.city}
+            name="city"
+            placeholder="City"
           />
         </label>
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
@@ -156,21 +173,6 @@ function AirportAccountFiltersForm({
           </select>
         </label>
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-          Automation tier
-          <select
-            className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-            defaultValue={filters.automationTier}
-            name="automationTier"
-          >
-            <option value="">All automation tiers</option>
-            {Object.entries(AUTOMATION_POTENTIAL_TIER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
           Sort
           <select
             className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
@@ -182,19 +184,28 @@ function AirportAccountFiltersForm({
           </select>
         </label>
         <label className="grid gap-2 text-sm font-semibold text-[#191919]">
-          Status
-          <select
-            className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-            defaultValue={filters.status}
-            name="status"
-          >
-            <option value="">All statuses</option>
-            {Object.entries(ACCOUNT_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          Score min
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.automationScoreMin}
+            max={100}
+            min={0}
+            name="scoreMin"
+            placeholder="0"
+            type="number"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+          Score max
+          <input
+            className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none transition focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+            defaultValue={filters.automationScoreMax}
+            max={100}
+            min={0}
+            name="scoreMax"
+            placeholder="100"
+            type="number"
+          />
         </label>
       </div>
       <div className="mt-5 flex flex-wrap gap-3">
@@ -219,22 +230,20 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
   return (
     <div className="mt-6 overflow-hidden rounded-lg border border-[#D9DDE3] bg-white shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
       <div className="overflow-x-auto">
-        <table className="min-w-[1380px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1120px] w-full border-collapse text-left text-sm">
           <thead className="bg-[#F8F8F6] text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
             <tr>
-              <HeaderCell>Airport Name</HeaderCell>
+              <HeaderCell>Company</HeaderCell>
               <HeaderCell>IATA</HeaderCell>
               <HeaderCell>ICAO</HeaderCell>
               <HeaderCell>Country</HeaderCell>
               <HeaderCell>City</HeaderCell>
-              <HeaderCell>Passengers</HeaderCell>
+              <HeaderCell>Annual Passengers</HeaderCell>
               <HeaderCell>Passenger Tier</HeaderCell>
               <HeaderCell>Automation Score</HeaderCell>
-              <HeaderCell>Automation Tier</HeaderCell>
               <HeaderCell>Strategic Priority</HeaderCell>
-              <HeaderCell>Status</HeaderCell>
-              <HeaderCell>Professionals Connected</HeaderCell>
-              <HeaderCell>Last Updated</HeaderCell>
+              <HeaderCell>Professionals</HeaderCell>
+              <HeaderCell>Opportunities</HeaderCell>
               <HeaderCell>Actions</HeaderCell>
             </tr>
           </thead>
@@ -260,7 +269,9 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
                 <BodyCell>{account.icaoCode || "-"}</BodyCell>
                 <BodyCell>{account.countryName || account.countryCode || "-"}</BodyCell>
                 <BodyCell>{account.city || account.municipality || "-"}</BodyCell>
-                <BodyCell>{formatAirportPassengerCount(account.annualPassengers)}</BodyCell>
+                <BodyCell>
+                  {formatCompactAirportPassengerCount(account.annualPassengers)}
+                </BodyCell>
                 <BodyCell>
                   <Badge tone={account.passengerTier === "unknown" ? "gray" : "blue"}>
                     {PASSENGER_TIER_LABELS[account.passengerTier]}
@@ -271,50 +282,24 @@ function AirportAccountsTable({ accounts }: { accounts: AirportAccount[] }) {
                 </BodyCell>
                 <BodyCell>
                   <Badge
-                    tone={
-                      account.automationPotentialTier === "unknown" ? "gray" : "green"
-                    }
-                  >
-                    {AUTOMATION_POTENTIAL_TIER_LABELS[account.automationPotentialTier]}
-                  </Badge>
-                </BodyCell>
-                <BodyCell>
-                  <Badge
                     tone={account.strategicPriority === "unrated" ? "gray" : "green"}
                   >
                     {STRATEGIC_PRIORITY_LABELS[account.strategicPriority]}
                   </Badge>
                 </BodyCell>
                 <BodyCell>
-                  <Badge tone={account.status === "inactive" ? "gray" : "blue"}>
-                    {ACCOUNT_STATUS_LABELS[account.status]}
-                  </Badge>
+                  <CountBadge count={account.professionalsCount} />
                 </BodyCell>
-                <BodyCell>0</BodyCell>
-                <BodyCell>{formatAirportAccountDate(account.updatedAt)}</BodyCell>
                 <BodyCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      className="inline-flex h-9 items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-3 text-xs font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
-                      href={`/network/accounts/airports/${account.id}`}
-                    >
-                      Open
-                    </Link>
-                    <button
-                      className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 text-xs font-semibold text-[#777777]"
-                      disabled
-                      type="button"
-                    >
-                      Attach Professional
-                    </button>
-                    <button
-                      className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] px-3 text-xs font-semibold text-[#777777]"
-                      disabled
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                  </div>
+                  <CountBadge count={account.openOpportunitiesCount} />
+                </BodyCell>
+                <BodyCell>
+                  <Link
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-3 text-xs font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
+                    href={`/network/accounts/airports/${account.id}`}
+                  >
+                    View
+                  </Link>
                 </BodyCell>
               </tr>
             ))}
@@ -356,15 +341,25 @@ function Badge({
   );
 }
 
+function CountBadge({ count }: { count: number }) {
+  return (
+    <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-[#D9DDE3] bg-[#F8F8F6] px-2.5 py-1 text-xs font-semibold text-[#444444]">
+      {count}
+    </span>
+  );
+}
+
 function getAirportAccountFilters(
   searchParams: Record<string, string | string[] | undefined>,
 ): AirportAccountFilters {
   return {
-    automationTier: getSearchValue(searchParams.automationTier),
+    automationScoreMax: getSearchValue(searchParams.scoreMax),
+    automationScoreMin: getSearchValue(searchParams.scoreMin),
+    city: getSearchValue(searchParams.city),
+    country: getSearchValue(searchParams.country),
     passengerTier: getSearchValue(searchParams.passengerTier),
     query: getSearchValue(searchParams.q),
     sort: getSearchValue(searchParams.sort),
-    status: getSearchValue(searchParams.status),
     strategicPriority: getSearchValue(searchParams.strategicPriority),
   };
 }
@@ -392,16 +387,27 @@ function filterAirportAccounts(
     }
 
     if (
+      filters.country &&
+      !matchesText(filters.country, account.countryCode, account.countryName)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.city &&
+      !matchesText(filters.city, account.city, account.municipality)
+    ) {
+      return false;
+    }
+
+    if (
       filters.passengerTier &&
       filters.passengerTier !== account.passengerTier
     ) {
       return false;
     }
 
-    if (
-      filters.automationTier &&
-      filters.automationTier !== account.automationPotentialTier
-    ) {
+    if (!matchesScoreRange(account.automationPotentialScore, filters)) {
       return false;
     }
 
@@ -409,10 +415,6 @@ function filterAirportAccounts(
       filters.strategicPriority &&
       filters.strategicPriority !== account.strategicPriority
     ) {
-      return false;
-    }
-
-    if (filters.status && filters.status !== account.status) {
       return false;
     }
 
@@ -433,6 +435,28 @@ function sortAirportAccounts(accounts: AirportAccount[], sort: string) {
 function matchesText(filterValue: string, ...values: string[]) {
   const normalizedFilter = filterValue.trim().toLowerCase();
   return values.some((value) => value.toLowerCase().includes(normalizedFilter));
+}
+
+function matchesScoreRange(
+  score: number | null,
+  filters: Pick<AirportAccountFilters, "automationScoreMax" | "automationScoreMin">,
+) {
+  const minScore = parseScoreFilter(filters.automationScoreMin);
+  const maxScore = parseScoreFilter(filters.automationScoreMax);
+
+  if (minScore === null && maxScore === null) return true;
+  if (typeof score !== "number" || !Number.isFinite(score)) return false;
+  if (minScore !== null && score < minScore) return false;
+  if (maxScore !== null && score > maxScore) return false;
+
+  return true;
+}
+
+function parseScoreFilter(value: string) {
+  if (!value.trim()) return null;
+  const score = Number.parseInt(value, 10);
+  if (!Number.isFinite(score)) return null;
+  return Math.max(0, Math.min(100, score));
 }
 
 function getSearchValue(value: string | string[] | undefined) {

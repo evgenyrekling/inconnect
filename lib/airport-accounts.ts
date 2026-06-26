@@ -46,6 +46,8 @@ export type AirportAccount = {
   ourairportsIdent: string;
   passengerTier: PassengerTier;
   passengerYear: number | null;
+  openOpportunitiesCount: number;
+  professionalsCount: number;
   regionCode: string;
   scheduledService: string;
   sourceIdentity: string;
@@ -338,6 +340,22 @@ export function formatAirportPassengerCount(annualPassengers: number | null) {
   return `${new Intl.NumberFormat("en").format(annualPassengers)} annual passengers`;
 }
 
+export function formatCompactAirportPassengerCount(annualPassengers: number | null) {
+  if (typeof annualPassengers !== "number" || !Number.isFinite(annualPassengers)) {
+    return "No data";
+  }
+
+  if (annualPassengers >= 1_000_000) {
+    return `${(annualPassengers / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+
+  if (annualPassengers >= 1_000) {
+    return `${(annualPassengers / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+
+  return new Intl.NumberFormat("en").format(annualPassengers);
+}
+
 export function normalizeAirportIataCode(value: string) {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
 }
@@ -394,9 +412,11 @@ function mapAirportAccountRow(row: AirportAccountRow): AirportAccount {
     municipality: row.municipality ?? "",
     name: row.name ?? "",
     notes: row.notes ?? "",
+    openOpportunitiesCount: 0,
     ourairportsIdent: row.ourairports_ident ?? "",
     passengerTier: normalizePassengerTier(row.passenger_tier),
     passengerYear: row.passenger_year,
+    professionalsCount: 0,
     regionCode: row.region_code ?? "",
     scheduledService: row.scheduled_service ?? "",
     sourceIdentity: row.source_identity ?? "",
