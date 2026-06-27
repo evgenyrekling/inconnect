@@ -64,6 +64,44 @@ export async function getVerifiedAccessToken() {
   return data.session?.access_token ?? "";
 }
 
+export async function sendEmailOtp(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.auth.signInWithOtp({
+    email: normalizedEmail,
+    options: {
+      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      shouldCreateUser: true,
+    },
+  });
+
+  if (error) throw error;
+}
+
+export async function verifyEmailOtp({
+  email,
+  token,
+}: {
+  email: string;
+  token: string;
+}) {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token,
+    type: "email",
+  });
+
+  if (error) throw error;
+  if (!data.session?.access_token) {
+    throw new Error(
+      "Email OTP was verified, but Supabase did not create a browser session.",
+    );
+  }
+
+  return data;
+}
+
 export async function getVerifiedAuthHeaders(): Promise<Record<string, string>> {
   const token = await getVerifiedAccessToken();
   if (!token) return {};

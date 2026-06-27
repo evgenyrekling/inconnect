@@ -2,10 +2,11 @@
 
 import { type FormEvent, useState } from "react";
 import {
+  sendEmailOtp,
   storeVerifiedIdentity,
   type StoredVerifiedIdentity,
+  verifyEmailOtp,
 } from "@/lib/auth-client";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type EmailOTPLoginModalProps = {
   onClose: () => void;
@@ -32,16 +33,7 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
 
     setIsSubmitting(true);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          emailRedirectTo:
-            typeof window !== "undefined" ? window.location.origin : undefined,
-          shouldCreateUser: true,
-        },
-      });
-      if (otpError) throw otpError;
+      await sendEmailOtp(email);
       setStep("code");
       setMessage("Verification code sent.");
     } catch (sendError) {
@@ -68,15 +60,11 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
 
     setIsSubmitting(true);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
+      const data = await verifyEmailOtp({
+        email,
         token: normalizedCode,
-        type: "email",
       });
-      if (verifyError) throw verifyError;
       const accessToken = data.session?.access_token;
-      if (!accessToken) throw new Error("Verified session was not created.");
 
       const response = await fetch("/api/auth/sync", {
         headers: { Authorization: `Bearer ${accessToken}` },
