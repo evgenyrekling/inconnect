@@ -37,6 +37,13 @@ type SubscriptionPayload = {
   userKey?: string;
 };
 
+type SupabaseLikeError = {
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+  message?: string;
+};
+
 export async function GET(request: NextRequest) {
   const digestType = normalizeDigestType(request.nextUrl.searchParams.get("digestType") ?? "");
 
@@ -124,11 +131,19 @@ export async function POST(request: NextRequest) {
 
     if (lookupError) {
       console.error("DIGEST SUBSCRIPTION LOOKUP ERROR", {
+        code: lookupError.code,
+        details: lookupError.details,
         digestType,
         email: normalizedEmail,
         error: lookupError,
+        hint: lookupError.hint,
+        message: lookupError.message,
+        operation: "subscriptions.select_existing_subscription",
       });
-      throw lookupError;
+      return createSubscriptionErrorResponse({
+        error: lookupError,
+        operation: "subscriptions.select_existing_subscription",
+      });
     }
 
     const subscriptionPayload = {
@@ -161,12 +176,24 @@ export async function POST(request: NextRequest) {
 
     if (result.error) {
       console.error("DIGEST SUBSCRIPTION SAVE ERROR", {
+        code: result.error.code,
+        details: result.error.details,
         digestType,
         email: normalizedEmail,
         error: result.error,
+        hint: result.error.hint,
+        message: result.error.message,
+        operation: existingSubscription
+          ? "subscriptions.update_subscription"
+          : "subscriptions.insert_subscription",
         payload: subscriptionPayload,
       });
-      throw result.error;
+      return createSubscriptionErrorResponse({
+        error: result.error,
+        operation: existingSubscription
+          ? "subscriptions.update_subscription"
+          : "subscriptions.insert_subscription",
+      });
     }
 
     const isSubscribed = Boolean(result.data?.is_active);
@@ -200,6 +227,39 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function createSubscriptionErrorResponse({
+  error,
+  operation,
+}: {
+  error: SupabaseLikeError;
+  operation: string;
+}) {
+  const supabaseError = {
+    code: error.code ?? "",
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    message: error.message ?? "Supabase request failed.",
+  };
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  console.error("DIGEST SUBSCRIPTION SUPABASE ERROR", {
+    operation,
+    supabaseError,
+  });
+
+  return NextResponse.json(
+    {
+      error: isDevelopment
+        ? "Subscription failed"
+        : "Digest subscription could not be saved.",
+      operation,
+      sqlOperation: operation,
+      supabaseError: isDevelopment ? supabaseError : undefined,
+    },
+    { status: 500 },
+  );
 }
 
 function normalizeDigestType(value: string): DigestType | "" {

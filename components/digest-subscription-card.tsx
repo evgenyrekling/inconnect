@@ -44,6 +44,19 @@ type SubscriptionResponse = {
   };
 };
 
+type SubscriptionErrorResponse = {
+  details?: string;
+  error?: string;
+  operation?: string;
+  sqlOperation?: string;
+  supabaseError?: {
+    code?: string;
+    details?: string | null;
+    hint?: string | null;
+    message?: string;
+  };
+};
+
 const RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const UNIFIED_IDENTITY_STORAGE_KEY = "inconnect_identity";
 
@@ -135,15 +148,21 @@ export function DigestSubscriptionCard({
       });
       const payload = (await response.json().catch(() => null)) as
         | SubscriptionResponse
-        | { error?: string; details?: string }
+        | SubscriptionErrorResponse
         | null;
 
+      if (!response.ok) {
+        console.error("DIGEST SUBSCRIPTION RESPONSE ERROR", {
+          action,
+          digestType,
+          payload,
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+
       if (!response.ok || !payload || !("isSubscribed" in payload)) {
-        throw new Error(
-          payload && "error" in payload && payload.error
-            ? payload.error
-            : "Subscription could not be saved.",
-        );
+        throw new Error(formatSubscriptionError(payload as SubscriptionErrorResponse | null));
       }
 
       setIsSubscribed(payload.isSubscribed);
@@ -230,7 +249,7 @@ export function DigestSubscriptionCard({
         </p>
       )}
       {error && (
-        <p className="mt-4 rounded-lg border border-[#B24020]/20 bg-[#FFF4F1] px-4 py-3 text-sm font-semibold text-[#B24020]">
+        <p className="mt-4 whitespace-pre-wrap rounded-lg border border-[#B24020]/20 bg-[#FFF4F1] px-4 py-3 text-sm font-semibold text-[#B24020]">
           {error}
         </p>
       )}
@@ -301,4 +320,27 @@ function getIdentityDisplayName(identity: StoredIdentity | null) {
   const name = identity?.name?.trim() ?? "";
   if (name && !/^not clearly/i.test(name)) return name;
   return identity?.email?.split("@")[0] ?? "";
+}
+
+function formatSubscriptionError(payload: SubscriptionErrorResponse | null) {
+  const fallback = "Digest subscription could not be saved.";
+  if (process.env.NODE_ENV !== "development") {
+    return payload?.error || fallback;
+  }
+
+  const supabaseError = payload?.supabaseError;
+  if (!supabaseError) {
+    return [payload?.error || fallback, payload?.details].filter(Boolean).join("\n\n");
+  }
+
+  return [
+    payload?.error || "Subscription failed",
+    payload?.sqlOperation ? `Operation:\n${payload.sqlOperation}` : "",
+    supabaseError.code ? `Code:\n${supabaseError.code}` : "",
+    supabaseError.message ? `Message:\n${supabaseError.message}` : "",
+    supabaseError.details ? `Details:\n${supabaseError.details}` : "",
+    supabaseError.hint ? `Hint:\n${supabaseError.hint}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
