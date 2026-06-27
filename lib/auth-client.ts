@@ -18,6 +18,7 @@ export type StoredVerifiedIdentity = {
 const LEGACY_RETURNING_USER_STORAGE_KEY = "inconnect:returning-user";
 const LEGACY_UNIFIED_IDENTITY_STORAGE_KEY = "inconnect:user-identity";
 const UNIFIED_IDENTITY_STORAGE_KEY = "inconnect_identity";
+const AUTH_CALLBACK_PATH = "/auth/callback";
 
 export function readStoredVerifiedIdentity(): StoredVerifiedIdentity | null {
   if (typeof window === "undefined") return null;
@@ -70,7 +71,7 @@ export async function sendEmailOtp(email: string) {
   const { error } = await supabase.auth.signInWithOtp({
     email: normalizedEmail,
     options: {
-      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      emailRedirectTo: getEmailOtpFallbackRedirectUrl(),
       shouldCreateUser: true,
     },
   });
@@ -100,6 +101,64 @@ export async function verifyEmailOtp({
   }
 
   return data;
+}
+
+export async function syncVerifiedSupabaseSession() {
+  const accessToken = await getVerifiedAccessToken();
+  if (!accessToken) {
+    throw new Error("No verified Supabase browser session was found.");
+  }
+
+  const response = await fetch("/api/auth/sync", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: "POST",
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        user?: {
+          email?: string;
+          emailVerified?: boolean;
+          linkedinUrl?: string;
+          name?: string;
+          normalizedEmail?: string;
+          supabaseAuthUserId?: string;
+          userId?: string;
+          userKey?: string;
+        };
+        error?: string;
+      }
+    | null;
+
+  if (!response.ok || !payload?.user?.email || !payload.user.userKey) {
+    throw new Error(payload?.error ?? "Verified session could not be synced.");
+  }
+
+  const identity: StoredVerifiedIdentity = {
+    email: payload.user.email,
+    emailVerified: true,
+    linkedinUrl: payload.user.linkedinUrl ?? "",
+    name: payload.user.name ?? "",
+    normalizedEmail: payload.user.normalizedEmail,
+    signedInAt: new Date().toISOString(),
+    supabaseAuthUserId: payload.user.supabaseAuthUserId,
+    userId: payload.user.userId,
+    userKey: payload.user.userKey,
+  };
+  storeVerifiedIdentity(identity);
+  return identity;
+}
+
+export function getEmailOtpFallbackRedirectUrl() {
+  return `${getPublicSiteOrigin()}${AUTH_CALLBACK_PATH}`;
+}
+
+function getPublicSiteOrigin() {
+  if (typeof window !== "undefined") return window.location.origin;
+  const configuredOrigin =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://in-connect.app";
+  return configuredOrigin.replace(/\/+$/, "");
 }
 
 export async function getVerifiedAuthHeaders(): Promise<Record<string, string>> {

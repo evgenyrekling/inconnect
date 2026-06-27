@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getEmailOtpFallbackRedirectUrl } from "@/lib/auth-client";
 import {
   getSupabaseBrowserClient,
   getSupabaseBrowserConfigErrorMessage,
@@ -32,6 +33,7 @@ export function AuthDebugPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const config = useMemo(() => getSupabaseBrowserConfigStatus(), []);
   const configError = useMemo(() => getSupabaseBrowserConfigErrorMessage(), []);
+  const fallbackRedirectUrl = useMemo(() => getEmailOtpFallbackRedirectUrl(), []);
 
   useEffect(() => {
     let isMounted = true;
@@ -129,6 +131,11 @@ export function AuthDebugPanel() {
             label="Current authenticated user"
             ok={Boolean(diagnostics.userId) && !diagnostics.userError}
           />
+          <DiagnosticRow
+            detail={fallbackRedirectUrl}
+            label="Fallback email link redirect URL"
+            ok={fallbackRedirectUrl.endsWith("/auth/callback")}
+          />
         </div>
 
         {config.missingVariables.length > 0 && (
@@ -141,8 +148,13 @@ export function AuthDebugPanel() {
         <div className="mt-6 rounded-lg border border-[#D9DDE3] bg-white p-5 text-sm leading-6 text-[#666666] shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
           <p className="font-semibold text-[#191919]">Email OTP flow checked</p>
           <p className="mt-2">
-            The sign-in modal uses Supabase `signInWithOtp`, then `verifyOtp`, then syncs the
-            verified browser session through `/api/auth/sync`.
+            The sign-in modal sends a code with Supabase `signInWithOtp`, verifies the 6-digit code
+            with `verifyOtp`, then syncs the verified browser session through `/api/auth/sync`.
+          </p>
+          <p className="mt-2">
+            Supabase Email OTP template assumption: include the six-digit token in the email using
+            `{"{{ .Token }}"}`. If the email also includes a fallback verification link, allow and
+            use `{fallbackRedirectUrl}` as the redirect URL.
           </p>
           <p className="mt-2">
             {isLoading

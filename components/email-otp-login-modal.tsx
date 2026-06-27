@@ -3,7 +3,7 @@
 import { type FormEvent, useState } from "react";
 import {
   sendEmailOtp,
-  storeVerifiedIdentity,
+  syncVerifiedSupabaseSession,
   type StoredVerifiedIdentity,
   verifyEmailOtp,
 } from "@/lib/auth-client";
@@ -35,7 +35,7 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
     try {
       await sendEmailOtp(email);
       setStep("code");
-      setMessage("Verification code sent.");
+      setMessage("6-digit verification code sent.");
     } catch (sendError) {
       setError(
         sendError instanceof Error
@@ -64,43 +64,10 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
         email,
         token: normalizedCode,
       });
-      const accessToken = data.session?.access_token;
-
-      const response = await fetch("/api/auth/sync", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            user?: {
-              email?: string;
-              emailVerified?: boolean;
-              linkedinUrl?: string;
-              name?: string;
-              normalizedEmail?: string;
-              supabaseAuthUserId?: string;
-              userId?: string;
-              userKey?: string;
-            };
-            error?: string;
-          }
-        | null;
-      if (!response.ok || !payload?.user?.email || !payload.user.userKey) {
-        throw new Error(payload?.error ?? "Verified session could not be synced.");
+      if (!data.session?.access_token) {
+        throw new Error("Email OTP was verified, but no browser session was created.");
       }
-
-      const identity: StoredVerifiedIdentity = {
-        email: payload.user.email,
-        emailVerified: true,
-        linkedinUrl: payload.user.linkedinUrl ?? "",
-        name: payload.user.name ?? "",
-        normalizedEmail: payload.user.normalizedEmail,
-        signedInAt: new Date().toISOString(),
-        supabaseAuthUserId: payload.user.supabaseAuthUserId,
-        userId: payload.user.userId,
-        userKey: payload.user.userKey,
-      };
-      storeVerifiedIdentity(identity);
+      const identity = await syncVerifiedSupabaseSession();
       setMessage("You are signed in.");
       onSignedIn(identity);
     } catch (verifyError) {
@@ -123,12 +90,12 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
               INConnect Account
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
-              {step === "email" ? "Sign in to INConnect" : "Check your email"}
+              {step === "email" ? "Sign in with email code" : "Enter your code"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#666666]">
               {step === "email"
-                ? "Enter your email to receive a verification code."
-                : `Enter the verification code sent to ${email.trim().toLowerCase()}.`}
+                ? "Enter your email to receive a 6-digit verification code."
+                : `Enter the 6-digit code sent to ${email.trim().toLowerCase()}.`}
             </p>
           </div>
           <button
@@ -159,7 +126,7 @@ export function EmailOTPLoginModal({ onClose, onSignedIn }: EmailOTPLoginModalPr
               disabled={isSubmitting}
               type="submit"
             >
-              {isSubmitting ? "Sending..." : "Send Code"}
+              {isSubmitting ? "Sending..." : "Send 6-Digit Code"}
             </button>
           </form>
         ) : (
