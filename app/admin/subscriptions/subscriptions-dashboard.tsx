@@ -94,7 +94,7 @@ export function AdminSubscriptionsDashboard() {
   }
 
   async function runDigestAction(
-    endpoint: "/api/admin/airport-daily" | "/api/admin/linkedin-daily",
+    endpoint: "/api/admin/airport-daily" | "/api/admin/lidar-daily" | "/api/admin/linkedin-daily",
     action: "send_subscribers" | "send_test",
     label: string,
   ) {
@@ -239,6 +239,25 @@ export function AdminSubscriptionsDashboard() {
                       "/api/admin/airport-daily",
                       "send_test",
                       "Airport Automation Daily",
+                    )
+                  }
+                />
+                <DigestOperationCard
+                  activeCount={getActiveCount(digestCounts, "lidar_daily")}
+                  disabled={isActionLoading}
+                  label="LiDAR Daily"
+                  onSendSubscribers={() =>
+                    runDigestAction(
+                      "/api/admin/lidar-daily",
+                      "send_subscribers",
+                      "LiDAR Daily",
+                    )
+                  }
+                  onSendTest={() =>
+                    runDigestAction(
+                      "/api/admin/lidar-daily",
+                      "send_test",
+                      "LiDAR Daily",
                     )
                   }
                 />

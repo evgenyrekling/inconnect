@@ -250,10 +250,34 @@ create table if not exists public.subscriptions (
       digest_type in (
         'airport_automation_daily',
         'linkedin_daily',
+        'lidar_daily',
         'smart_mobility_daily',
         'industrial_automation_daily'
       )
     )
+);
+
+create table if not exists public.market_articles (
+  id uuid primary key default gen_random_uuid(),
+  article_type text not null,
+  title text not null,
+  slug text not null,
+  category text,
+  source_name text,
+  source_url text,
+  source_domain text,
+  source_image_url text,
+  image_attribution text,
+  body text,
+  inconnect_perspective text,
+  excerpt text,
+  status text default 'draft_candidate',
+  quality_score integer,
+  published boolean default false,
+  published_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.email_deliveries (
@@ -449,6 +473,15 @@ create index if not exists blog_posts_auto_generated_created_at_idx
   on public.blog_posts (auto_generated, created_at desc);
 create unique index if not exists airport_briefings_slug_idx
   on public.airport_briefings (slug);
+create unique index if not exists market_articles_type_slug_unique_idx
+  on public.market_articles (article_type, slug);
+create index if not exists market_articles_type_published_idx
+  on public.market_articles (article_type, published, published_at desc);
+create index if not exists market_articles_type_status_idx
+  on public.market_articles (article_type, status, created_at desc);
+create index if not exists market_articles_source_url_idx
+  on public.market_articles (source_url)
+  where source_url is not null;
 create index if not exists airport_briefings_published_generated_at_idx
   on public.airport_briefings (published, generated_at desc);
 create index if not exists airport_briefings_source_url_idx

@@ -247,11 +247,16 @@ const marketIntelligenceNavItems: DropdownNavItem[] = [
   },
   {
     href: "/intelligence",
-    label: "Daily Briefings",
+    label: "Daily Articles",
   },
   {
     href: "/intelligence/airport-automation",
     label: "Airport Automation Daily",
+    status: "Active",
+  },
+  {
+    href: "/intelligence/lidar-daily",
+    label: "LiDAR Daily",
     status: "Active",
   },
   {
@@ -6283,11 +6288,18 @@ export function INConnectArticleGeneratorPage() {
 
 export function INConnectIntelligencePage({
   latestAirportBriefing,
+  latestLidarArticle,
   latestInsightPosts,
 }: {
   latestAirportBriefing?: {
     excerpt: string;
     generatedAt: string;
+    slug: string;
+    title: string;
+  } | null;
+  latestLidarArticle?: {
+    excerpt: string;
+    publishedAt: string;
     slug: string;
     title: string;
   } | null;
@@ -6312,7 +6324,7 @@ export function INConnectIntelligencePage({
       </section>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-2">
+        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-2 xl:grid-cols-3">
           <article className="flex min-h-full flex-col rounded-lg border border-[#0A66C2]/25 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -6373,6 +6385,69 @@ export function INConnectIntelligencePage({
               href="/intelligence/airport-automation"
             >
               Read Daily Digest
+            </a>
+          </article>
+
+          <article className="flex min-h-full flex-col rounded-lg border border-[#0A66C2]/25 bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.06)] sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#057642]">
+                  Active
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-[#191919]">
+                  LiDAR Daily
+                </h2>
+              </div>
+              <Target className="h-8 w-8 text-[#0A66C2]" />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-[#666666]">
+              Daily original INConnect articles covering LiDAR product launches,
+              deployments, partnerships, funding, market moves, technology
+              updates, and real-world applications.
+            </p>
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-[#444444]">
+              {[
+                "One primary source per day",
+                "Product and deployment news",
+                "Industry application context",
+                "INConnect perspective",
+                "Source attribution",
+              ].map((item) => (
+                <li className="flex gap-2" key={item}>
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-[#057642]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            {latestLidarArticle ? (
+              <a
+                className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 transition hover:border-[#0A66C2]/40 hover:bg-white"
+                href={`/intelligence/lidar-daily/${latestLidarArticle.slug}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0A66C2]">
+                  Latest article
+                </p>
+                <h3 className="mt-2 text-base font-semibold leading-snug text-[#191919]">
+                  {latestLidarArticle.title}
+                </h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#666666]">
+                  {latestLidarArticle.excerpt}
+                </p>
+              </a>
+            ) : (
+              <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666666]">
+                LiDAR Daily articles will appear here after the first draft is
+                reviewed and published.
+              </p>
+            )}
+            <a
+              className={classNames(
+                "mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
+                PRIMARY_CTA_CLASS,
+              )}
+              href="/intelligence/lidar-daily"
+            >
+              Read LiDAR Daily
             </a>
           </article>
 

@@ -22,6 +22,7 @@ type EmailDeliveryRow = {
 
 const DIGEST_LABELS: Record<string, string> = {
   airport_automation_daily: "Airport Automation Daily",
+  lidar_daily: "LiDAR Daily",
   linkedin_daily: "LinkedIn Daily",
   smart_mobility_daily: "Smart Mobility Daily",
   industrial_automation_daily: "Industrial Automation Daily",

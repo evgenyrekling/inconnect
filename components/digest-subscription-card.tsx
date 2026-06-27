@@ -11,6 +11,7 @@ import {
 type DigestType =
   | "airport_automation_daily"
   | "linkedin_daily"
+  | "lidar_daily"
   | "smart_mobility_daily"
   | "industrial_automation_daily";
 

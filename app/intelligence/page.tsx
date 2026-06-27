@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { INConnectIntelligencePage } from "@/components/inconnect-platform";
 import { getPublishedAirportBriefings } from "@/lib/airport-briefings";
 import { type BlogPost, getPublishedBlogPosts } from "@/lib/blog-posts";
+import { getPublishedMarketArticles } from "@/lib/market-articles";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -27,8 +28,11 @@ const INTELLIGENCE_BLOG_TERMS = [
 ];
 
 export default async function IntelligencePage() {
-  const [latestAirportBriefing] = await getPublishedAirportBriefings(1);
-  const latestInsightPosts = getLatestIntelligencePosts(await getPublishedBlogPosts());
+  const [[latestAirportBriefing], [latestLidarArticle], latestInsightPosts] = await Promise.all([
+    getPublishedAirportBriefings(1),
+    getPublishedMarketArticles("lidar_daily", 1),
+    getPublishedBlogPosts().then(getLatestIntelligencePosts),
+  ]);
 
   return (
     <INConnectIntelligencePage
@@ -39,6 +43,16 @@ export default async function IntelligencePage() {
               generatedAt: latestAirportBriefing.generatedAt,
               slug: latestAirportBriefing.slug,
               title: latestAirportBriefing.title,
+            }
+          : null
+      }
+      latestLidarArticle={
+        latestLidarArticle
+          ? {
+              excerpt: latestLidarArticle.excerpt,
+              publishedAt: latestLidarArticle.publishedAt,
+              slug: latestLidarArticle.slug,
+              title: latestLidarArticle.title,
             }
           : null
       }

@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const DIGESTS = {
   airport_automation_daily: "Airport Automation Daily",
   linkedin_daily: "LinkedIn Daily",
+  lidar_daily: "LiDAR Daily",
   smart_mobility_daily: "Smart Mobility Daily",
   industrial_automation_daily: "Industrial Automation Daily",
 } as const;

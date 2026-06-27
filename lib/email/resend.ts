@@ -69,6 +69,14 @@ export async function sendLinkedInDailyEmail(input: Omit<SendDigestEmailInput, "
   });
 }
 
+export async function sendLidarDailyEmail(input: Omit<SendDigestEmailInput, "digestTitle">) {
+  return sendDigestEmail({
+    ...input,
+    digestTitle: "LiDAR Daily",
+    subject: input.subject ?? `LiDAR Daily | ${input.title}`,
+  });
+}
+
 export async function sendDigestEmail({
   briefingText,
   digestTitle,
