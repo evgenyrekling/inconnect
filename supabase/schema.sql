@@ -352,6 +352,11 @@ create table if not exists public.accounts (
   source_url text,
   website text,
   linkedin_url text,
+  company_type text,
+  industry text,
+  description text,
+  created_by_user_id uuid references public.users(id) on delete set null,
+  created_by_email text,
   is_seeded boolean default false,
   is_active boolean default true,
   notes text,
@@ -567,6 +572,13 @@ create index if not exists accounts_website_idx
 create index if not exists accounts_linkedin_url_idx
   on public.accounts (linkedin_url)
   where linkedin_url is not null;
+create index if not exists accounts_company_type_idx
+  on public.accounts (company_type);
+create index if not exists accounts_industry_idx
+  on public.accounts (industry);
+create index if not exists accounts_created_by_email_idx
+  on public.accounts (created_by_email)
+  where created_by_email is not null;
 create unique index if not exists accounts_airport_iata_unique_idx
   on public.accounts (iata_code)
   where account_type = 'airport' and iata_code is not null;
