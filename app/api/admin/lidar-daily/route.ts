@@ -22,7 +22,11 @@ export async function GET(request: NextRequest) {
       getLatestLidarAdminArticle(),
       getLidarSubscriberCount(),
     ]);
-    return NextResponse.json({ latestArticle, subscriberCount });
+    return NextResponse.json({
+      autoSendEnabled: isAutoSendLidarDailyEnabled(),
+      latestArticle,
+      subscriberCount,
+    });
   } catch (error) {
     console.error("ADMIN LIDAR DAILY LOOKUP ERROR", error);
     return NextResponse.json(
@@ -49,10 +53,17 @@ export async function POST(request: NextRequest) {
       const result = await generateAndStoreLidarDailyArticle({
         sourceUrl: payload.sourceUrl,
       });
+      const message = result.article.published
+        ? "Article published automatically and is ready for email delivery."
+        : "Draft generated successfully. Publish manually or enable AUTO_SEND_LIDAR_DAILY.";
       return NextResponse.json({
         articleId: result.article.id,
+        message,
+        publishDecision: result.publishDecision,
+        published: result.article.published,
         qualityScore: result.quality.score,
         slug: result.article.slug,
+        status: result.article.status,
         success: true,
         title: result.article.title,
       });
@@ -77,12 +88,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (payload?.action === "send_test") {
-      const result = await sendLatestLidarDailyEmail({ testEmail: email });
+      const result = await sendLatestLidarDailyEmail({
+        allowDraft: true,
+        articleId: payload.articleId,
+        testEmail: email,
+      });
       return NextResponse.json(result);
     }
 
     if (payload?.action === "send_subscribers") {
-      const result = await sendLatestLidarDailyEmail();
+      const result = await sendLatestLidarDailyEmail({
+        articleId: payload.articleId,
+      });
       return NextResponse.json(result);
     }
 
@@ -119,4 +136,8 @@ function getAdminEmails() {
     .split(",")
     .map((value) => normalizeEmail(value))
     .filter(Boolean);
+}
+
+function isAutoSendLidarDailyEnabled() {
+  return (process.env.AUTO_SEND_LIDAR_DAILY ?? "").trim().toLowerCase() === "true";
 }

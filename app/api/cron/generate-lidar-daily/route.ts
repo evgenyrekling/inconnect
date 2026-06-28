@@ -11,17 +11,35 @@ export async function GET(request: NextRequest) {
   const authError = validateCronRequest(request);
   if (authError) return authError;
 
-  console.info("LIDAR DAILY CRON START");
+  const autoSendValue = process.env.AUTO_SEND_LIDAR_DAILY ?? "";
+  const autoSendEnabled = autoSendValue.trim().toLowerCase() === "true";
+  console.info("LIDAR DAILY CRON START", {
+    autoSendEnabled,
+    autoSendValue,
+  });
 
   try {
     const result = await generateAndStoreLidarDailyArticle();
     let emailResult = null;
-    if (result.article.published && process.env.AUTO_SEND_LIDAR_DAILY === "true") {
+    if (result.article.published && autoSendEnabled) {
       emailResult = await sendLatestLidarDailyEmail();
+      console.info("LIDAR DAILY CRON EMAIL COMPLETE", {
+        failed: emailResult.failed,
+        sent: emailResult.sent,
+        subscriberCount: emailResult.subscribers,
+      });
+    } else {
+      console.info("LIDAR DAILY CRON EMAIL SKIPPED", {
+        articleStatus: result.article.status,
+        autoSendEnabled,
+        published: result.article.published,
+        reason: result.publishDecision.emailSkippedReason || "article was not published",
+      });
     }
 
     return NextResponse.json({
       email: emailResult,
+      publishDecision: result.publishDecision,
       published: result.article.published,
       qualityScore: result.quality.score,
       slug: result.article.slug,

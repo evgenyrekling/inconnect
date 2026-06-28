@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import type { MarketArticle } from "@/lib/market-articles";
 
 type AdminLidarDailyResponse = {
+  autoSendEnabled: boolean;
   latestArticle: MarketArticle | null;
   subscriberCount: number;
 };
@@ -88,7 +89,16 @@ export function AdminLidarDailyDashboard() {
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as
-        | { details?: string; error?: string; failed?: number; sent?: number; title?: string }
+        | {
+            details?: string;
+            error?: string;
+            failed?: number;
+            message?: string;
+            published?: boolean;
+            sent?: number;
+            status?: string;
+            title?: string;
+          }
         | null;
       if (!response.ok) {
         throw new Error(payload?.details || payload?.error || "LiDAR Daily action failed.");
@@ -175,6 +185,9 @@ export function AdminLidarDailyDashboard() {
             </article>
 
             <aside className="rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+              <p className="rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] px-3 py-2 text-xs font-semibold text-[#444444]">
+                AUTO_SEND_LIDAR_DAILY: {data.autoSendEnabled ? "true" : "false"}
+              </p>
               <p className="text-sm font-semibold text-[#191919]">Subscribers</p>
               <p className="mt-2 text-4xl font-semibold text-[#0A66C2]">{data.subscriberCount}</p>
               <p className="mt-2 text-sm text-[#666666]">active LiDAR Daily subscribers</p>
@@ -184,12 +197,17 @@ export function AdminLidarDailyDashboard() {
               </label>
               <div className="mt-6 grid gap-3">
                 <Action disabled={isWorking} label="Generate Article" onClick={() => runAction("generate")} />
-                <Action disabled={isWorking || !article} label="Publish" onClick={() => runAction("publish")} />
-                <Action disabled={isWorking || !article} label="Unpublish" onClick={() => runAction("unpublish")} secondary />
+                <Action disabled={isWorking || !article || article.published} label="Publish" onClick={() => runAction("publish")} />
+                <Action disabled={isWorking || !article || !article.published} label="Unpublish" onClick={() => runAction("unpublish")} secondary />
                 <Action disabled={isWorking || !article} label="Send Test Email" onClick={() => runAction("send_test")} />
-                <Action disabled={isWorking || !article} label="Send to Subscribers" onClick={() => runAction("send_subscribers")} />
+                <Action disabled={isWorking || !article || !article.published} label="Send to Subscribers" onClick={() => runAction("send_subscribers")} />
                 <Action danger disabled={isWorking || !article} label="Delete Article" onClick={() => runAction("delete")} />
               </div>
+              {article && !article.published && (
+                <p className="mt-4 rounded-lg border border-[#F5C542]/30 bg-[#FFF8E1] px-3 py-2 text-sm font-semibold text-[#7A5A00]">
+                  Draft generated successfully. Publish manually or enable AUTO_SEND_LIDAR_DAILY.
+                </p>
+              )}
             </aside>
           </div>
         )}
@@ -225,8 +243,13 @@ function getErrorMessage(
   return fallback;
 }
 
-function getActionMessage(action: string, payload: { failed?: number; sent?: number; title?: string } | null) {
-  if (action === "generate") return `Generated article: ${payload?.title ?? "LiDAR Daily"}`;
+function getActionMessage(
+  action: string,
+  payload: { failed?: number; message?: string; sent?: number; title?: string } | null,
+) {
+  if (action === "generate") {
+    return payload?.message || `Generated article: ${payload?.title ?? "LiDAR Daily"}`;
+  }
   if (action === "publish") return "Article published.";
   if (action === "unpublish") return "Article unpublished.";
   if (action === "send_test") return "Test email sent.";

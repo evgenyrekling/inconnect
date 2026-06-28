@@ -118,8 +118,26 @@ export async function generateAndStoreLidarDailyArticle(options?: {
 
   const generated = await generateOriginalLidarArticle(source);
   const quality = scoreLidarArticle(generated, source);
-  const published = Boolean(options?.publish || process.env.AUTO_SEND_LIDAR_DAILY === "true") &&
-    quality.score >= 85;
+  const autoSendEnabled = isAutoSendLidarDailyEnabled();
+  const publishRequested = Boolean(options?.publish || autoSendEnabled);
+  const published = publishRequested && quality.score >= 85;
+  const status = published ? "published" : "draft_candidate";
+  const emailSkippedReason = published
+    ? ""
+    : !autoSendEnabled && !options?.publish
+      ? "AUTO_SEND_LIDAR_DAILY is false"
+      : quality.score < 85
+        ? "quality score below 85"
+        : "publish not requested";
+  console.info("LIDAR DAILY PUBLISH DECISION", {
+    autoSendValue: process.env.AUTO_SEND_LIDAR_DAILY ?? "",
+    autoSendEnabled,
+    emailSkippedReason,
+    publishRequested,
+    published,
+    qualityScore: quality.score,
+    status,
+  });
   const now = new Date().toISOString();
   const slug = await ensureUniqueMarketArticleSlug(generated.slug || slugify(generated.title));
   const payload = {
@@ -137,7 +155,7 @@ export async function generateAndStoreLidarDailyArticle(options?: {
     source_image_url: source.imageUrl || null,
     source_name: source.sourceName,
     source_url: source.url,
-    status: published ? "published" : "draft_candidate",
+    status,
     title: generated.title,
     updated_at: now,
   };
@@ -156,28 +174,71 @@ export async function generateAndStoreLidarDailyArticle(options?: {
   }
 
   console.info("LIDAR DAILY ARTICLE STORED", {
+    autoSendValue: process.env.AUTO_SEND_LIDAR_DAILY ?? "",
+    emailSkippedReason,
     published,
     qualityScore: quality.score,
     slug,
+    status,
     title: generated.title,
   });
 
   return {
     article: mapMarketArticleRow(data),
+    publishDecision: {
+      autoSendEnabled,
+      emailSkippedReason,
+      publishRequested,
+      published,
+      status,
+    },
     quality,
   };
 }
 
-export async function sendLatestLidarDailyEmail(options?: { testEmail?: string }) {
+export async function sendLatestLidarDailyEmail(options?: {
+  allowDraft?: boolean;
+  articleId?: string;
+  testEmail?: string;
+}) {
   const supabase = getSupabaseAdminClient();
-  const article = await getLatestPublishedLidarArticle();
-  if (!article) throw new LidarDailyError("latest_article", "No published LiDAR Daily article found.");
+  const article = options?.articleId
+    ? await getLidarArticleById(options.articleId, Boolean(options.allowDraft))
+    : await getLatestPublishedLidarArticle();
+  if (!article) {
+    throw new LidarDailyError(
+      "latest_article",
+      options?.allowDraft
+        ? "No LiDAR Daily article found."
+        : "No published LiDAR Daily article found.",
+    );
+  }
+  if (!article.published && !options?.allowDraft) {
+    console.info("LIDAR DAILY EMAIL SKIPPED", {
+      articleId: article.id,
+      reason: "article is draft",
+      status: article.status,
+    });
+    throw new LidarDailyError("email_skip", "Publish the LiDAR Daily article before sending to subscribers.");
+  }
 
   const subscribers = options?.testEmail
     ? [{ email: normalizeEmail(options.testEmail), id: "test", normalized_email: normalizeEmail(options.testEmail), unsubscribe_token: null }]
     : await getActiveLidarSubscribers();
 
-  console.info("LIDAR DAILY EMAIL SUBSCRIBERS", { count: subscribers.length });
+  console.info("LIDAR DAILY EMAIL SUBSCRIBERS", {
+    articleId: article.id,
+    count: subscribers.length,
+    mode: options?.testEmail ? "test" : "subscribers",
+    published: article.published,
+    status: article.status,
+  });
+  if (subscribers.length === 0) {
+    console.info("LIDAR DAILY EMAIL SKIPPED", {
+      articleId: article.id,
+      reason: "no active lidar_daily subscribers",
+    });
+  }
 
   let sent = 0;
   let failed = 0;
@@ -212,6 +273,11 @@ export async function sendLatestLidarDailyEmail(options?: { testEmail?: string }
       }
       sent += 1;
       results.push({ email, status: "sent" });
+      console.info("LIDAR DAILY EMAIL SENT", {
+        articleId: article.id,
+        email,
+        sent,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("LIDAR DAILY EMAIL SEND FAILURE", { email, error });
@@ -228,6 +294,14 @@ export async function sendLatestLidarDailyEmail(options?: { testEmail?: string }
       results.push({ email, error: message, status: "failed" });
     }
   }
+
+  console.info("LIDAR DAILY EMAIL COMPLETE", {
+    articleId: article.id,
+    failed,
+    mode: options?.testEmail ? "test" : "subscribers",
+    sent,
+    subscriberCount: subscribers.length,
+  });
 
   return {
     articleId: article.id,
@@ -441,6 +515,23 @@ async function getLatestPublishedLidarArticle() {
   return data ? mapMarketArticleRow(data) : null;
 }
 
+async function getLidarArticleById(articleId: string, allowDraft: boolean) {
+  const supabase = getSupabaseAdminClient();
+  let query = supabase
+    .from("market_articles")
+    .select(
+      "id, article_type, title, slug, category, source_name, source_url, source_domain, source_image_url, image_attribution, body, inconnect_perspective, excerpt, status, quality_score, published, published_at, created_at, updated_at",
+    )
+    .eq("article_type", LIDAR_ARTICLE_TYPE)
+    .eq("id", articleId);
+
+  if (!allowDraft) query = query.eq("published", true);
+
+  const { data, error } = await query.maybeSingle<MarketArticleRow>();
+  if (error) throw new LidarDailyError("article_lookup", error.message);
+  return data ? mapMarketArticleRow(data) : null;
+}
+
 async function getActiveLidarSubscribers() {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
@@ -451,6 +542,10 @@ async function getActiveLidarSubscribers() {
     .returns<SubscriptionRow[]>();
   if (error) throw new LidarDailyError("subscribers", error.message);
   return data ?? [];
+}
+
+function isAutoSendLidarDailyEnabled() {
+  return (process.env.AUTO_SEND_LIDAR_DAILY ?? "").trim().toLowerCase() === "true";
 }
 
 async function ensureUnsubscribeToken(subscriptionId: string) {
