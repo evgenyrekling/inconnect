@@ -19,14 +19,18 @@ type SmartDraft = {
 type ProfessionalDraft = {
   current_company: string;
   current_title: string;
+  education_summary: string;
+  experience_summary: string;
   full_name: string;
   headline: string;
   industry: string;
   linkedin_url: string;
   location: string;
   notes: string;
+  phone: string;
   professional_email: string;
   profile_image_url: string;
+  skills: string[];
 };
 
 type CompanyDraft = {
@@ -85,14 +89,18 @@ type SaveResult = {
 const emptyProfessional: ProfessionalDraft = {
   current_company: "",
   current_title: "",
+  education_summary: "",
+  experience_summary: "",
   full_name: "",
   headline: "",
   industry: "",
   linkedin_url: "",
   location: "",
   notes: "",
+  phone: "",
   professional_email: "",
   profile_image_url: "",
+  skills: [],
 };
 
 const emptyCompany: CompanyDraft = {
@@ -255,6 +263,70 @@ export function SmartEntryClient() {
     await showReview(nextDraft);
   }
 
+  async function parseLinkedInPdf(file: File | null) {
+    setMessage("");
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+      setMessage("Please upload a PDF file.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("PDF file size must be 10 MB or less.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("profilePdf", file);
+      const response = await fetch("/api/network/smart-entry/parse-linkedin-pdf", {
+        body: formData,
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { draft?: SmartDraft; error?: string }
+        | null;
+      if (!response.ok || !payload?.draft) {
+        throw new Error(payload?.error || "LinkedIn PDF could not be parsed.");
+      }
+      await showReview(normalizeClientDraft(payload.draft));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "LinkedIn PDF could not be parsed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function parseBusinessCard(file: File | null) {
+    setMessage("");
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("Image file size must be 10 MB or less.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("businessCard", file);
+      const response = await fetch("/api/network/smart-entry/parse-business-card", {
+        body: formData,
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { draft?: SmartDraft; error?: string }
+        | null;
+      if (!response.ok || !payload?.draft) {
+        throw new Error(payload?.error || "Business card image could not be parsed.");
+      }
+      await showReview(normalizeClientDraft(payload.draft));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Business card image could not be parsed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function showReview(nextDraft: SmartDraft) {
     setDraft(nextDraft);
     setIsLoading(true);
@@ -346,8 +418,8 @@ export function SmartEntryClient() {
             <div className="mt-8 grid gap-5 lg:grid-cols-[320px_1fr]">
               <div className="grid gap-3">
                 <ModeButton active={mode === "linkedin"} label="Paste LinkedIn URL" onClick={() => setMode("linkedin")} />
-                <ModeButton active={mode === "pdf"} disabled label="Upload LinkedIn PDF" onClick={() => setMode("pdf")} />
-                <ModeButton active={mode === "card"} disabled label="Upload Business Card" onClick={() => setMode("card")} />
+                <ModeButton active={mode === "pdf"} label="Upload LinkedIn PDF" onClick={() => setMode("pdf")} />
+                <ModeButton active={mode === "card"} label="Upload Business Card" onClick={() => setMode("card")} />
                 <ModeButton active={mode === "manual"} label="Add Manually" onClick={() => setMode("manual")} />
               </div>
 
@@ -370,12 +442,38 @@ export function SmartEntryClient() {
                   </div>
                 )}
 
-                {(mode === "pdf" || mode === "card") && (
-                  <div className="rounded-lg border border-dashed border-[#A7B3C2] bg-white p-6 text-center">
-                    <h2 className="text-2xl font-semibold text-[#191919]">Coming soon</h2>
-                    <p className="mt-3 text-sm leading-6 text-[#666666]">
-                      Upload extraction will plug into this same review workflow when ready.
+                {mode === "pdf" && (
+                  <div className="grid gap-4">
+                    <h2 className="text-2xl font-semibold text-[#191919]">Upload LinkedIn PDF</h2>
+                    <p className="text-sm leading-6 text-[#666666]">
+                      Upload a LinkedIn profile PDF. INConnect will extract professional details and company names for review.
                     </p>
+                    <input
+                      accept="application/pdf,.pdf"
+                      className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-sm"
+                      disabled={isLoading}
+                      onChange={(event) => void parseLinkedInPdf(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                    <p className="text-xs font-semibold text-[#666666]">PDF only, 10 MB max. No official LinkedIn integration is used.</p>
+                  </div>
+                )}
+
+                {mode === "card" && (
+                  <div className="grid gap-4">
+                    <h2 className="text-2xl font-semibold text-[#191919]">Upload Business Card</h2>
+                    <p className="text-sm leading-6 text-[#666666]">
+                      Upload or capture a business card image. INConnect will extract visible text for review.
+                    </p>
+                    <input
+                      accept="image/*"
+                      capture="environment"
+                      className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-sm"
+                      disabled={isLoading}
+                      onChange={(event) => void parseBusinessCard(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                    <p className="text-xs font-semibold text-[#666666]">JPG, PNG, or WebP. 10 MB max.</p>
                   </div>
                 )}
 
@@ -475,11 +573,24 @@ function ManualEntry({
           <Field label="Full name *" onChange={(value) => setProfessional({ ...professional, full_name: value })} value={professional.full_name} />
           <Field label="LinkedIn URL" onChange={(value) => setProfessional({ ...professional, linkedin_url: value })} value={professional.linkedin_url} />
           <Field label="Email" onChange={(value) => setProfessional({ ...professional, professional_email: value })} value={professional.professional_email} />
+          <Field label="Phone" onChange={(value) => setProfessional({ ...professional, phone: value })} value={professional.phone} />
           <Field label="Headline" onChange={(value) => setProfessional({ ...professional, headline: value })} value={professional.headline} />
           <Field label="Title" onChange={(value) => setProfessional({ ...professional, current_title: value })} value={professional.current_title} />
           <Field label="Company" onChange={(value) => setProfessional({ ...professional, current_company: value })} value={professional.current_company} />
           <Field label="Location" onChange={(value) => setProfessional({ ...professional, location: value })} value={professional.location} />
           <Field label="Industry" onChange={(value) => setProfessional({ ...professional, industry: value })} value={professional.industry} />
+          <Field
+            label="Skills"
+            onChange={(value) =>
+              setProfessional({
+                ...professional,
+                skills: value.split(",").map((item) => item.trim()).filter(Boolean),
+              })
+            }
+            value={professional.skills.join(", ")}
+          />
+          <TextArea label="Experience Summary" onChange={(value) => setProfessional({ ...professional, experience_summary: value })} value={professional.experience_summary} />
+          <TextArea label="Education Summary" onChange={(value) => setProfessional({ ...professional, education_summary: value })} value={professional.education_summary} />
           <TextArea label="Notes" onChange={(value) => setProfessional({ ...professional, notes: value })} value={professional.notes} />
         </DraftPanel>
       )}
@@ -547,6 +658,33 @@ function ReviewScreen({
                   label="Email"
                   onChange={(value) => updateProfessional(draft, index, { professional_email: value }, onDraftChange)}
                   value={professional.professional_email}
+                />
+                <Field
+                  label="Phone"
+                  onChange={(value) => updateProfessional(draft, index, { phone: value }, onDraftChange)}
+                  value={professional.phone}
+                />
+                <Field
+                  label="Skills"
+                  onChange={(value) =>
+                    updateProfessional(
+                      draft,
+                      index,
+                      { skills: value.split(",").map((item) => item.trim()).filter(Boolean) },
+                      onDraftChange,
+                    )
+                  }
+                  value={professional.skills.join(", ")}
+                />
+                <TextArea
+                  label="Experience Summary"
+                  onChange={(value) => updateProfessional(draft, index, { experience_summary: value }, onDraftChange)}
+                  value={professional.experience_summary}
+                />
+                <TextArea
+                  label="Education Summary"
+                  onChange={(value) => updateProfessional(draft, index, { education_summary: value }, onDraftChange)}
+                  value={professional.education_summary}
                 />
                 {duplicate && (
                   <p className="rounded-lg border border-[#F5C542]/40 bg-[#FFF8E1] px-3 py-2 text-sm font-semibold text-[#7A5A00]">
@@ -902,6 +1040,30 @@ function validateDraft(draft: SmartDraft) {
     if (!company.display_name.trim() && !company.name.trim()) return "Company name is required.";
   }
   return "";
+}
+
+function normalizeClientDraft(draft: SmartDraft): SmartDraft {
+  return {
+    companies: (draft.companies ?? []).map((company) => ({
+      ...emptyCompany,
+      ...company,
+      display_name: company.display_name || company.name || "",
+      name: company.name || company.display_name || "",
+    })),
+    links: (draft.links ?? []).map((link) => ({
+      company_index: Number.isFinite(link.company_index) ? link.company_index : 0,
+      department: link.department ?? "",
+      is_primary: Boolean(link.is_primary),
+      professional_index: Number.isFinite(link.professional_index) ? link.professional_index : 0,
+      relationship_type: link.relationship_type || "employee",
+      title: link.title ?? "",
+    })),
+    professionals: (draft.professionals ?? []).map((professional) => ({
+      ...emptyProfessional,
+      ...professional,
+      skills: Array.isArray(professional.skills) ? professional.skills : [],
+    })),
+  };
 }
 
 function inferNameFromLinkedInUrl(value: string) {
