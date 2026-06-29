@@ -7,17 +7,27 @@ export const revalidate = 300;
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdminClient();
-    const [users, professionals, companies] = await Promise.all([
-      countVerifiedUsers(),
-      countProfessionals(),
+    const [registeredUsers, privateProfessionals, companies] = await Promise.all([
+      countRegisteredUsers(),
+      countPrivateProfessionals(),
       countCompanies(),
     ]);
+    const totalProfessionals = registeredUsers + privateProfessionals;
 
-    console.info("Platform stats loaded", { companies, professionals, users });
+    console.info("Platform stats loaded", {
+      companies,
+      privateProfessionals,
+      registeredUsers,
+      totalProfessionals,
+    });
 
     return NextResponse.json(
-      { companies, professionals, users },
+      {
+        companies,
+        privateProfessionals,
+        registeredUsers,
+        totalProfessionals,
+      },
       { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" } },
     );
   } catch (error) {
@@ -29,41 +39,32 @@ export async function GET() {
   }
 }
 
-async function countVerifiedUsers() {
+async function countRegisteredUsers() {
   const supabase = getSupabaseAdminClient();
-  const verified = await supabase
+  const { count, error } = await supabase
     .from("users")
-    .select("id", { count: "exact", head: true })
-    .eq("email_verified", true);
+    .select("id", { count: "exact", head: true });
 
-  if (!verified.error) return verified.count ?? 0;
-
-  console.warn("PLATFORM STATS VERIFIED USERS FALLBACK", verified.error);
-  const fallback = await supabase
-    .from("users")
-    .select("id", { count: "exact", head: true })
-    .not("email", "is", null);
-
-  if (fallback.error) throw fallback.error;
-  return fallback.count ?? 0;
+  if (error) throw error;
+  return count ?? 0;
 }
 
-async function countProfessionals() {
+async function countPrivateProfessionals() {
   const supabase = getSupabaseAdminClient();
   const { count, error } = await supabase
     .from("public_profiles")
     .select("id", { count: "exact", head: true })
-    .not("owner_user_id", "is", null)
+    .eq("profile_type", "professional")
     .neq("visibility", "removed")
-    .in("source", ["linkedin_url", "linkedin_public_metadata", "manual_professional"]);
+    .or("owner_user_id.not.is.null,owner_email.not.is.null");
 
   if (error) {
-    console.warn("PLATFORM STATS PROFESSIONALS FALLBACK", error);
+    console.warn("PLATFORM STATS PRIVATE PROFESSIONALS FALLBACK", error);
     const fallback = await supabase
       .from("public_profiles")
       .select("id", { count: "exact", head: true })
-      .not("owner_user_id", "is", null)
-      .neq("visibility", "removed");
+      .neq("visibility", "removed")
+      .or("owner_user_id.not.is.null,owner_email.not.is.null");
     if (fallback.error) throw fallback.error;
     return fallback.count ?? 0;
   }

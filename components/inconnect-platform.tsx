@@ -1575,8 +1575,9 @@ function DropdownMenuItem({
 function UserCountSocialProof() {
   const [stats, setStats] = useState<{
     companies: number;
-    professionals: number;
-    users: number;
+    privateProfessionals: number;
+    registeredUsers: number;
+    totalProfessionals: number;
   } | null>(null);
 
   useEffect(() => {
@@ -1586,13 +1587,19 @@ function UserCountSocialProof() {
       try {
         const response = await fetch("/api/platform-stats", { cache: "no-store" });
         const payload = (await response.json().catch(() => null)) as
-          | { companies?: number; professionals?: number; users?: number }
+          | {
+              companies?: number;
+              privateProfessionals?: number;
+              registeredUsers?: number;
+              totalProfessionals?: number;
+            }
           | null;
         if (!isActive || !response.ok || !payload) return;
         setStats({
           companies: Number(payload.companies ?? 0),
-          professionals: Number(payload.professionals ?? 0),
-          users: Number(payload.users ?? 0),
+          privateProfessionals: Number(payload.privateProfessionals ?? 0),
+          registeredUsers: Number(payload.registeredUsers ?? 0),
+          totalProfessionals: Number(payload.totalProfessionals ?? 0),
         });
       } catch {
         if (isActive) setStats(null);
@@ -1606,8 +1613,8 @@ function UserCountSocialProof() {
   }, []);
 
   const text = stats
-    ? `Join ${formatInteger(stats.users + stats.professionals)} professionals and ${formatInteger(stats.companies)} companies already growing their network with INConnect.`
-    : "Join professionals and companies already growing their network with INConnect.";
+    ? `${formatInteger(stats.totalProfessionals)} professionals and ${formatInteger(stats.companies)} companies already growing their network with INConnect.`
+    : "Professionals and companies are already growing their network with INConnect.";
 
   return (
     <div className="border-t border-[#D9DDE3] bg-[#F3F7FD] px-5 py-2 text-center sm:px-8 lg:px-10">
