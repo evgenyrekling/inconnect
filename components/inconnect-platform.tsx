@@ -9,6 +9,7 @@ import {
   ExternalLink,
   FileText,
   LoaderCircle,
+  LogIn,
   LockKeyhole,
   Radar,
   RefreshCw,
@@ -16,6 +17,7 @@ import {
   Sparkles,
   Target,
   Upload,
+  Users,
   Zap,
 } from "lucide-react";
 import {
@@ -226,85 +228,24 @@ type DropdownNavItem = {
   onSelect?: () => void;
   status?: "Active" | "Coming Soon";
 };
-const dashboardNavItems: DropdownNavItem[] = [
-  {
-    href: "/",
-    label: "Dashboard Overview",
-  },
-  {
-    href: "/network/profiles",
-    label: "Build Professional Profile",
-  },
-  {
-    href: "/network/accounts",
-    label: "Browse Companies",
-  },
-];
 const marketIntelligenceNavItems: DropdownNavItem[] = [
-  {
-    href: "/intelligence",
-    label: "Market Intelligence Overview",
-  },
-  {
-    href: "/intelligence",
-    label: "Daily Articles",
-  },
   {
     href: "/intelligence/airport-automation",
     label: "Airport Automation Daily",
-    status: "Active",
   },
   {
     href: "/intelligence/lidar-daily",
     label: "LiDAR Daily",
-    status: "Active",
   },
   {
     href: "/intelligence/linkedin-daily",
     label: "LinkedIn Daily",
-    status: "Active",
-  },
-  {
-    href: "/intelligence/linkedin-daily",
-    label: "Industry News",
-    status: "Active",
-  },
-  {
-    href: "/intelligence",
-    label: "Reports",
-    status: "Coming Soon",
-  },
-  {
-    href: "/intelligence/smart-mobility",
-    label: "Smart Mobility Daily",
-    status: "Coming Soon",
-  },
-  {
-    href: "/intelligence/industrial-automation",
-    label: "Industrial Automation Daily",
-    status: "Coming Soon",
-  },
-  {
-    href: "/intelligence/airport-automation",
-    label: "Technology Watch",
-    status: "Active",
-  },
-  {
-    href: "/intelligence",
-    label: "Market Insights",
-    status: "Coming Soon",
   },
 ];
 const toolNavItems: DropdownNavItem[] = [
-  { label: "LinkedIn Assessment", href: "/assessment" },
+  { label: "Assessment", href: "/assessment" },
   { label: "Headline Generator", href: "/headline-generator" },
-  { label: "Content Intelligence", status: "Coming Soon" },
-  { label: "Trend Radar", status: "Coming Soon" },
-];
-const pricingNavItems: DropdownNavItem[] = [
-  { href: "/pricing", label: "Pricing Overview" },
-  { href: "/pricing", label: "Free Tools" },
-  { href: "/pricing", label: "Future Pro Features" },
+  { label: "About Generator", href: "/about-generator" },
 ];
 
 type CurrentPublicProfileNavState = {
@@ -1110,10 +1051,6 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         </a>
         <div className="flex items-center gap-3">
           <nav className="hidden items-center gap-1 lg:flex">
-            <NavigationDropdown
-              items={dashboardNavItems}
-              label="Dashboard"
-            />
             <NavigationDropdown items={networkNavItems} label="Network" />
             <NavigationDropdown
               items={marketIntelligenceNavItems}
@@ -1121,11 +1058,7 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
             />
             <NavigationDropdown
               items={toolNavItems}
-              label="Tools"
-            />
-            <NavigationDropdown
-              items={pricingNavItems}
-              label="Pricing"
+              label="LinkedIn Tools"
             />
           </nav>
           <AccountMenu
@@ -1136,11 +1069,6 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         </div>
       </div>
       <nav className="flex flex-wrap gap-2 border-t border-[#D9DDE3] px-5 py-2 lg:hidden">
-        <NavigationDropdown
-          items={dashboardNavItems}
-          label="Dashboard"
-          mobile
-        />
         <NavigationDropdown items={networkNavItems} label="Network" mobile />
         <NavigationDropdown
           items={marketIntelligenceNavItems}
@@ -1149,12 +1077,7 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
         />
         <NavigationDropdown
           items={toolNavItems}
-          label="Tools"
-          mobile
-        />
-        <NavigationDropdown
-          items={pricingNavItems}
-          label="Pricing"
+          label="LinkedIn Tools"
           mobile
         />
       </nav>
@@ -1165,18 +1088,9 @@ export function Header({ showSocialProof = false }: { showSocialProof?: boolean 
 
 function getNetworkNavItems(profile: CurrentPublicProfileNavState): DropdownNavItem[] {
   return [
-    { href: "/network", label: "Network Overview" },
-    { href: "/network/professionals", label: "My Professionals" },
-    { href: "/network/professionals/new", label: "Add Professional" },
-    { href: "/network/create-profile", label: "Create Professional Profile" },
+    { href: "/network/smart-entry", label: "Smart Entry" },
     { href: "/network/accounts", label: "Companies" },
-    { href: "/network/accounts/airports", label: "Airport Operators" },
-    ...(profile
-      ? [
-          { href: `/p/${profile.slug}/edit`, label: "Edit Professional Profile" },
-          { href: `/p/${profile.slug}`, label: "My Professional Profile" },
-        ]
-      : []),
+    { href: "/network/professionals", label: "Professionals" },
   ];
 }
 
@@ -1659,19 +1573,59 @@ function DropdownMenuItem({
 }
 
 function UserCountSocialProof() {
+  const [stats, setStats] = useState<{
+    companies: number;
+    professionals: number;
+    users: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadStats() {
+      try {
+        const response = await fetch("/api/platform-stats", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as
+          | { companies?: number; professionals?: number; users?: number }
+          | null;
+        if (!isActive || !response.ok || !payload) return;
+        setStats({
+          companies: Number(payload.companies ?? 0),
+          professionals: Number(payload.professionals ?? 0),
+          users: Number(payload.users ?? 0),
+        });
+      } catch {
+        if (isActive) setStats(null);
+      }
+    }
+
+    void loadStats();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const text = stats
+    ? `Join ${formatInteger(stats.users + stats.professionals)} professionals and ${formatInteger(stats.companies)} companies already growing their network with INConnect.`
+    : "Join professionals and companies already growing their network with INConnect.";
+
   return (
     <div className="border-t border-[#D9DDE3] bg-[#F3F7FD] px-5 py-2 text-center sm:px-8 lg:px-10">
       <p className="text-sm font-semibold leading-6 text-[#0A66C2]">
-        Join 1,442 professionals and 867 companies already growing their network with INConnect.
+        {text}
       </p>
     </div>
   );
 }
 
+function formatInteger(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
 function HeroSection() {
   return (
     <section
-      className="relative flex min-h-[620px] items-center overflow-hidden bg-[#0A192F] bg-cover bg-center px-5 py-16 text-white sm:px-8 sm:py-20 lg:min-h-[680px] lg:px-10"
+      className="relative flex min-h-[560px] items-center overflow-hidden bg-[#0A192F] bg-cover bg-center px-5 py-16 text-white sm:px-8 sm:py-20 lg:min-h-[640px] lg:px-10"
       style={{ backgroundImage: "url('/hero-professionals-collage.png')" }}
     >
       <div aria-hidden="true" className="absolute inset-0 bg-[#0A192F]/70" />
@@ -1681,42 +1635,106 @@ function HeroSection() {
             INConnect
           </p>
           <p className="mt-3 text-lg font-semibold text-white/82">
-            Professional Intelligence Platform
+            Professionals, Companies, Market Intelligence
           </p>
           <h1 className="mt-5 max-w-5xl text-4xl font-semibold leading-tight sm:text-6xl">
-            INConnect helps professionals discover opportunities, understand markets, and connect with the right companies.
+            INConnect connects professionals, companies, and market intelligence for B2B growth.
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/72 sm:text-lg">
-            Join 1,442 professionals and 867 companies already growing their
-            network with INConnect.
+            Build your network around companies, follow daily market signals, and use
+            LinkedIn tools to improve professional visibility.
           </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              className={classNames(
-                "inline-flex h-12 items-center justify-center rounded-lg px-5",
-                PRIMARY_CTA_CLASS,
-              )}
-              href="/intelligence"
-            >
-              Explore Market Intelligence
-            </a>
-            <a
-              className="inline-flex h-12 items-center justify-center rounded-lg border border-white/40 bg-white/10 px-5 text-sm font-semibold text-white transition hover:border-white/70 hover:bg-white/16"
-              href="/network/profiles"
-            >
-              Build Your Professional Profile
-            </a>
-            <a
-              className="inline-flex h-12 items-center justify-center rounded-lg px-2 text-sm font-semibold text-[#B9D9FF] transition hover:text-white"
-              href="/network/accounts"
-            >
-              Browse Companies
-            </a>
-          </div>
         </div>
         <div aria-hidden="true" className="hidden lg:block" />
       </div>
     </section>
+  );
+}
+
+function HomeProductCards() {
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+
+  return (
+    <section className="px-5 py-12 sm:px-8 lg:px-10">
+      {isSignInOpen && (
+        <EmailOTPLoginModal
+          onClose={() => setIsSignInOpen(false)}
+          onSignedIn={() => setIsSignInOpen(false)}
+        />
+      )}
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <HomeProductCard
+            buttonLabel="Open Network"
+            description="Build your professional network around companies, airports, suppliers, and industry relationships."
+            href="/network/accounts"
+            icon={<Users className="h-7 w-7" />}
+            title="Network"
+          />
+          <HomeProductCard
+            buttonLabel="Read Articles"
+            description="Follow daily industry articles covering airport automation, LiDAR, and professional market signals."
+            href="/intelligence"
+            icon={<Radar className="h-7 w-7" />}
+            title="Market Intelligence"
+          />
+          <HomeProductCard
+            buttonLabel="Try Tools"
+            description="Improve your LinkedIn presence with AI-powered assessment, headline generation, and profile positioning tools."
+            href="/assessment"
+            icon={<Sparkles className="h-7 w-7" />}
+            title="LinkedIn Tools"
+          />
+          <HomeProductCard
+            buttonLabel="Sign In"
+            description="Sign in with verified email to manage your profile, professionals, companies, and subscriptions."
+            icon={<LogIn className="h-7 w-7" />}
+            onClick={() => setIsSignInOpen(true)}
+            title="Login"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HomeProductCard({
+  buttonLabel,
+  description,
+  href,
+  icon,
+  onClick,
+  title,
+}: {
+  buttonLabel: string;
+  description: string;
+  href?: string;
+  icon: ReactNode;
+  onClick?: () => void;
+  title: string;
+}) {
+  const buttonClass = classNames(
+    "mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm",
+    PRIMARY_CTA_CLASS,
+  );
+
+  return (
+    <article className="flex min-h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#E8F1FB] text-[#0A66C2]">
+        {icon}
+      </div>
+      <h2 className="mt-5 text-2xl font-semibold text-[#191919]">{title}</h2>
+      <p className="mt-3 flex-1 text-sm leading-6 text-[#666666]">{description}</p>
+      {href ? (
+        <a className={buttonClass} href={href}>
+          {buttonLabel}
+        </a>
+      ) : (
+        <button className={buttonClass} onClick={onClick} type="button">
+          {buttonLabel}
+        </button>
+      )}
+    </article>
   );
 }
 
@@ -5944,9 +5962,9 @@ function useHeadlineGeneratorIdentity() {
 export function INConnectHomePage() {
   return (
     <main className="min-h-screen bg-[#F3F2EF] text-[#191919]">
-      <Header />
+      <Header showSocialProof />
       <HeroSection />
-      <PlatformPillars />
+      <HomeProductCards />
       <Footer />
     </main>
   );

@@ -223,6 +223,7 @@ create table if not exists public.airport_daily_candidates (
 
 create table if not exists public.intelligence_subscriptions (
   id uuid primary key default gen_random_uuid(),
+  profile_type text default 'professional',
   user_id uuid references public.users(id) on delete cascade,
   user_key text,
   name text,
@@ -610,6 +611,8 @@ create unique index if not exists public_profiles_slug_idx
   on public.public_profiles (slug);
 create index if not exists public_profiles_user_id_idx
   on public.public_profiles (user_id);
+create index if not exists public_profiles_profile_type_idx
+  on public.public_profiles (profile_type);
 create index if not exists public_profiles_user_key_idx
   on public.public_profiles (user_key);
 create index if not exists public_profiles_visibility_idx
@@ -629,6 +632,14 @@ create unique index if not exists public_profiles_owner_linkedin_unique_idx
   )
   where normalized_linkedin_url is not null
     and (owner_user_id is not null or owner_email is not null);
+create unique index if not exists public_profiles_owner_professional_email_unique_idx
+  on public.public_profiles (
+    (coalesce(owner_user_id::text, lower(owner_email))),
+    normalized_professional_email
+  )
+  where normalized_professional_email is not null
+    and (owner_user_id is not null or owner_email is not null)
+    and profile_type = 'professional';
 create index if not exists public_profiles_owner_user_id_idx
   on public.public_profiles (owner_user_id)
   where owner_user_id is not null;

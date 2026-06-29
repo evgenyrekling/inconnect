@@ -234,10 +234,12 @@ export async function createManualCompanyAccount({
   createdByEmail,
   createdByUserId,
   input,
+  sourceIdentity = "manual",
 }: {
   createdByEmail: string;
   createdByUserId: string;
   input: CompanyAccountInput;
+  sourceIdentity?: "manual" | "smart_entry";
 }) {
   const companyName = cleanText(input.companyName);
   const companyType = cleanOption(input.companyType, COMPANY_TYPE_OPTIONS, "Other");
@@ -265,7 +267,7 @@ export async function createManualCompanyAccount({
     linkedin_url: cleanUrl(input.linkedinUrl) || null,
     name: companyName,
     notes: cleanLongText(input.notes) || null,
-    source_identity: "manual",
+    source_identity: sourceIdentity,
     status: cleanOption(input.accountStatus, ACCOUNT_STATUS_OPTIONS, "prospect"),
     strategic_priority: cleanOption(input.strategicPriority, STRATEGIC_PRIORITY_OPTIONS, "unrated"),
     updated_at: now,
