@@ -24,14 +24,18 @@ type SmartEntryDraft = {
 type SmartProfessionalDraft = {
   current_company?: string;
   current_title?: string;
+  education_summary?: string;
+  experience_summary?: string;
   full_name?: string;
   headline?: string;
   industry?: string;
   linkedin_url?: string;
   location?: string;
   notes?: string;
+  phone?: string;
   professional_email?: string;
   profile_image_url?: string;
+  skills?: string[] | string;
 };
 
 type SmartCompanyDraft = {
@@ -253,6 +257,8 @@ async function saveSmartEntryProfessional(
       [cleanText(professional.current_title), cleanText(professional.current_company)]
         .filter(Boolean)
         .join(" at "),
+    education_summary: cleanLongText(professional.education_summary),
+    experience_summary: cleanLongText(professional.experience_summary),
     industries: cleanText(professional.industry) ? [cleanText(professional.industry)] : [],
     industry: cleanText(professional.industry),
     is_public: false,
@@ -263,11 +269,13 @@ async function saveSmartEntryProfessional(
     notes: cleanLongText(professional.notes),
     owner_email: owner.email,
     owner_user_id: owner.userId,
+    phone: cleanText(professional.phone),
     professional_email: professionalEmail || null,
     professional_role: cleanText(professional.current_title),
     profile_image_url: cleanUrl(professional.profile_image_url),
     profile_photo_url: cleanUrl(professional.profile_image_url),
     profile_type: "professional",
+    skills: normalizeSkills(professional.skills),
     source: "smart_entry",
     summary: cleanText(professional.headline),
     updated_at: now,
@@ -427,6 +435,20 @@ function cleanUrl(value: unknown) {
 function cleanLinkedIn(value: unknown) {
   const url = cleanUrl(value);
   return parseProfessionalLinkedInUrl(url)?.originalLinkedinUrl || "";
+}
+
+function normalizeSkills(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => cleanText(item)).filter(Boolean).slice(0, 30);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[,;\n]/)
+      .map((item) => cleanText(item))
+      .filter(Boolean)
+      .slice(0, 30);
+  }
+  return [];
 }
 
 function slugify(value: string) {

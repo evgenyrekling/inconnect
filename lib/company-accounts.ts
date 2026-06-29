@@ -266,6 +266,8 @@ export async function createManualCompanyAccount({
     is_seeded: false,
     linkedin_url: cleanUrl(input.linkedinUrl) || null,
     name: companyName,
+    normalized_name: normalizeCompanyName(companyName) || null,
+    normalized_website_domain: normalizeDomain(input.website ?? "") || null,
     notes: cleanLongText(input.notes) || null,
     source_identity: sourceIdentity,
     status: cleanOption(input.accountStatus, ACCOUNT_STATUS_OPTIONS, "prospect"),

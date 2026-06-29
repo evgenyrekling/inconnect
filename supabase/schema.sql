@@ -356,6 +356,8 @@ create table if not exists public.accounts (
   company_type text,
   industry text,
   description text,
+  normalized_name text,
+  normalized_website_domain text,
   created_by_user_id uuid references public.users(id) on delete set null,
   created_by_email text,
   is_seeded boolean default false,
@@ -376,12 +378,16 @@ create table if not exists public.public_profiles (
   normalized_linkedin_url text,
   professional_email text,
   normalized_professional_email text,
+  phone text,
   location text,
   company text,
   professional_role text,
   current_title text,
   current_company text,
   industry text,
+  experience_summary text,
+  education_summary text,
+  skills jsonb default '[]'::jsonb,
   summary text,
   industries jsonb default '[]'::jsonb,
   expertise jsonb default '[]'::jsonb,
@@ -397,6 +403,7 @@ create table if not exists public.public_profiles (
   profile_photo_storage_path text,
   profile_image_url text,
   source text default 'linkedin_url',
+  notes text,
   owner_user_id uuid references public.users(id) on delete set null,
   owner_email text,
   created_at timestamptz default now(),
@@ -580,6 +587,12 @@ create index if not exists accounts_industry_idx
 create index if not exists accounts_created_by_email_idx
   on public.accounts (created_by_email)
   where created_by_email is not null;
+create index if not exists accounts_normalized_name_idx
+  on public.accounts (normalized_name)
+  where normalized_name is not null;
+create index if not exists accounts_normalized_website_domain_idx
+  on public.accounts (normalized_website_domain)
+  where normalized_website_domain is not null;
 create unique index if not exists accounts_airport_iata_unique_idx
   on public.accounts (iata_code)
   where account_type = 'airport' and iata_code is not null;
@@ -625,6 +638,9 @@ create index if not exists public_profiles_linkedin_url_idx
 create index if not exists public_profiles_normalized_professional_email_idx
   on public.public_profiles (normalized_professional_email)
   where normalized_professional_email is not null;
+create index if not exists public_profiles_phone_idx
+  on public.public_profiles (phone)
+  where phone is not null;
 create unique index if not exists public_profiles_owner_linkedin_unique_idx
   on public.public_profiles (
     (coalesce(owner_user_id::text, lower(owner_email))),
