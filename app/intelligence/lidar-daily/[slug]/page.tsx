@@ -26,6 +26,9 @@ export async function generateMetadata({ params }: LidarArticlePageProps): Promi
   const canonicalUrl = `${SITE_URL}/intelligence/lidar-daily/${article.slug}`;
   const title = `${article.title} | LiDAR Daily`;
   const description = article.excerpt || article.inconnectPerspective;
+  const images = article.sourceImageUrl
+    ? [{ alt: article.title, height: 864, url: article.sourceImageUrl, width: 1536 }]
+    : undefined;
 
   return {
     title,
@@ -34,16 +37,16 @@ export async function generateMetadata({ params }: LidarArticlePageProps): Promi
     openGraph: {
       authors: ["INConnect Market Intelligence"],
       description,
-      images: [{ alt: article.title, height: 864, url: article.sourceImageUrl, width: 1536 }],
+      images,
       publishedTime: article.publishedAt,
       title,
       type: "article",
       url: canonicalUrl,
     },
     twitter: {
-      card: "summary_large_image",
+      card: article.sourceImageUrl ? "summary_large_image" : "summary",
       description,
-      images: [article.sourceImageUrl],
+      images: article.sourceImageUrl ? [article.sourceImageUrl] : undefined,
       title,
     },
   };
@@ -65,9 +68,9 @@ export default async function LidarArticlePage({ params }: LidarArticlePageProps
     datePublished: article.publishedAt,
     description: article.excerpt,
     headline: article.title,
-    image: article.sourceImageUrl,
     mainEntityOfPage: `${SITE_URL}/intelligence/lidar-daily/${article.slug}`,
     publisher: { "@type": "Organization", name: "INConnect", url: SITE_URL },
+    ...(article.sourceImageUrl ? { image: article.sourceImageUrl } : {}),
   };
 
   return (
@@ -91,10 +94,14 @@ export default async function LidarArticlePage({ params }: LidarArticlePageProps
             {article.category && <><span>&middot;</span><span>{article.category}</span></>}
             {article.sourceName && <><span>&middot;</span><span>{article.sourceName}</span></>}
           </div>
-          <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
-            <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
-          </div>
-          {article.imageAttribution && <p className="mt-3 text-xs text-[#666666]">{article.imageAttribution}</p>}
+          {article.sourceImageUrl && (
+            <>
+              <div className="mt-8 aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB] shadow-[0_12px_30px_rgba(10,25,47,0.08)]">
+                <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
+              </div>
+              {article.imageAttribution && <p className="mt-3 text-xs text-[#666666]">{article.imageAttribution}</p>}
+            </>
+          )}
         </div>
       </article>
 

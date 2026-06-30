@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { EmailOTPLoginModal } from "@/components/email-otp-login-modal";
 import { getVerifiedAuthHeaders } from "@/lib/auth-client";
 
-type Mode = "linkedin" | "manual" | "pdf" | "card";
-type ManualType = "both" | "professional" | "company";
 type Step = "entry" | "review" | "success";
 
 type SmartDraft = {
-  professionals: ProfessionalDraft[];
   companies: CompanyDraft[];
   links: LinkDraft[];
+  professionals: ProfessionalDraft[];
+  relationships?: LinkDraft[];
 };
 
 type ProfessionalDraft = {
+  confidence?: number;
   current_company: string;
   current_title: string;
   education_summary: string;
@@ -36,6 +36,7 @@ type ProfessionalDraft = {
 type CompanyDraft = {
   city: string;
   company_type: string;
+  confidence?: number;
   country_name: string;
   description: string;
   display_name: string;
@@ -49,6 +50,7 @@ type CompanyDraft = {
 
 type LinkDraft = {
   company_index: number;
+  confidence?: number;
   department: string;
   is_primary: boolean;
   professional_index: number;
@@ -86,6 +88,12 @@ type SaveResult = {
   professionals: Array<{ displayName: string; id: string; url: string }>;
 };
 
+const emptyDraft: SmartDraft = {
+  companies: [],
+  links: [],
+  professionals: [],
+};
+
 const emptyProfessional: ProfessionalDraft = {
   current_company: "",
   current_title: "",
@@ -105,7 +113,7 @@ const emptyProfessional: ProfessionalDraft = {
 
 const emptyCompany: CompanyDraft = {
   city: "",
-  company_type: "Technology Supplier",
+  company_type: "Other",
   country_name: "",
   description: "",
   display_name: "",
@@ -131,197 +139,65 @@ const companyTypes = [
 ];
 
 export function SmartEntryClient() {
-  const [draft, setDraft] = useState<SmartDraft>({
-    companies: [],
-    links: [],
-    professionals: [],
-  });
+  const documentInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<SmartDraft>(emptyDraft);
+  const [error, setError] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSignInOpen, setIsSignInOpen] = useState(false);
-  const [linkedinUrl, setLinkedinUrl] = useState("");
-  const [manualType, setManualType] = useState<ManualType>("both");
   const [message, setMessage] = useState("");
-  const [mode, setMode] = useState<Mode>("linkedin");
   const [review, setReview] = useState<ReviewResponse["review"] | null>(null);
   const [saveAfterSignIn, setSaveAfterSignIn] = useState(false);
   const [step, setStep] = useState<Step>("entry");
   const [success, setSuccess] = useState<SaveResult | null>(null);
+  const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
 
-  async function createLinkedInDraft() {
+  async function analyzeInput() {
+    setError("");
     setMessage("");
-    if (!linkedinUrl.trim()) {
-      setMessage("Paste a LinkedIn profile URL first.");
-      return;
-    }
+    setSuccess(null);
 
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/professionals/fetch-linkedin", {
-        body: JSON.stringify({ linkedin_url: linkedinUrl }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            current_company?: string;
-            current_title?: string;
-            full_name?: string;
-            headline?: string;
-            industry?: string;
-            linkedin_url?: string;
-            location?: string;
-            profile_image_url?: string;
-          }
-        | null;
-
-      if (!response.ok || !payload) {
-        throw new Error("Could not read LinkedIn metadata. A basic draft was created from the URL.");
-      }
-
-      const professional = {
-        ...emptyProfessional,
-        current_company: payload.current_company ?? "",
-        current_title: payload.current_title ?? "",
-        full_name: payload.full_name ?? inferNameFromLinkedInUrl(linkedinUrl),
-        headline: payload.headline ?? "",
-        industry: payload.industry ?? "",
-        linkedin_url: payload.linkedin_url ?? linkedinUrl,
-        location: payload.location ?? "",
-        profile_image_url: payload.profile_image_url ?? "",
-      };
-      const companies = professional.current_company
-        ? [
-            {
-              ...emptyCompany,
-              display_name: professional.current_company,
-              industry: professional.industry,
-              name: professional.current_company,
-            },
-          ]
-        : [];
-      const links =
-        companies.length > 0
-          ? [
-              {
-                company_index: 0,
-                department: "",
-                is_primary: true,
-                professional_index: 0,
-                relationship_type: "employee",
-                title: professional.current_title,
-              },
-            ]
-          : [];
-
-      await showReview({ companies, links, professionals: [professional] });
-    } catch (error) {
-      const fallback = {
-        companies: [],
-        links: [],
-        professionals: [
-          {
-            ...emptyProfessional,
-            full_name: inferNameFromLinkedInUrl(linkedinUrl),
-            linkedin_url: linkedinUrl,
-          },
-        ],
-      };
-      setMessage(error instanceof Error ? error.message : "Basic draft created.");
-      await showReview(fallback);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function createManualDraft() {
-    const professional = draft.professionals[0] ?? emptyProfessional;
-    const company = draft.companies[0] ?? emptyCompany;
-    const nextDraft: SmartDraft = {
-      companies: manualType === "professional" ? [] : [company],
-      links:
-        manualType === "both"
-          ? [
-              {
-                company_index: 0,
-                department: "",
-                is_primary: true,
-                professional_index: 0,
-                relationship_type: "employee",
-                title: professional.current_title,
-              },
-            ]
-          : [],
-      professionals: manualType === "company" ? [] : [professional],
-    };
-
-    const error = validateDraft(nextDraft);
-    if (error) {
-      setMessage(error);
-      return;
-    }
-
-    await showReview(nextDraft);
-  }
-
-  async function parseLinkedInPdf(file: File | null) {
-    setMessage("");
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-      setMessage("Please upload a PDF file.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setMessage("PDF file size must be 10 MB or less.");
+    if (!text.trim() && !url.trim() && !file) {
+      setError("Paste text, add a URL, or upload a file first.");
       return;
     }
 
     setIsLoading(true);
     try {
       const formData = new FormData();
-      formData.append("profilePdf", file);
-      const response = await fetch("/api/network/smart-entry/parse-linkedin-pdf", {
+      if (text.trim()) formData.append("text", text.trim());
+      if (url.trim()) formData.append("url", url.trim());
+      if (file) formData.append("file", file);
+
+      const response = await fetch("/api/network/smart-entry/analyze", {
         body: formData,
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as
-        | { draft?: SmartDraft; error?: string }
+        | { draft?: SmartDraft; error?: string; summary?: { companies: number; professionals: number; relationships: number } }
         | null;
-      if (!response.ok || !payload?.draft) {
-        throw new Error(payload?.error || "LinkedIn PDF could not be parsed.");
-      }
-      await showReview(normalizeClientDraft(payload.draft));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "LinkedIn PDF could not be parsed.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
-  async function parseBusinessCard(file: File | null) {
-    setMessage("");
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setMessage("Image file size must be 10 MB or less.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("businessCard", file);
-      const response = await fetch("/api/network/smart-entry/parse-business-card", {
-        body: formData,
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | { draft?: SmartDraft; error?: string }
-        | null;
       if (!response.ok || !payload?.draft) {
-        throw new Error(payload?.error || "Business card image could not be parsed.");
+        throw new Error(payload?.error || "Smart Entry analysis failed.");
       }
-      await showReview(normalizeClientDraft(payload.draft));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Business card image could not be parsed.");
+
+      const nextDraft = normalizeClientDraft(payload.draft);
+      if (
+        nextDraft.companies.length === 0 &&
+        nextDraft.professionals.length === 0 &&
+        nextDraft.links.length === 0
+      ) {
+        throw new Error("INConnect could not detect companies, professionals, or relationships. Try adding more context.");
+      }
+
+      await showReview(nextDraft);
+      setMessage(
+        `INConnect found ${nextDraft.companies.length} companies, ${nextDraft.professionals.length} professionals, and ${nextDraft.links.length} relationships.`,
+      );
+    } catch (analyzeError) {
+      setError(analyzeError instanceof Error ? analyzeError.message : "Smart Entry analysis failed.");
     } finally {
       setIsLoading(false);
     }
@@ -329,7 +205,6 @@ export function SmartEntryClient() {
 
   async function showReview(nextDraft: SmartDraft) {
     setDraft(nextDraft);
-    setIsLoading(true);
     try {
       const response = await fetch("/api/network/smart-entry", {
         body: JSON.stringify({ action: "review", draft: nextDraft }),
@@ -338,13 +213,13 @@ export function SmartEntryClient() {
       });
       const payload = (await response.json().catch(() => null)) as ReviewResponse | null;
       setReview(payload?.review ?? null);
-      setStep("review");
     } finally {
-      setIsLoading(false);
+      setStep("review");
     }
   }
 
   async function saveEverything() {
+    setError("");
     setMessage("");
     setIsLoading(true);
     try {
@@ -370,11 +245,25 @@ export function SmartEntryClient() {
 
       setSuccess(payload.result);
       setStep("success");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Smart Entry could not be saved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Smart Entry could not be saved.");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function resetEntry() {
+    setDraft(emptyDraft);
+    setError("");
+    setFile(null);
+    setMessage("");
+    setReview(null);
+    setStep("entry");
+    setSuccess(null);
+    setText("");
+    setUrl("");
+    if (documentInputRef.current) documentInputRef.current.value = "";
+    if (photoInputRef.current) photoInputRef.current.value = "";
   }
 
   return (
@@ -399,93 +288,80 @@ export function SmartEntryClient() {
         <Link className="text-sm font-semibold text-[#0A66C2]" href="/network">
           Back to Network
         </Link>
-        <div className="mt-8 rounded-lg border border-[#D9DDE3] bg-white p-6 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-8">
+        <div className="mt-8 rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#0A66C2]">
             Network Smart Entry
           </p>
           <h1 className="mt-3 text-4xl font-semibold text-[#191919]">Add to Network</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[#666666]">
-            Capture a professional, company, or both from one simple entry.
+            Upload or paste anything. INConnect will detect companies, professionals, and relationships automatically.
           </p>
 
           {message && (
-            <p className="mt-5 rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] px-4 py-3 text-sm font-semibold text-[#444444]">
+            <p className="mt-5 rounded-lg border border-[#057642]/20 bg-[#F1F8F4] px-4 py-3 text-sm font-semibold text-[#057642]">
               {message}
+            </p>
+          )}
+          {error && (
+            <p className="mt-5 rounded-lg border border-[#B24020]/20 bg-[#FFF4F1] px-4 py-3 text-sm font-semibold text-[#B24020]">
+              {error}
             </p>
           )}
 
           {step === "entry" && (
-            <div className="mt-8 grid gap-5 lg:grid-cols-[320px_1fr]">
-              <div className="grid gap-3">
-                <ModeButton active={mode === "linkedin"} label="Paste LinkedIn URL" onClick={() => setMode("linkedin")} />
-                <ModeButton active={mode === "pdf"} label="Upload LinkedIn PDF" onClick={() => setMode("pdf")} />
-                <ModeButton active={mode === "card"} label="Upload Business Card" onClick={() => setMode("card")} />
-                <ModeButton active={mode === "manual"} label="Add Manually" onClick={() => setMode("manual")} />
+            <div className="mt-8 rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-4 sm:p-6">
+              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+                <div className="grid gap-4">
+                  <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+                    Paste text or LinkedIn URL
+                    <textarea
+                      className="min-h-52 rounded-lg border border-[#D9DDE3] bg-white px-4 py-4 text-base font-normal leading-7 outline-none focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+                      onChange={(event) => setText(event.target.value)}
+                      placeholder="Paste a LinkedIn URL, email signature, copied profile text, company website text, meeting notes, or anything useful."
+                      value={text}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-[#191919]">
+                    URL
+                    <input
+                      className="h-12 rounded-lg border border-[#D9DDE3] bg-white px-4 text-sm font-normal outline-none focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
+                      onChange={(event) => setUrl(event.target.value)}
+                      placeholder="https://www.linkedin.com/in/name or https://company.com"
+                      value={url}
+                    />
+                  </label>
+                </div>
+
+                <aside className="grid gap-4">
+                  <UploadBox
+                    description="PDF, TXT, LinkedIn PDF export, screenshots, or copied documents."
+                    inputRef={documentInputRef}
+                    label="Upload file"
+                    onChange={setFile}
+                  />
+                  <UploadBox
+                    accept="image/*"
+                    capture="environment"
+                    description="Take or upload a business card, badge, profile screenshot, or meeting photo."
+                    inputRef={photoInputRef}
+                    label="Take/upload photo"
+                    onChange={setFile}
+                  />
+                  {file && (
+                    <p className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-2 text-xs font-semibold text-[#444444]">
+                      Selected: {file.name}
+                    </p>
+                  )}
+                </aside>
               </div>
 
-              <div className="rounded-lg border border-[#D9DDE3] bg-[#F8F8F6] p-5">
-                {mode === "linkedin" && (
-                  <div className="grid gap-4">
-                    <h2 className="text-2xl font-semibold text-[#191919]">Paste LinkedIn URL</h2>
-                    <p className="text-sm leading-6 text-[#666666]">
-                      INConnect uses only public metadata when available and falls back to the profile slug.
-                    </p>
-                    <input
-                      className="h-12 rounded-lg border border-[#D9DDE3] px-3 text-sm outline-none focus:border-[#0A66C2] focus:ring-4 focus:ring-[#0A66C2]/10"
-                      onChange={(event) => setLinkedinUrl(event.target.value)}
-                      placeholder="https://www.linkedin.com/in/name/"
-                      value={linkedinUrl}
-                    />
-                    <PrimaryButton disabled={isLoading} onClick={createLinkedInDraft}>
-                      {isLoading ? "Reading..." : "Create Draft"}
-                    </PrimaryButton>
-                  </div>
-                )}
-
-                {mode === "pdf" && (
-                  <div className="grid gap-4">
-                    <h2 className="text-2xl font-semibold text-[#191919]">Upload LinkedIn PDF</h2>
-                    <p className="text-sm leading-6 text-[#666666]">
-                      Upload a LinkedIn profile PDF. INConnect will extract professional details and company names for review.
-                    </p>
-                    <input
-                      accept="application/pdf,.pdf"
-                      className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-sm"
-                      disabled={isLoading}
-                      onChange={(event) => void parseLinkedInPdf(event.target.files?.[0] ?? null)}
-                      type="file"
-                    />
-                    <p className="text-xs font-semibold text-[#666666]">PDF only, 10 MB max. No official LinkedIn integration is used.</p>
-                  </div>
-                )}
-
-                {mode === "card" && (
-                  <div className="grid gap-4">
-                    <h2 className="text-2xl font-semibold text-[#191919]">Upload Business Card</h2>
-                    <p className="text-sm leading-6 text-[#666666]">
-                      Upload or capture a business card image. INConnect will extract visible text for review.
-                    </p>
-                    <input
-                      accept="image/*"
-                      capture="environment"
-                      className="rounded-lg border border-[#D9DDE3] bg-white px-3 py-3 text-sm"
-                      disabled={isLoading}
-                      onChange={(event) => void parseBusinessCard(event.target.files?.[0] ?? null)}
-                      type="file"
-                    />
-                    <p className="text-xs font-semibold text-[#666666]">JPG, PNG, or WebP. 10 MB max.</p>
-                  </div>
-                )}
-
-                {mode === "manual" && (
-                  <ManualEntry
-                    draft={draft}
-                    manualType={manualType}
-                    onContinue={createManualDraft}
-                    onDraftChange={setDraft}
-                    onManualTypeChange={setManualType}
-                  />
-                )}
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <PrimaryButton disabled={isLoading} onClick={analyzeInput}>
+                  {isLoading ? "Analyzing..." : "Analyze and Add to Network"}
+                </PrimaryButton>
+                <p className="text-xs font-semibold leading-5 text-[#666666]">
+                  Companies are public. Professionals are private to your account.
+                </p>
               </div>
             </div>
           )}
@@ -494,242 +370,123 @@ export function SmartEntryClient() {
             <ReviewScreen
               draft={draft}
               isLoading={isLoading}
-              onBack={() => setStep("entry")}
+              onAnalyzeAnother={resetEntry}
               onDraftChange={setDraft}
               onSave={saveEverything}
               review={review}
             />
           )}
 
-          {step === "success" && success && (
-            <SuccessScreen
-              onAddAnother={() => {
-                setDraft({ companies: [], links: [], professionals: [] });
-                setReview(null);
-                setStep("entry");
-                setSuccess(null);
-              }}
-              result={success}
-            />
-          )}
+          {step === "success" && success && <SuccessScreen onAddAnother={resetEntry} result={success} />}
         </div>
       </div>
     </section>
   );
 }
 
-function ManualEntry({
-  draft,
-  manualType,
-  onContinue,
-  onDraftChange,
-  onManualTypeChange,
+function UploadBox({
+  accept = ".pdf,.txt,image/jpeg,image/png,image/webp",
+  capture,
+  description,
+  inputRef,
+  label,
+  onChange,
 }: {
-  draft: SmartDraft;
-  manualType: ManualType;
-  onContinue: () => void;
-  onDraftChange: (draft: SmartDraft) => void;
-  onManualTypeChange: (type: ManualType) => void;
+  accept?: string;
+  capture?: "environment";
+  description: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  label: string;
+  onChange: (file: File | null) => void;
 }) {
-  const professional = draft.professionals[0] ?? emptyProfessional;
-  const company = draft.companies[0] ?? emptyCompany;
-
-  function setProfessional(next: ProfessionalDraft) {
-    onDraftChange({ ...draft, professionals: [next] });
-  }
-
-  function setCompany(next: CompanyDraft) {
-    onDraftChange({ ...draft, companies: [next] });
-  }
-
   return (
-    <div className="grid gap-5">
-      <div>
-        <h2 className="text-2xl font-semibold text-[#191919]">Add Manually</h2>
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          {[
-            ["both", "Professional + Company"],
-            ["professional", "Professional only"],
-            ["company", "Company only"],
-          ].map(([value, label]) => (
-            <button
-              className={`rounded-lg border px-3 py-3 text-sm font-semibold transition ${
-                manualType === value
-                  ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
-                  : "border-[#D9DDE3] bg-white text-[#444444] hover:border-[#0A66C2]/40"
-              }`}
-              key={value}
-              onClick={() => onManualTypeChange(value as ManualType)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {manualType !== "company" && (
-        <DraftPanel title="Professional">
-          <Field label="Full name *" onChange={(value) => setProfessional({ ...professional, full_name: value })} value={professional.full_name} />
-          <Field label="LinkedIn URL" onChange={(value) => setProfessional({ ...professional, linkedin_url: value })} value={professional.linkedin_url} />
-          <Field label="Email" onChange={(value) => setProfessional({ ...professional, professional_email: value })} value={professional.professional_email} />
-          <Field label="Phone" onChange={(value) => setProfessional({ ...professional, phone: value })} value={professional.phone} />
-          <Field label="Headline" onChange={(value) => setProfessional({ ...professional, headline: value })} value={professional.headline} />
-          <Field label="Title" onChange={(value) => setProfessional({ ...professional, current_title: value })} value={professional.current_title} />
-          <Field label="Company" onChange={(value) => setProfessional({ ...professional, current_company: value })} value={professional.current_company} />
-          <Field label="Location" onChange={(value) => setProfessional({ ...professional, location: value })} value={professional.location} />
-          <Field label="Industry" onChange={(value) => setProfessional({ ...professional, industry: value })} value={professional.industry} />
-          <Field
-            label="Skills"
-            onChange={(value) =>
-              setProfessional({
-                ...professional,
-                skills: value.split(",").map((item) => item.trim()).filter(Boolean),
-              })
-            }
-            value={professional.skills.join(", ")}
-          />
-          <TextArea label="Experience Summary" onChange={(value) => setProfessional({ ...professional, experience_summary: value })} value={professional.experience_summary} />
-          <TextArea label="Education Summary" onChange={(value) => setProfessional({ ...professional, education_summary: value })} value={professional.education_summary} />
-          <TextArea label="Notes" onChange={(value) => setProfessional({ ...professional, notes: value })} value={professional.notes} />
-        </DraftPanel>
-      )}
-
-      {manualType !== "professional" && (
-        <DraftPanel title="Company">
-          <Field label="Company name *" onChange={(value) => setCompany({ ...company, display_name: value, name: value })} value={company.display_name} />
-          <SelectField label="Company type" onChange={(value) => setCompany({ ...company, company_type: value })} options={companyTypes} value={company.company_type} />
-          <Field label="Industry" onChange={(value) => setCompany({ ...company, industry: value })} value={company.industry} />
-          <Field label="Country" onChange={(value) => setCompany({ ...company, country_name: value })} value={company.country_name} />
-          <Field label="City" onChange={(value) => setCompany({ ...company, city: value })} value={company.city} />
-          <Field label="Website" onChange={(value) => setCompany({ ...company, website: value })} value={company.website} />
-          <Field label="LinkedIn URL" onChange={(value) => setCompany({ ...company, linkedin_url: value })} value={company.linkedin_url} />
-          <TextArea label="Description" onChange={(value) => setCompany({ ...company, description: value })} value={company.description} />
-          <TextArea label="Notes" onChange={(value) => setCompany({ ...company, notes: value })} value={company.notes} />
-        </DraftPanel>
-      )}
-
-      <PrimaryButton onClick={onContinue}>Review Draft</PrimaryButton>
-    </div>
+    <label className="grid cursor-pointer gap-2 rounded-lg border border-dashed border-[#B8C7DA] bg-white p-4 text-sm font-semibold text-[#191919] transition hover:border-[#0A66C2] hover:bg-[#F3F7FD]">
+      {label}
+      <span className="text-xs font-normal leading-5 text-[#666666]">{description}</span>
+      <input
+        accept={accept}
+        capture={capture}
+        className="mt-1 text-xs"
+        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+        ref={inputRef}
+        type="file"
+      />
+    </label>
   );
 }
 
 function ReviewScreen({
   draft,
   isLoading,
-  onBack,
+  onAnalyzeAnother,
   onDraftChange,
   onSave,
   review,
 }: {
   draft: SmartDraft;
   isLoading: boolean;
-  onBack: () => void;
+  onAnalyzeAnother: () => void;
   onDraftChange: (draft: SmartDraft) => void;
   onSave: () => void;
   review: ReviewResponse["review"] | null;
 }) {
   return (
     <div className="mt-8">
-      <h2 className="text-2xl font-semibold text-[#191919]">I found:</h2>
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <ReviewColumn title="Professionals">
-          {draft.professionals.length === 0 && <EmptyReview text="No professionals in this draft." />}
-          {draft.professionals.map((professional, index) => {
-            const duplicate = review?.professionals.find((item) => item.index === index)?.duplicate;
+      <div className="rounded-lg border border-[#D9DDE3] bg-[#F8FAFC] p-4">
+        <h2 className="text-2xl font-semibold text-[#191919]">INConnect found:</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <CountCard label="companies" value={draft.companies.length} />
+          <CountCard label="professionals" value={draft.professionals.length} />
+          <CountCard label="relationships" value={draft.links.length} />
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+        <ReviewColumn title="Companies">
+          {draft.companies.length === 0 && <EmptyReview text="No companies detected." />}
+          {draft.companies.map((company, index) => {
+            const duplicates = review?.companies.find((item) => item.index === index)?.duplicates;
             return (
               <ReviewCard key={index}>
-                <Field
-                  label="Full name"
-                  onChange={(value) => updateProfessional(draft, index, { full_name: value }, onDraftChange)}
-                  value={professional.full_name}
-                />
-                <Field
-                  label="Title"
-                  onChange={(value) => updateProfessional(draft, index, { current_title: value }, onDraftChange)}
-                  value={professional.current_title}
-                />
-                <Field
-                  label="LinkedIn URL"
-                  onChange={(value) => updateProfessional(draft, index, { linkedin_url: value }, onDraftChange)}
-                  value={professional.linkedin_url}
-                />
-                <Field
-                  label="Email"
-                  onChange={(value) => updateProfessional(draft, index, { professional_email: value }, onDraftChange)}
-                  value={professional.professional_email}
-                />
-                <Field
-                  label="Phone"
-                  onChange={(value) => updateProfessional(draft, index, { phone: value }, onDraftChange)}
-                  value={professional.phone}
-                />
-                <Field
-                  label="Skills"
-                  onChange={(value) =>
-                    updateProfessional(
-                      draft,
-                      index,
-                      { skills: value.split(",").map((item) => item.trim()).filter(Boolean) },
-                      onDraftChange,
-                    )
-                  }
-                  value={professional.skills.join(", ")}
-                />
-                <TextArea
-                  label="Experience Summary"
-                  onChange={(value) => updateProfessional(draft, index, { experience_summary: value }, onDraftChange)}
-                  value={professional.experience_summary}
-                />
-                <TextArea
-                  label="Education Summary"
-                  onChange={(value) => updateProfessional(draft, index, { education_summary: value }, onDraftChange)}
-                  value={professional.education_summary}
-                />
-                {duplicate && (
-                  <p className="rounded-lg border border-[#F5C542]/40 bg-[#FFF8E1] px-3 py-2 text-sm font-semibold text-[#7A5A00]">
-                    Existing private professional found: {duplicate.display_name || "professional"}. Saving will update it.
-                  </p>
+                <ReviewBadge label={getCompanyDuplicateLabel(duplicates)} />
+                <Field label="Company name" onChange={(value) => updateCompany(draft, index, { display_name: value, name: value }, onDraftChange)} value={company.display_name} />
+                <SelectField label="Type" onChange={(value) => updateCompany(draft, index, { company_type: value }, onDraftChange)} options={companyTypes} value={company.company_type} />
+                <Field label="Industry" onChange={(value) => updateCompany(draft, index, { industry: value }, onDraftChange)} value={company.industry} />
+                <Field label="Country" onChange={(value) => updateCompany(draft, index, { country_name: value }, onDraftChange)} value={company.country_name} />
+                <Field label="City" onChange={(value) => updateCompany(draft, index, { city: value }, onDraftChange)} value={company.city} />
+                <Field label="Website" onChange={(value) => updateCompany(draft, index, { website: value }, onDraftChange)} value={company.website} />
+                <Field label="LinkedIn" onChange={(value) => updateCompany(draft, index, { linkedin_url: value }, onDraftChange)} value={company.linkedin_url} />
+                <TextArea label="Description" onChange={(value) => updateCompany(draft, index, { description: value }, onDraftChange)} value={company.description} />
+                <TextArea label="Notes" onChange={(value) => updateCompany(draft, index, { notes: value }, onDraftChange)} value={company.notes} />
+                {duplicates && (duplicates.exactDuplicate || duplicates.possibleDuplicates.length > 0) && (
+                  <CompanyDuplicateChooser
+                    duplicates={duplicates}
+                    onSelect={(id) => updateCompany(draft, index, { use_existing_company_id: id }, onDraftChange)}
+                    selectedId={company.use_existing_company_id || duplicates.exactDuplicate?.id || ""}
+                  />
                 )}
               </ReviewCard>
             );
           })}
         </ReviewColumn>
 
-        <ReviewColumn title="Companies">
-          {draft.companies.length === 0 && <EmptyReview text="No companies in this draft." />}
-          {draft.companies.map((company, index) => {
-            const duplicates = review?.companies.find((item) => item.index === index)?.duplicates;
+        <ReviewColumn title="Professionals">
+          {draft.professionals.length === 0 && <EmptyReview text="No professionals detected." />}
+          {draft.professionals.map((professional, index) => {
+            const duplicate = review?.professionals.find((item) => item.index === index)?.duplicate;
             return (
               <ReviewCard key={index}>
-                <Field
-                  label="Company name"
-                  onChange={(value) => updateCompany(draft, index, { display_name: value, name: value }, onDraftChange)}
-                  value={company.display_name}
-                />
-                <SelectField
-                  label="Company type"
-                  onChange={(value) => updateCompany(draft, index, { company_type: value }, onDraftChange)}
-                  options={companyTypes}
-                  value={company.company_type}
-                />
-                <Field
-                  label="Industry"
-                  onChange={(value) => updateCompany(draft, index, { industry: value }, onDraftChange)}
-                  value={company.industry}
-                />
-                <Field
-                  label="Country"
-                  onChange={(value) => updateCompany(draft, index, { country_name: value }, onDraftChange)}
-                  value={company.country_name}
-                />
-                {duplicates && (duplicates.exactDuplicate || duplicates.possibleDuplicates.length > 0) && (
-                  <CompanyDuplicateChooser
-                    duplicates={duplicates}
-                    onSelect={(id) => updateCompany(draft, index, { use_existing_company_id: id }, onDraftChange)}
-                    selectedId={company.use_existing_company_id ?? ""}
-                  />
-                )}
+                <ReviewBadge label={duplicate ? "Existing private contact" : "Private to you"} />
+                <Field label="Name" onChange={(value) => updateProfessional(draft, index, { full_name: value }, onDraftChange)} value={professional.full_name} />
+                <Field label="Title" onChange={(value) => updateProfessional(draft, index, { current_title: value }, onDraftChange)} value={professional.current_title} />
+                <Field label="Company" onChange={(value) => updateProfessional(draft, index, { current_company: value }, onDraftChange)} value={professional.current_company} />
+                <Field label="Email" onChange={(value) => updateProfessional(draft, index, { professional_email: value }, onDraftChange)} value={professional.professional_email} />
+                <Field label="Phone" onChange={(value) => updateProfessional(draft, index, { phone: value }, onDraftChange)} value={professional.phone} />
+                <Field label="LinkedIn" onChange={(value) => updateProfessional(draft, index, { linkedin_url: value }, onDraftChange)} value={professional.linkedin_url} />
+                <Field label="Location" onChange={(value) => updateProfessional(draft, index, { location: value }, onDraftChange)} value={professional.location} />
+                <Field label="Industry" onChange={(value) => updateProfessional(draft, index, { industry: value }, onDraftChange)} value={professional.industry} />
+                <TextArea label="Headline" onChange={(value) => updateProfessional(draft, index, { headline: value }, onDraftChange)} value={professional.headline} />
+                <TextArea label="Notes" onChange={(value) => updateProfessional(draft, index, { notes: value }, onDraftChange)} value={professional.notes} />
               </ReviewCard>
             );
           })}
@@ -738,50 +495,33 @@ function ReviewScreen({
 
       <ReviewColumn title="Relationships">
         {draft.links.length === 0 ? (
-          <EmptyReview text="No relationships in this draft." />
+          <EmptyReview text="No relationships detected." />
         ) : (
           draft.links.map((link, index) => (
             <ReviewCard key={index}>
-              <Field
-                label="Title"
-                onChange={(value) => {
-                  const links = [...draft.links];
-                  links[index] = { ...link, title: value };
-                  onDraftChange({ ...draft, links });
-                }}
-                value={link.title}
-              />
-              <Field
-                label="Relationship type"
-                onChange={(value) => {
-                  const links = [...draft.links];
-                  links[index] = { ...link, relationship_type: value };
-                  onDraftChange({ ...draft, links });
-                }}
-                value={link.relationship_type}
-              />
+              <p className="text-sm font-semibold text-[#191919]">
+                {draft.professionals[link.professional_index]?.full_name || "Professional"} to{" "}
+                {draft.companies[link.company_index]?.display_name || "Company"}
+              </p>
+              <Field label="Role / title" onChange={(value) => updateLink(draft, index, { title: value }, onDraftChange)} value={link.title} />
+              <Field label="Department" onChange={(value) => updateLink(draft, index, { department: value }, onDraftChange)} value={link.department} />
+              <Field label="Relationship type" onChange={(value) => updateLink(draft, index, { relationship_type: value }, onDraftChange)} value={link.relationship_type} />
             </ReviewCard>
           ))
         )}
       </ReviewColumn>
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <PrimaryButton disabled={isLoading} onClick={onSave}>
           {isLoading ? "Saving..." : "Save Everything"}
         </PrimaryButton>
         <button
           className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#0A66C2] transition hover:border-[#0A66C2] hover:bg-[#E8F1FB]"
-          onClick={onBack}
+          onClick={onAnalyzeAnother}
           type="button"
         >
-          Edit
+          Analyze Another
         </button>
-        <Link
-          className="inline-flex h-11 items-center justify-center rounded-lg border border-[#D9DDE3] bg-white px-5 text-sm font-semibold text-[#666666] transition hover:border-[#0A66C2] hover:text-[#0A66C2]"
-          href="/network"
-        >
-          Cancel
-        </Link>
       </div>
     </div>
   );
@@ -798,65 +538,37 @@ function CompanyDuplicateChooser({
 }) {
   const options = [duplicates.exactDuplicate, ...duplicates.possibleDuplicates].filter(Boolean) as Duplicate[];
   return (
-    <div className="rounded-lg border border-[#F5C542]/40 bg-[#FFF8E1] p-3">
-      <p className="text-sm font-semibold text-[#191919]">Possible duplicate company found.</p>
+    <div className="rounded-lg border border-[#F5C542]/40 bg-[#FFF8E1] p-3 md:col-span-2">
+      <p className="text-sm font-semibold text-[#191919]">Duplicate status</p>
       <div className="mt-3 grid gap-2">
         {options.map((duplicate) => (
           <label className="flex gap-2 text-sm text-[#444444]" key={duplicate.id}>
-            <input
-              checked={selectedId === duplicate.id}
-              onChange={() => onSelect(duplicate.id)}
-              type="radio"
-            />
-            Use existing: {duplicate.displayName} ({duplicate.matchReason})
+            <input checked={selectedId === duplicate.id} onChange={() => onSelect(duplicate.id)} type="radio" />
+            Existing company: {duplicate.displayName} ({duplicate.matchReason})
           </label>
         ))}
         <label className="flex gap-2 text-sm text-[#444444]">
           <input checked={!selectedId} onChange={() => onSelect("")} type="radio" />
-          Create new company
+          New company
         </label>
       </div>
     </div>
   );
 }
 
-function SuccessScreen({
-  onAddAnother,
-  result,
-}: {
-  onAddAnother: () => void;
-  result: SaveResult;
-}) {
+function SuccessScreen({ onAddAnother, result }: { onAddAnother: () => void; result: SaveResult }) {
   return (
     <div className="mt-8 rounded-lg border border-[#057642]/20 bg-[#F1F8F4] p-6">
       <h2 className="text-2xl font-semibold text-[#191919]">Saved to your network.</h2>
       <ul className="mt-4 grid gap-2 text-sm font-semibold text-[#444444]">
-        <li>Created or updated: {result.professionals.length} professionals</li>
-        <li>Created or selected: {result.companies.length} companies</li>
-        <li>Created or updated: {result.links.length} relationships</li>
+        <li>Created/updated: {result.companies.length} public companies</li>
+        <li>Created/updated: {result.professionals.length} private professionals</li>
+        <li>Created/updated: {result.links.length} relationships</li>
       </ul>
       <div className="mt-5 flex flex-wrap gap-3">
-        {result.professionals[0] && (
-          <Link
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-5 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
-            href={result.professionals[0].url}
-          >
-            View Professional
-          </Link>
-        )}
-        {result.companies[0] && (
-          <Link
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-5 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]"
-            href={result.companies[0].url}
-          >
-            View Company
-          </Link>
-        )}
-        <button
-          className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8]"
-          onClick={onAddAnother}
-          type="button"
-        >
+        {result.companies[0] && <ActionLink href={result.companies[0].url}>View Company</ActionLink>}
+        {result.professionals[0] && <ActionLink href={result.professionals[0].url}>View Professional</ActionLink>}
+        <button className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8]" onClick={onAddAnother} type="button">
           Add Another
         </button>
       </div>
@@ -864,40 +576,12 @@ function SuccessScreen({
   );
 }
 
-function ModeButton({
-  active,
-  disabled,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
+function CountCard({ label, value }: { label: string; value: number }) {
   return (
-    <button
-      className={`rounded-lg border px-4 py-4 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-[#F8F8F6] disabled:text-[#888888] ${
-        active
-          ? "border-[#0A66C2] bg-[#E8F1FB] text-[#0A66C2]"
-          : "border-[#D9DDE3] bg-white text-[#444444] hover:border-[#0A66C2]/40"
-      }`}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-      {disabled && <span className="mt-1 block text-xs font-semibold">Coming soon</span>}
-    </button>
-  );
-}
-
-function DraftPanel({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <section className="rounded-lg border border-[#D9DDE3] bg-white p-4">
-      <h3 className="text-lg font-semibold text-[#191919]">{title}</h3>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">{children}</div>
-    </section>
+    <div className="rounded-lg border border-[#D9DDE3] bg-white p-4">
+      <p className="text-3xl font-semibold text-[#0A66C2]">{value}</p>
+      <p className="mt-1 text-sm font-semibold text-[#666666]">{label}</p>
+    </div>
   );
 }
 
@@ -911,138 +595,84 @@ function ReviewColumn({ children, title }: { children: ReactNode; title: string 
 }
 
 function ReviewCard({ children }: { children: ReactNode }) {
-  return <article className="grid gap-4 rounded-lg border border-[#D9DDE3] bg-white p-4">{children}</article>;
+  return <article className="grid gap-4 rounded-lg border border-[#D9DDE3] bg-white p-4 md:grid-cols-2">{children}</article>;
+}
+
+function ReviewBadge({ label }: { label: string }) {
+  return <p className="rounded-full bg-[#E8F1FB] px-3 py-1 text-xs font-semibold text-[#0A66C2] md:col-span-2">{label}</p>;
 }
 
 function EmptyReview({ text }: { text: string }) {
   return <p className="text-sm leading-6 text-[#666666]">{text}</p>;
 }
 
-function Field({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
+function Field({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-[#191919]">
       {label}
-      <input
-        className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none focus:border-[#0A66C2]"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
+      <input className="h-11 rounded-lg border border-[#D9DDE3] px-3 text-sm font-normal outline-none focus:border-[#0A66C2]" onChange={(event) => onChange(event.target.value)} value={value} />
     </label>
   );
 }
 
-function SelectField({
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  options: string[];
-  value: string;
-}) {
+function SelectField({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: string[]; value: string }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-[#191919]">
       {label}
-      <select
-        className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none focus:border-[#0A66C2]"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
+      <select className="h-11 rounded-lg border border-[#D9DDE3] bg-white px-3 text-sm font-normal outline-none focus:border-[#0A66C2]" onChange={(event) => onChange(event.target.value)} value={value}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
+          <option key={option} value={option}>{option}</option>
         ))}
       </select>
     </label>
   );
 }
 
-function TextArea({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
+function TextArea({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-[#191919] md:col-span-2">
       {label}
-      <textarea
-        className="min-h-24 rounded-lg border border-[#D9DDE3] px-3 py-3 text-sm font-normal leading-6 outline-none focus:border-[#0A66C2]"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
+      <textarea className="min-h-24 rounded-lg border border-[#D9DDE3] px-3 py-3 text-sm font-normal leading-6 outline-none focus:border-[#0A66C2]" onChange={(event) => onChange(event.target.value)} value={value} />
     </label>
   );
 }
 
-function PrimaryButton({
-  children,
-  disabled,
-  onClick,
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
+function PrimaryButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
-    <button
-      className="inline-flex h-11 items-center justify-center rounded-lg bg-[#4A6FD0] px-5 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3]"
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
+    <button className="inline-flex h-12 items-center justify-center rounded-lg bg-[#4A6FD0] px-6 text-sm font-semibold text-white transition hover:bg-[#3859B8] disabled:cursor-not-allowed disabled:bg-[#D9DDE3]" disabled={disabled} onClick={onClick} type="button">
       {children}
     </button>
   );
 }
 
-function updateProfessional(
-  draft: SmartDraft,
-  index: number,
-  patch: Partial<ProfessionalDraft>,
-  onDraftChange: (draft: SmartDraft) => void,
-) {
+function ActionLink({ children, href }: { children: ReactNode; href: string }) {
+  return (
+    <Link className="inline-flex h-11 items-center justify-center rounded-lg border border-[#0A66C2]/30 bg-white px-5 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#E8F1FB]" href={href}>
+      {children}
+    </Link>
+  );
+}
+
+function updateProfessional(draft: SmartDraft, index: number, patch: Partial<ProfessionalDraft>, onDraftChange: (draft: SmartDraft) => void) {
   const professionals = [...draft.professionals];
   professionals[index] = { ...professionals[index], ...patch };
   onDraftChange({ ...draft, professionals });
 }
 
-function updateCompany(
-  draft: SmartDraft,
-  index: number,
-  patch: Partial<CompanyDraft>,
-  onDraftChange: (draft: SmartDraft) => void,
-) {
+function updateCompany(draft: SmartDraft, index: number, patch: Partial<CompanyDraft>, onDraftChange: (draft: SmartDraft) => void) {
   const companies = [...draft.companies];
   companies[index] = { ...companies[index], ...patch };
   onDraftChange({ ...draft, companies });
 }
 
-function validateDraft(draft: SmartDraft) {
-  for (const professional of draft.professionals) {
-    if (!professional.full_name.trim()) return "Professional full name is required.";
-  }
-  for (const company of draft.companies) {
-    if (!company.display_name.trim() && !company.name.trim()) return "Company name is required.";
-  }
-  return "";
+function updateLink(draft: SmartDraft, index: number, patch: Partial<LinkDraft>, onDraftChange: (draft: SmartDraft) => void) {
+  const links = [...draft.links];
+  links[index] = { ...links[index], ...patch };
+  onDraftChange({ ...draft, links, relationships: links });
 }
 
 function normalizeClientDraft(draft: SmartDraft): SmartDraft {
+  const links = draft.links ?? draft.relationships ?? [];
   return {
     companies: (draft.companies ?? []).map((company) => ({
       ...emptyCompany,
@@ -1050,8 +680,9 @@ function normalizeClientDraft(draft: SmartDraft): SmartDraft {
       display_name: company.display_name || company.name || "",
       name: company.name || company.display_name || "",
     })),
-    links: (draft.links ?? []).map((link) => ({
+    links: links.map((link) => ({
       company_index: Number.isFinite(link.company_index) ? link.company_index : 0,
+      confidence: normalizeConfidence(link.confidence),
       department: link.department ?? "",
       is_primary: Boolean(link.is_primary),
       professional_index: Number.isFinite(link.professional_index) ? link.professional_index : 0,
@@ -1061,18 +692,20 @@ function normalizeClientDraft(draft: SmartDraft): SmartDraft {
     professionals: (draft.professionals ?? []).map((professional) => ({
       ...emptyProfessional,
       ...professional,
+      confidence: normalizeConfidence(professional.confidence),
       skills: Array.isArray(professional.skills) ? professional.skills : [],
     })),
   };
 }
 
-function inferNameFromLinkedInUrl(value: string) {
-  const match = value.match(/linkedin\.[a-z.]+\/in\/([^/?#]+)/i);
-  const slug = decodeURIComponent(match?.[1] ?? "").replace(/[^a-zA-Z0-9-]/g, "");
-  if (!slug) return "";
-  return slug
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function getCompanyDuplicateLabel(duplicates?: NonNullable<ReviewResponse["review"]>["companies"][number]["duplicates"]) {
+  if (duplicates?.exactDuplicate) return "Existing company";
+  if (duplicates?.possibleDuplicates.length) return "Possible duplicate";
+  return "New company";
+}
+
+function normalizeConfidence(value: unknown) {
+  const confidence = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(confidence)) return 0;
+  return Math.max(0, Math.min(1, confidence));
 }

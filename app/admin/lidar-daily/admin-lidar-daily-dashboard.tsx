@@ -140,9 +140,11 @@ export function AdminLidarDailyDashboard() {
                 <p className="text-sm text-[#666666]">No LiDAR Daily article found yet.</p>
               ) : (
                 <>
-                  <div className="aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB]">
-                    <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
-                  </div>
+                  {article.sourceImageUrl && (
+                    <div className="aspect-video overflow-hidden rounded-lg border border-[#D9DDE3] bg-[#E8F1FB]">
+                      <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
+                    </div>
+                  )}
                   <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold text-[#057642]">
                     <span>{article.category || "LiDAR"}</span>
                     <span>&middot;</span>

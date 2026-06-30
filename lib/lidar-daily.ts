@@ -2,22 +2,33 @@ import crypto from "node:crypto";
 import OpenAI from "openai";
 import { sendLidarDailyEmail } from "@/lib/email/resend";
 import { normalizeEmail } from "@/lib/identity";
-import {
-  DEFAULT_MARKET_ARTICLE_IMAGE,
-  mapMarketArticleRow,
-  type MarketArticle,
-  type MarketArticleRow,
-} from "@/lib/market-articles";
+import { mapMarketArticleRow, type MarketArticle, type MarketArticleRow } from "@/lib/market-articles";
 import { SITE_URL } from "@/lib/seo";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 type LidarSourceCandidate = {
   category: string;
   excerpt: string;
-  imageUrl: string;
+  imageUrl: string | null;
   sourceName: string;
   title: string;
   url: string;
+};
+
+type LidarRotationHistoryItem = {
+  category: string;
+  createdAt: string;
+  sourceName: string;
+  sourceUrl: string;
+  title: string;
+};
+
+type LidarRotationHistory = {
+  recent: LidarRotationHistoryItem[];
+  recentCategories: string[];
+  recentSourceNames: string[];
+  recentUrls: string[];
+  usedUrls: Set<string>;
 };
 
 type GeneratedLidarArticle = {
@@ -65,9 +76,25 @@ const LIDAR_SOURCES = [
   { name: "AEye", url: "https://www.aeye.ai/news/" },
   { name: "Blickfeld", url: "https://www.blickfeld.com/blog/" },
   { name: "SICK", url: "https://www.sick.com/news" },
+  { name: "Leuze", url: "https://www.leuze.com/en-int/news" },
+  { name: "Pepperl+Fuchs", url: "https://www.pepperl-fuchs.com/global/en/news.htm" },
+  { name: "Livox", url: "https://www.livoxtech.com/news" },
+  { name: "Benewake", url: "https://en.benewake.com/news" },
+  { name: "VanJee", url: "https://www.vanjee.net/news/" },
+  { name: "Waymo", url: "https://waymo.com/blog/" },
+  { name: "Zoox", url: "https://zoox.com/news/" },
+  { name: "Aurora", url: "https://aurora.tech/newsroom" },
+  { name: "Mobileye", url: "https://www.mobileye.com/news/" },
+  { name: "Caterpillar", url: "https://www.caterpillar.com/en/news.html" },
+  { name: "Komatsu", url: "https://www.komatsu.com/en/newsroom/" },
+  { name: "Sandvik", url: "https://www.home.sandvik/en/news-and-media/news/" },
+  { name: "Siemens", url: "https://press.siemens.com/global/en/press-search?search_api_fulltext=lidar" },
+  { name: "ABB", url: "https://new.abb.com/news" },
+  { name: "KUKA", url: "https://www.kuka.com/en-de/company/press/news" },
   { name: "The Robot Report", url: "https://www.therobotreport.com/" },
   { name: "IEEE Spectrum", url: "https://spectrum.ieee.org/tag/lidar" },
   { name: "ITS International", url: "https://www.itsinternational.com/" },
+  { name: "Automotive World", url: "https://www.automotiveworld.com/" },
   { name: "Smart Cities World", url: "https://www.smartcitiesworld.net/" },
 ];
 
@@ -101,16 +128,19 @@ export async function generateAndStoreLidarDailyArticle(options?: {
 }) {
   console.info("LIDAR DAILY GENERATION START");
   const supabase = getSupabaseAdminClient();
-  const existingSources = await getRecentLidarSourceUrls();
-  const source = options?.sourceUrl
-    ? await createCandidateFromUrl(options.sourceUrl)
-    : await selectLidarSource(existingSources);
+  const rotationHistory = await getLidarRotationHistory();
+  const selectedSource = options?.sourceUrl
+    ? await createManualLidarSourceSelection(options.sourceUrl, rotationHistory)
+    : await selectLidarSource(rotationHistory);
+  const source = selectedSource?.candidate ?? null;
 
   if (!source) {
     throw new LidarDailyError("source_selection", "No strong LiDAR source found today.");
   }
 
   console.info("LIDAR DAILY SOURCE SELECTED", {
+    category: source.category,
+    rotationFallbackUsed: selectedSource?.rotationFallbackUsed ?? false,
     sourceName: source.sourceName,
     title: source.title,
     url: source.url,
@@ -254,7 +284,7 @@ export async function sendLatestLidarDailyEmail(options?: {
         (subscriber.id === "test" ? "" : await ensureUnsubscribeToken(subscriber.id));
       const result = await sendLidarDailyEmail({
         briefingText: createEmailExcerpt(article),
-        heroImageUrl: toAbsoluteUrl(article.sourceImageUrl || DEFAULT_MARKET_ARTICLE_IMAGE),
+        heroImageUrl: article.sourceImageUrl ? toAbsoluteUrl(article.sourceImageUrl) : undefined,
         readUrl: `${SITE_URL}/intelligence/lidar-daily/${article.slug}`,
         sourceUrl: article.sourceUrl,
         title: article.title,
@@ -358,17 +388,90 @@ export async function updateLidarArticleStatus(id: string, action: "delete" | "p
   return mapMarketArticleRow(data);
 }
 
-async function selectLidarSource(existingSources: Set<string>) {
-  const rejected: Array<{ reason: string; title: string; url: string }> = [];
+async function createManualLidarSourceSelection(sourceUrl: string, history: LidarRotationHistory) {
+  const candidate = await createCandidateFromUrl(sourceUrl);
+  if (!candidate) return null;
+
+  const hardReason = getSourceRejectionReason(candidate, history.usedUrls);
+  if (hardReason) {
+    console.info("LIDAR DAILY CANDIDATE REJECTED", {
+      reason: hardReason,
+      sourceName: candidate.sourceName,
+      url: candidate.url,
+    });
+    return null;
+  }
+
+  const rotationReason = getRotationRejectionReason(candidate, history);
+  if (rotationReason) {
+    console.warn("LIDAR DAILY ROTATION FALLBACK USED", {
+      category: candidate.category,
+      reason: rotationReason,
+      sourceName: candidate.sourceName,
+      url: candidate.url,
+    });
+  }
+
+  return { candidate, rotationFallbackUsed: Boolean(rotationReason) };
+}
+
+async function selectLidarSource(history: LidarRotationHistory) {
+  const rejected: Array<{ reason: string; sourceName: string; title: string; url: string }> = [];
+  const rotationFallbacks: LidarSourceCandidate[] = [];
+
+  console.info("LIDAR DAILY ROTATION HISTORY", {
+    recentCategories: history.recentCategories,
+    recentSourceNames: history.recentSourceNames,
+    recentUrls: history.recentUrls,
+  });
+
   for (const source of LIDAR_SOURCES) {
     const candidates = await discoverCandidatesFromSource(source);
     for (const candidate of candidates) {
-      const reason = getSourceRejectionReason(candidate, existingSources);
-      if (!reason) return candidate;
-      rejected.push({ reason, title: candidate.title, url: candidate.url });
+      const hardReason = getSourceRejectionReason(candidate, history.usedUrls);
+      if (hardReason) {
+        console.info("LIDAR DAILY CANDIDATE REJECTED", {
+          reason: hardReason,
+          sourceName: candidate.sourceName,
+          url: candidate.url,
+        });
+        rejected.push({ reason: hardReason, sourceName: candidate.sourceName, title: candidate.title, url: candidate.url });
+        continue;
+      }
+
+      const rotationReason = getRotationRejectionReason(candidate, history);
+      if (rotationReason) {
+        console.info("LIDAR DAILY CANDIDATE REJECTED", {
+          reason: rotationReason,
+          sourceName: candidate.sourceName,
+          url: candidate.url,
+        });
+        rejected.push({ reason: rotationReason, sourceName: candidate.sourceName, title: candidate.title, url: candidate.url });
+        rotationFallbacks.push(candidate);
+        continue;
+      }
+
+      console.info("LIDAR DAILY SOURCE SELECTED", {
+        category: candidate.category,
+        rotationFallbackUsed: false,
+        sourceName: candidate.sourceName,
+        url: candidate.url,
+      });
+      return { candidate, rotationFallbackUsed: false };
     }
   }
-  console.warn("LIDAR DAILY SOURCE CANDIDATES REJECTED", rejected.slice(0, 20));
+
+  if (rotationFallbacks.length > 0) {
+    const candidate = rotationFallbacks[0];
+    console.warn("LIDAR DAILY ROTATION FALLBACK USED", {
+      category: candidate.category,
+      sourceName: candidate.sourceName,
+      url: candidate.url,
+    });
+    return { candidate, rotationFallbackUsed: true };
+  }
+
+  console.warn("LIDAR DAILY SOURCE CANDIDATES REJECTED", rejected.slice(0, 30));
   return null;
 }
 
@@ -383,7 +486,7 @@ async function discoverCandidatesFromSource(source: { name: string; url: string 
     const articleHtml = await fetchHtml(link.url);
     const title = cleanText(extractMeta(articleHtml, "og:title") || extractTitle(articleHtml) || link.text);
     const excerpt = cleanText(extractMeta(articleHtml, "og:description") || extractMeta(articleHtml, "description"));
-    const imageUrl = cleanText(extractMeta(articleHtml, "og:image"));
+    const imageUrl = await getValidSourceImageUrl(extractMeta(articleHtml, "og:image"), link.url);
     const value = `${title} ${excerpt} ${articleHtml.slice(0, 2000)}`;
     if (!hasLidarSignal(value)) continue;
     candidates.push({
@@ -403,7 +506,7 @@ async function createCandidateFromUrl(url: string) {
   const html = await fetchHtml(url);
   const title = cleanText(extractMeta(html, "og:title") || extractTitle(html));
   const excerpt = cleanText(extractMeta(html, "og:description") || extractMeta(html, "description"));
-  const imageUrl = cleanText(extractMeta(html, "og:image"));
+  const imageUrl = await getValidSourceImageUrl(extractMeta(html, "og:image"), url);
   const value = `${title} ${excerpt} ${html.slice(0, 3000)}`;
   if (!title || !hasLidarSignal(value)) return null;
   return {
@@ -486,16 +589,74 @@ function scoreLidarArticle(article: GeneratedLidarArticle, source: LidarSourceCa
   return { issues, score, wordCount };
 }
 
-async function getRecentLidarSourceUrls() {
+async function getLidarRotationHistory(): Promise<LidarRotationHistory> {
   const supabase = getSupabaseAdminClient();
-  const { data } = await supabase
-    .from("market_articles")
-    .select("source_url")
-    .eq("article_type", LIDAR_ARTICLE_TYPE)
-    .order("created_at", { ascending: false })
-    .limit(30)
-    .returns<Array<{ source_url: string | null }>>();
-  return new Set((data ?? []).map((row) => row.source_url).filter(Boolean) as string[]);
+  const [recentResult, usedUrls] = await Promise.all([
+    supabase
+      .from("market_articles")
+      .select("source_name, source_url, category, title, created_at")
+      .eq("article_type", LIDAR_ARTICLE_TYPE)
+      .order("created_at", { ascending: false })
+      .limit(30)
+      .returns<
+        Array<{
+          category: string | null;
+          created_at: string;
+          source_name: string | null;
+          source_url: string | null;
+          title: string | null;
+        }>
+      >(),
+    getAllUsedLidarSourceUrls(),
+  ]);
+
+  if (recentResult.error) {
+    console.warn("LIDAR DAILY ROTATION HISTORY LOOKUP ERROR", recentResult.error);
+  }
+
+  const recent = (recentResult.data ?? []).map((row) => ({
+    category: row.category ?? "",
+    createdAt: row.created_at,
+    sourceName: row.source_name ?? "",
+    sourceUrl: row.source_url ?? "",
+    title: row.title ?? "",
+  }));
+
+  return {
+    recent,
+    recentCategories: recent.map((row) => row.category).filter(Boolean),
+    recentSourceNames: recent.map((row) => row.sourceName).filter(Boolean),
+    recentUrls: recent.map((row) => row.sourceUrl).filter(Boolean),
+    usedUrls,
+  };
+}
+
+async function getAllUsedLidarSourceUrls() {
+  const supabase = getSupabaseAdminClient();
+  const usedUrls = new Set<string>();
+  const pageSize = 1000;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("market_articles")
+      .select("source_url")
+      .eq("article_type", LIDAR_ARTICLE_TYPE)
+      .not("source_url", "is", null)
+      .range(from, from + pageSize - 1)
+      .returns<Array<{ source_url: string | null }>>();
+
+    if (error) {
+      console.warn("LIDAR DAILY USED URL LOOKUP ERROR", error);
+      break;
+    }
+
+    for (const row of data ?? []) {
+      if (row.source_url) usedUrls.add(row.source_url);
+    }
+    if (!data || data.length < pageSize) break;
+  }
+
+  return usedUrls;
 }
 
 async function getLatestPublishedLidarArticle() {
@@ -613,6 +774,127 @@ function getSourceRejectionReason(candidate: LidarSourceCandidate, existingSourc
   return "";
 }
 
+function getRotationRejectionReason(candidate: LidarSourceCandidate, history: LidarRotationHistory) {
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+  const candidateSource = normalizeComparable(candidate.sourceName);
+  const candidateCategory = normalizeComparable(candidate.category);
+
+  const recentSevenDays = history.recent.filter((item) => now - new Date(item.createdAt).getTime() <= sevenDaysMs);
+  if (
+    candidateSource &&
+    recentSevenDays.some((item) => normalizeComparable(item.sourceName) === candidateSource)
+  ) {
+    return "source name used within last 7 days";
+  }
+
+  const recentTwoDays = history.recent.filter((item) => now - new Date(item.createdAt).getTime() <= twoDaysMs);
+  if (
+    candidateCategory &&
+    recentTwoDays.some((item) => normalizeComparable(item.category) === candidateCategory)
+  ) {
+    return "category used within last 2 days";
+  }
+
+  const similarTitle = history.recent.find((item) => areTitlesSimilar(candidate.title, item.title));
+  if (similarTitle) return `title too similar to recent article: ${similarTitle.title}`;
+
+  return "";
+}
+
+async function getValidSourceImageUrl(value: string, pageUrl: string) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+
+  let imageUrl: string;
+  try {
+    imageUrl = new URL(raw, pageUrl).toString();
+  } catch {
+    return null;
+  }
+
+  const rejectedReason = getRejectedImageReason(imageUrl);
+  if (rejectedReason) {
+    console.info("LIDAR DAILY SOURCE IMAGE REJECTED", { imageUrl, reason: rejectedReason });
+    return null;
+  }
+
+  const metadata = await fetchImageMetadata(imageUrl, "HEAD");
+  const finalMetadata =
+    metadata.status === 405 || metadata.status === 403 || metadata.status === 0
+      ? await fetchImageMetadata(imageUrl, "GET")
+      : metadata;
+
+  if (!finalMetadata.ok) {
+    console.info("LIDAR DAILY SOURCE IMAGE REJECTED", {
+      imageUrl,
+      reason: `image fetch failed with status ${finalMetadata.status}`,
+    });
+    return null;
+  }
+
+  const contentType = finalMetadata.contentType.toLowerCase();
+  if (!contentType.startsWith("image/")) {
+    console.info("LIDAR DAILY SOURCE IMAGE REJECTED", { contentType, imageUrl, reason: "non-image content type" });
+    return null;
+  }
+  if (contentType.includes("gif") || contentType.includes("svg")) {
+    console.info("LIDAR DAILY SOURCE IMAGE REJECTED", { contentType, imageUrl, reason: "gif or svg image" });
+    return null;
+  }
+  if (finalMetadata.contentLength > 0 && finalMetadata.contentLength < 2048) {
+    console.info("LIDAR DAILY SOURCE IMAGE REJECTED", {
+      contentLength: finalMetadata.contentLength,
+      imageUrl,
+      reason: "tiny image",
+    });
+    return null;
+  }
+
+  return imageUrl;
+}
+
+async function fetchImageMetadata(url: string, method: "GET" | "HEAD") {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "image/*",
+        ...(method === "GET" ? { range: "bytes=0-2048" } : {}),
+        "user-agent": "Mozilla/5.0 (compatible; INConnectBot/1.0; +https://in-connect.app)",
+      },
+      method,
+      signal: controller.signal,
+    });
+    return {
+      contentLength: Number(response.headers.get("content-length") ?? "0"),
+      contentType: response.headers.get("content-type") ?? "",
+      ok: response.ok,
+      status: response.status,
+    };
+  } catch {
+    return { contentLength: 0, contentType: "", ok: false, status: 0 };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function getRejectedImageReason(value: string) {
+  const lower = value.toLowerCase();
+  if (!/^https?:\/\//i.test(value)) return "not an http image URL";
+  if (/\.(?:gif|svg)(?:[?#]|$)/i.test(value)) return "tracking-prone gif or svg";
+  if (/\b(?:tracking|analytics|pixel|beacon|1x1|spacer)\b/i.test(value)) return "tracking or pixel image";
+  if (/[?&](?:w|width|h|height)=(?:0|1|2|3|4|5|6|7|8|9|10)(?:&|$)/i.test(value)) {
+    return "tiny image dimensions";
+  }
+  if (/(?:doubleclick|googletagmanager|google-analytics|facebook\.com\/tr|pixel)/i.test(lower)) {
+    return "tracking domain";
+  }
+  return "";
+}
+
 async function fetchHtml(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
@@ -713,6 +995,48 @@ function countWords(value: string) {
 
 function cleanText(value: string) {
   return decodeHtml(value).replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function normalizeComparable(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function areTitlesSimilar(first: string, second: string) {
+  const firstNormalized = normalizeComparable(first);
+  const secondNormalized = normalizeComparable(second);
+  if (!firstNormalized || !secondNormalized) return false;
+  if (firstNormalized === secondNormalized) return true;
+  if (firstNormalized.length > 20 && secondNormalized.includes(firstNormalized)) return true;
+  if (secondNormalized.length > 20 && firstNormalized.includes(secondNormalized)) return true;
+
+  const firstTokens = new Set(tokenizeTitle(firstNormalized));
+  const secondTokens = new Set(tokenizeTitle(secondNormalized));
+  if (firstTokens.size === 0 || secondTokens.size === 0) return false;
+
+  const shared = [...firstTokens].filter((token) => secondTokens.has(token)).length;
+  const smaller = Math.min(firstTokens.size, secondTokens.size);
+  return shared >= 4 && shared / smaller >= 0.65;
+}
+
+function tokenizeTitle(value: string) {
+  const stopWords = new Set([
+    "and",
+    "for",
+    "from",
+    "into",
+    "its",
+    "new",
+    "news",
+    "press",
+    "release",
+    "the",
+    "with",
+  ]);
+  return value.split(/\s+/).filter((token) => token.length > 2 && !stopWords.has(token));
 }
 
 function decodeHtml(value: string) {

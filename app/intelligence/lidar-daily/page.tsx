@@ -81,12 +81,15 @@ export default async function LidarDailyPage() {
 }
 
 function LidarArticleCard({ article, featured = false }: { article: MarketArticle; featured?: boolean }) {
+  const featuredWithImage = featured && Boolean(article.sourceImageUrl);
   return (
-    <article className={`mt-6 flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] ${featured ? "lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:gap-6" : ""}`}>
-      <div className="aspect-[16/9] overflow-hidden rounded-lg bg-[#E8F1FB]">
-        <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
-      </div>
-      <div className={featured ? "mt-5 lg:mt-0" : "mt-5"}>
+    <article className={`mt-6 flex h-full flex-col rounded-lg border border-[#D9DDE3] bg-white p-5 shadow-[0_8px_24px_rgba(10,25,47,0.05)] ${featuredWithImage ? "lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:gap-6" : ""}`}>
+      {article.sourceImageUrl && (
+        <div className="aspect-[16/9] overflow-hidden rounded-lg bg-[#E8F1FB]">
+          <img alt="" className="h-full w-full object-cover" src={article.sourceImageUrl} />
+        </div>
+      )}
+      <div className={featuredWithImage ? "mt-5 lg:mt-0" : article.sourceImageUrl ? "mt-5" : ""}>
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#057642]">
           <span>{article.category || "LiDAR"}</span>
           <span>&middot;</span>

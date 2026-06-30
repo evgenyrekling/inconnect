@@ -1,7 +1,7 @@
 type DigestEmailInput = {
   briefingText: string;
   digestTitle: string;
-  heroImageUrl: string;
+  heroImageUrl?: string | null;
   readUrl: string;
   sourceUrl?: string;
   title: string;
@@ -42,7 +42,9 @@ export function renderDigestEmail({
     '<div style="font-size:22px;font-weight:800;letter-spacing:0.02em;">INConnect</div>',
     '<div style="font-size:12px;color:#b8d3ff;margin-top:3px;">Professional Intelligence Platform</div>',
     "</td></tr>",
-    `<tr><td><img src="${escapeHtml(heroImageUrl)}" alt="" width="680" style="display:block;width:100%;height:auto;border:0;" /></td></tr>`,
+    heroImageUrl
+      ? `<tr><td><img src="${escapeHtml(heroImageUrl)}" alt="" width="680" style="display:block;width:100%;height:auto;border:0;" /></td></tr>`
+      : "",
     '<tr><td style="padding:28px;">',
     `<p style="margin:0 0 10px;color:#0a66c2;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">${escapeHtml(digestTitle)}</p>`,
     `<h1 style="margin:0 0 18px;font-size:28px;line-height:1.2;color:#191919;">${escapeHtml(title)}</h1>`,

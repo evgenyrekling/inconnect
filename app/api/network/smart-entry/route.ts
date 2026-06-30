@@ -19,6 +19,7 @@ type SmartEntryDraft = {
   companies?: SmartCompanyDraft[];
   links?: SmartLinkDraft[];
   professionals?: SmartProfessionalDraft[];
+  relationships?: SmartLinkDraft[];
 };
 
 type SmartProfessionalDraft = {
@@ -161,7 +162,21 @@ async function saveSmartEntryDraft(
   const professionalIds: string[] = [];
 
   for (const company of draft.companies ?? []) {
-    const existingId = cleanText(company.use_existing_company_id);
+    let existingId = cleanText(company.use_existing_company_id);
+    if (!existingId) {
+      const duplicates = await checkCompanyDuplicates({
+        city: company.city,
+        companyName: company.display_name || company.name,
+        companyType: company.company_type || "Other",
+        country: company.country_name,
+        description: company.description,
+        industry: company.industry || "Unknown",
+        linkedinUrl: company.linkedin_url,
+        notes: company.notes,
+        website: company.website,
+      });
+      existingId = duplicates.exactDuplicate?.id ?? "";
+    }
     if (existingId) {
       const existing = await getCompanyAccountById(existingId);
       if (!existing) throw new Error("Selected existing company was not found.");
@@ -213,7 +228,7 @@ async function saveSmartEntryDraft(
     });
   }
 
-  for (const link of draft.links ?? []) {
+  for (const link of getDraftLinks(draft)) {
     const professionalId = professionalIds[Number(link.professional_index ?? -1)];
     const companyId = companyIds[Number(link.company_index ?? -1)];
     if (!professionalId || !companyId) continue;
@@ -367,7 +382,9 @@ async function findProfessionalDuplicate(
   const normalizedLinkedin = linkedin ? parseProfessionalLinkedInUrl(linkedin)?.normalizedLinkedinUrl ?? "" : "";
   const professionalEmail = cleanEmail(professional.professional_email);
   const normalizedProfessionalEmail = professionalEmail ? normalizeEmail(professionalEmail) : "";
-  if (!normalizedLinkedin && !normalizedProfessionalEmail) return null;
+  if (!normalizedLinkedin && !normalizedProfessionalEmail) {
+    return findProfessionalNameCompanyDuplicate(professional, owner);
+  }
 
   const supabase = getSupabaseAdminClient();
   let query = supabase
@@ -393,6 +410,37 @@ async function findProfessionalDuplicate(
     return null;
   }
   return data;
+}
+
+async function findProfessionalNameCompanyDuplicate(
+  professional: SmartProfessionalDraft,
+  owner: NonNullable<Awaited<ReturnType<typeof getVerifiedInconnectUserFromRequest>>>,
+) {
+  const displayName = cleanText(professional.full_name);
+  const currentCompany = cleanText(professional.current_company);
+  if (!displayName || !currentCompany) return null;
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("public_profiles")
+    .select("id, display_name, slug")
+    .eq("profile_type", "professional")
+    .eq("owner_user_id", owner.userId)
+    .eq("display_name", displayName)
+    .eq("current_company", currentCompany)
+    .neq("visibility", "removed")
+    .limit(1)
+    .maybeSingle<ProfessionalRow>();
+
+  if (error) {
+    console.error("SMART ENTRY PROFESSIONAL NAME/COMPANY DUPLICATE LOOKUP ERROR", error);
+    return null;
+  }
+  return data;
+}
+
+function getDraftLinks(draft: SmartEntryDraft) {
+  return draft.links ?? draft.relationships ?? [];
 }
 
 async function ensureUniqueSlug(base: string) {

@@ -14,7 +14,7 @@ export type MarketArticle = {
   qualityScore: number | null;
   slug: string;
   sourceDomain: string;
-  sourceImageUrl: string;
+  sourceImageUrl: string | null;
   sourceName: string;
   sourceUrl: string;
   status: string;
@@ -65,8 +65,6 @@ const MARKET_ARTICLE_SELECT = [
   "created_at",
   "updated_at",
 ].join(", ");
-
-export const DEFAULT_MARKET_ARTICLE_IMAGE = "/hero-professionals-collage.png";
 
 export async function getPublishedMarketArticles(articleType: string, limit?: number) {
   try {
@@ -136,13 +134,20 @@ export function mapMarketArticleRow(row: MarketArticleRow): MarketArticle {
     qualityScore: row.quality_score,
     slug: row.slug,
     sourceDomain: row.source_domain ?? "",
-    sourceImageUrl: row.source_image_url || DEFAULT_MARKET_ARTICLE_IMAGE,
+    sourceImageUrl: normalizeSourceImageUrl(row.source_image_url),
     sourceName: row.source_name ?? "",
     sourceUrl: row.source_url ?? "",
     status: row.status ?? "",
     title: row.title,
     updatedAt: row.updated_at ?? row.created_at,
   };
+}
+
+function normalizeSourceImageUrl(value: string | null) {
+  const imageUrl = value?.trim();
+  if (!imageUrl) return null;
+  if (imageUrl === "/hero-professionals-collage.png") return null;
+  return imageUrl;
 }
 
 export function formatMarketArticleDate(value: string) {

@@ -3,7 +3,7 @@ import { renderDigestEmail } from "@/lib/digest-email";
 type SendDigestEmailInput = {
   briefingText: string;
   digestTitle: string;
-  heroImageUrl: string;
+  heroImageUrl?: string | null;
   readUrl: string;
   replyTo?: string;
   sourceUrl?: string;
